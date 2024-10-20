@@ -233,6 +233,29 @@ BuildReleaseAndroid() {
   done
 }
 
+BuildReleaseFreeBSD() {
+  rm -rf .git/
+  mkdir -p "build/freebsd"
+  OS_ARCHES=(amd64 arm64 i386)
+  GO_ARCHES=(amd64 arm64 386)
+  CGO_ARGS=(x86_64-unknown-freebsd14.1 aarch64-unknown-freebsd14.1 i386-unknown-freebsd14.1)
+  for i in "${!OS_ARCHES[@]}"; do
+    os_arch=${OS_ARCHES[$i]}
+    cgo_cc="clang --target=${CGO_ARGS[$i]} --sysroot=/opt/freebsd/${os_arch}"
+    echo building for freebsd-${os_arch}
+    sudo mkdir -p "/opt/freebsd/${os_arch}"
+    wget -q https://download.freebsd.org/releases/${os_arch}/14.1-RELEASE/base.txz
+    sudo tar -xf ./base.txz -C /opt/freebsd/${os_arch}
+    rm base.txz
+    export GOOS=freebsd
+    export GOARCH=${GO_ARCHES[$i]}
+    export CC=${cgo_cc}
+    export CGO_ENABLED=1
+    export CGO_LDFLAGS="-fuse-ld=lld"
+    go build -o ./build/$appName-freebsd-$os_arch -ldflags="$ldflags" -tags=jsoniter .
+  done
+}
+
 MakeRelease() {
   cd build
   mkdir compress
@@ -247,6 +270,11 @@ MakeRelease() {
     rm -f alist
   done
   for i in $(find . -type f -name "$appName-darwin-*"); do
+    cp "$i" alist
+    tar -czvf compress/"$i".tar.gz alist
+    rm -f alist
+  done
+  for i in $(find . -type f -name "$appName-freebsd-*"); do
     cp "$i" alist
     tar -czvf compress/"$i".tar.gz alist
     rm -f alist
@@ -288,6 +316,9 @@ elif [ "$1" = "release" ]; then
   elif [ "$2" = "android" ]; then
     BuildReleaseAndroid
     MakeRelease "md5-android.txt"
+  elif [ "$2" = "freebsd" ]; then
+    BuildReleaseFreeBSD
+    MakeRelease "md5-freebsd.txt"
   elif [ "$2" = "web" ]; then
     echo "web only"
   else
