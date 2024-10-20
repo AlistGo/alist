@@ -68,51 +68,51 @@ const (
 	WebClientID          = "YUMx5nI8ZU8Ap8pm"
 	WebClientSecret      = "dbw2OtmVEeuUvIptb1Coyg"
 	WebClientVersion     = "2.0.0"
-	WebPackageName       = "mypikpak.com"
+	WebPackageName       = "mypikpak.net"
 	WebSdkVersion        = "8.0.3"
 	PCClientID           = "YvtoWO6GNHiuCl7x"
 	PCClientSecret       = "1NIH5R1IEe2pAxZE3hv3uA"
 	PCClientVersion      = "undefined" // 2.5.6.4831
-	PCPackageName        = "mypikpak.com"
+	PCPackageName        = "mypikpak.net"
 	PCSdkVersion         = "8.0.3"
 )
 
 var DlAddr = []string{
-	"dl-a10b-0621.mypikpak.com",
-	"dl-a10b-0622.mypikpak.com",
-	"dl-a10b-0623.mypikpak.com",
-	"dl-a10b-0624.mypikpak.com",
-	"dl-a10b-0625.mypikpak.com",
-	"dl-a10b-0858.mypikpak.com",
-	"dl-a10b-0859.mypikpak.com",
-	"dl-a10b-0860.mypikpak.com",
-	"dl-a10b-0861.mypikpak.com",
-	"dl-a10b-0862.mypikpak.com",
-	"dl-a10b-0863.mypikpak.com",
-	"dl-a10b-0864.mypikpak.com",
-	"dl-a10b-0865.mypikpak.com",
-	"dl-a10b-0866.mypikpak.com",
-	"dl-a10b-0867.mypikpak.com",
-	"dl-a10b-0868.mypikpak.com",
-	"dl-a10b-0869.mypikpak.com",
-	"dl-a10b-0870.mypikpak.com",
-	"dl-a10b-0871.mypikpak.com",
-	"dl-a10b-0872.mypikpak.com",
-	"dl-a10b-0873.mypikpak.com",
-	"dl-a10b-0874.mypikpak.com",
-	"dl-a10b-0875.mypikpak.com",
-	"dl-a10b-0876.mypikpak.com",
-	"dl-a10b-0877.mypikpak.com",
-	"dl-a10b-0878.mypikpak.com",
-	"dl-a10b-0879.mypikpak.com",
-	"dl-a10b-0880.mypikpak.com",
-	"dl-a10b-0881.mypikpak.com",
-	"dl-a10b-0882.mypikpak.com",
-	"dl-a10b-0883.mypikpak.com",
-	"dl-a10b-0884.mypikpak.com",
-	"dl-a10b-0885.mypikpak.com",
-	"dl-a10b-0886.mypikpak.com",
-	"dl-a10b-0887.mypikpak.com",
+	"dl-a10b-0621.mypikpak.net",
+	"dl-a10b-0622.mypikpak.net",
+	"dl-a10b-0623.mypikpak.net",
+	"dl-a10b-0624.mypikpak.net",
+	"dl-a10b-0625.mypikpak.net",
+	"dl-a10b-0858.mypikpak.net",
+	"dl-a10b-0859.mypikpak.net",
+	"dl-a10b-0860.mypikpak.net",
+	"dl-a10b-0861.mypikpak.net",
+	"dl-a10b-0862.mypikpak.net",
+	"dl-a10b-0863.mypikpak.net",
+	"dl-a10b-0864.mypikpak.net",
+	"dl-a10b-0865.mypikpak.net",
+	"dl-a10b-0866.mypikpak.net",
+	"dl-a10b-0867.mypikpak.net",
+	"dl-a10b-0868.mypikpak.net",
+	"dl-a10b-0869.mypikpak.net",
+	"dl-a10b-0870.mypikpak.net",
+	"dl-a10b-0871.mypikpak.net",
+	"dl-a10b-0872.mypikpak.net",
+	"dl-a10b-0873.mypikpak.net",
+	"dl-a10b-0874.mypikpak.net",
+	"dl-a10b-0875.mypikpak.net",
+	"dl-a10b-0876.mypikpak.net",
+	"dl-a10b-0877.mypikpak.net",
+	"dl-a10b-0878.mypikpak.net",
+	"dl-a10b-0879.mypikpak.net",
+	"dl-a10b-0880.mypikpak.net",
+	"dl-a10b-0881.mypikpak.net",
+	"dl-a10b-0882.mypikpak.net",
+	"dl-a10b-0883.mypikpak.net",
+	"dl-a10b-0884.mypikpak.net",
+	"dl-a10b-0885.mypikpak.net",
+	"dl-a10b-0886.mypikpak.net",
+	"dl-a10b-0887.mypikpak.net",
 }
 
 func (d *PikPakShare) request(url string, method string, callback base.ReqCallback, resp interface{}) ([]byte, error) {
@@ -159,7 +159,7 @@ func (d *PikPakShare) getSharePassToken() error {
 		"limit":          "100",
 	}
 	var resp ShareResp
-	_, err := d.request("https://api-drive.mypikpak.com/drive/v1/share", http.MethodGet, func(req *resty.Request) {
+	_, err := d.request("https://api-drive.mypikpak.net/drive/v1/share", http.MethodGet, func(req *resty.Request) {
 		req.SetQueryParams(query)
 	}, &resp)
 	if err != nil {
@@ -187,7 +187,7 @@ func (d *PikPakShare) getFiles(id string) ([]File, error) {
 			"pass_code_token": d.PassCodeToken,
 		}
 		var resp ShareResp
-		_, err := d.request("https://api-drive.mypikpak.com/drive/v1/share/detail", http.MethodGet, func(req *resty.Request) {
+		_, err := d.request("https://api-drive.mypikpak.net/drive/v1/share/detail", http.MethodGet, func(req *resty.Request) {
 			req.SetQueryParams(query)
 		}, &resp)
 		if err != nil {
@@ -345,7 +345,7 @@ func (d *PikPakShare) refreshCaptchaToken(action string, metas map[string]string
 	}
 	var e ErrResp
 	var resp CaptchaTokenResponse
-	_, err := d.request("https://user.mypikpak.com/v1/shield/captcha/init", http.MethodPost, func(req *resty.Request) {
+	_, err := d.request("https://user.mypikpak.net/v1/shield/captcha/init", http.MethodPost, func(req *resty.Request) {
 		req.SetError(&e).SetBody(param)
 	}, &resp)
 

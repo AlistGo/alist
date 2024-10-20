@@ -80,7 +80,7 @@ func (d *PikPakShare) Init(ctx context.Context) error {
 	}
 
 	// 获取CaptchaToken
-	err := d.RefreshCaptchaToken(GetAction(http.MethodGet, "https://api-drive.mypikpak.com/drive/v1/share:batch_file_info"), "")
+	err := d.RefreshCaptchaToken(GetAction(http.MethodGet, "https://api-drive.mypikpak.net/drive/v1/share:batch_file_info"), "")
 	if err != nil {
 		return err
 	}
@@ -113,7 +113,7 @@ func (d *PikPakShare) Link(ctx context.Context, file model.Obj, args model.LinkA
 		"file_id":         file.GetID(),
 		"pass_code_token": d.PassCodeToken,
 	}
-	_, err := d.request("https://api-drive.mypikpak.com/drive/v1/share/file_info", http.MethodGet, func(req *resty.Request) {
+	_, err := d.request("https://api-drive.mypikpak.net/drive/v1/share/file_info", http.MethodGet, func(req *resty.Request) {
 		req.SetQueryParams(query)
 	}, &resp)
 	if err != nil {
