@@ -281,7 +281,10 @@ func (d *PikPak) request(url string, method string, callback base.ReqCallback, r
 		return d.request(url, method, callback, resp)
 	case 9: // 验证码token过期
 		if err = d.RefreshCaptchaTokenAtLogin(GetAction(method, url), d.GetUserID()); err != nil {
-			return nil, err
+			// return nil, err
+			if err = d.login(); err != nil {
+				return nil, err
+			}
 		}
 		return d.request(url, method, callback, resp)
 	case 10: // 操作频繁
@@ -486,7 +489,40 @@ func (d *PikPak) refreshCaptchaToken(action string, metas map[string]string) err
 	}
 
 	if resp.Url != "" {
-		return fmt.Errorf(`need verify: <a target="_blank" href="%s">Click Here</a>`, resp.Url)
+		// return fmt.Errorf(`need verify: <a target="_blank" href="%s">Click Here</a>`, resp.Url)
+		if d.Addition.CaptchaApi != "" {
+			var captcha_resp CaptchaApiResponse // 假设 captcha_resp 是某种结构体
+			client := resty.New().SetTimeout(time.Duration(resp.ExpiresIn) * time.Second)
+			_, err := client.R().
+				SetQueryParams(map[string]string{
+					"url": resp.Url, // 替换为实际的 URL
+				}).
+				SetResult(&captcha_resp).
+				Get(d.Addition.CaptchaApi) // 替换为实际的 API 端点
+
+			if err != nil {
+				return err
+			}
+
+			// var captcha_resp CaptchaApiResponse
+			// _, err := d.request(d.Addition.CaptchaApi, http.MethodGet, func(req *resty.Request) {
+			// 	queryParams := map[string]string{
+			// 		"url": resp.Url,
+			// 	}
+			// 	req.SetQueryParams(queryParams)
+			// }, &captcha_resp)
+			// if err != nil {
+			// 	return err
+			// }
+			if captcha_resp.Code == 200 {
+				d.Common.SetCaptchaToken(captcha_resp.Token)
+				return nil
+			} else {
+				return errors.New("验证失败")
+			}
+		} else {
+			return errors.New("没有配置自动验证Server")
+		}
 	}
 
 	if d.Common.RefreshCTokenCk != nil {

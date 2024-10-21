@@ -17,6 +17,7 @@ type Addition struct {
 	DisableMediaLink        bool   `json:"disable_media_link" default:"true"`
 	UseLowLatencyAddress    bool   `json:"use_low_latency_address" default:"false"`
 	CustomLowLatencyAddress string `json:"custom_low_latency_address" default:""`
+	CaptchaApi         		string `json:"captcha_api" default:""`
 }
 
 var config = driver.Config{
