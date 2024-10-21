@@ -191,11 +191,12 @@ func (d *downloader) finishBuf(id int) (isLast bool, buf *Buf) {
 	if id >= len(d.chunks)-1 {
 		return true, nil
 	}
-	if d.nextChunk > id+1 {
-		return false, d.getBuf(id + 1)
+
+	if d.nextChunk < len(d.chunks) {
+		d.sendChunkTask()
 	}
-	ch := d.sendChunkTask()
-	return false, ch.buf
+
+	return false, d.getBuf(id + 1)
 }
 
 // downloadPart is an individual goroutine worker reading from the ch channel
