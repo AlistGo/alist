@@ -4,12 +4,13 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/Xhofe/go-cache"
 	"net/http"
 	"net/url"
 	"path"
 	"strings"
 	"time"
+
+	"github.com/Xhofe/go-cache"
 
 	"github.com/alist-org/alist/v3/internal/conf"
 	"github.com/alist-org/alist/v3/internal/db"
@@ -123,6 +124,10 @@ func GetOIDCClient(c *gin.Context, useCompatibility bool, redirectUri, method st
 	}
 	clientId := setting.GetStr(conf.SSOClientId)
 	clientSecret := setting.GetStr(conf.SSOClientSecret)
+	extraScopes := []string{}
+	if setting.GetStr(conf.SSOExtraScopes) != "" {
+		extraScopes = strings.Split(setting.GetStr(conf.SSOExtraScopes), " ")
+	}
 	return &oauth2.Config{
 		ClientID:     clientId,
 		ClientSecret: clientSecret,
@@ -132,7 +137,7 @@ func GetOIDCClient(c *gin.Context, useCompatibility bool, redirectUri, method st
 		Endpoint: provider.Endpoint(),
 
 		// "openid" is a required scope for OpenID Connect flows.
-		Scopes: []string{oidc.ScopeOpenID, "profile"},
+		Scopes: append([]string{oidc.ScopeOpenID, "profile"}, extraScopes...),
 	}, nil
 }
 
