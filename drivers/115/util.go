@@ -27,8 +27,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-//var UserAgent = driver115.UA115Browser
-
+// var UserAgent = driver115.UA115Browser
 func (d *Pan115) login() error {
 	var err error
 	opts := []driver115.Option{
@@ -46,7 +45,7 @@ func (d *Pan115) login() error {
 		if cr, err = d.client.QRCodeLoginWithApp(s, driver115.LoginApp(d.QRCodeSource)); err != nil {
 			return errors.Wrap(err, "failed to login by qrcode")
 		}
-		d.Cookie = fmt.Sprintf("UID=%s;CID=%s;SEID=%s", cr.UID, cr.CID, cr.SEID)
+		d.Cookie = fmt.Sprintf("UID=%s;CID=%s;SEID=%s;KID=%s", cr.UID, cr.CID, cr.SEID, cr.KID)
 		d.QRCodeToken = ""
 	} else if d.Cookie != "" {
 		if err = cr.FromCookie(d.Cookie); err != nil {
