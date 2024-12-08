@@ -357,7 +357,10 @@ const (
 	TB
 )
 
-func getPartSize(size int64) int64 {
+func (d *Yun139) getPartSize(size int64) int64 {
+	if d.CustomUploadPartSize != 0 {
+		return d.CustomUploadPartSize
+	}
 	// 网盘对于分片数量存在上限
 	if size/GB > 30 {
 		return 512 * MB
@@ -380,24 +383,51 @@ func (d *Yun139) Put(ctx context.Context, dstDir model.Obj, stream model.FileStr
 				return err
 			}
 		}
-		// return errs.NotImplement
+
+		partInfos := []PartInfo{}
+		var partSize = d.getPartSize(stream.GetSize())
+		part := (stream.GetSize() + partSize - 1) / partSize
+		if part == 0 {
+			part = 1
+		}
+		for i := int64(0); i < part; i++ {
+			if utils.IsCanceled(ctx) {
+				return ctx.Err()
+			}
+			start := i * partSize
+			byteSize := stream.GetSize() - start
+			if byteSize > partSize {
+				byteSize = partSize
+			}
+			partNumber := i + 1
+			partInfo := PartInfo{
+				PartNumber: partNumber,
+				PartSize:   byteSize,
+				ParallelHashCtx: ParallelHashCtx{
+					PartOffset: start,
+				},
+			}
+			partInfos = append(partInfos, partInfo)
+		}
+
+		// 筛选出前 100 个 partInfos
+		firstPartInfos := partInfos
+		if len(firstPartInfos) > 100 {
+			firstPartInfos = firstPartInfos[:100]
+		}
+
+		// 获取上传信息和前100个分片的上传地址
 		data := base.Json{
 			"contentHash":          fullHash,
 			"contentHashAlgorithm": "SHA256",
 			"contentType":          "application/octet-stream",
 			"parallelUpload":       false,
-			"partInfos": []base.Json{{
-				"parallelHashCtx": base.Json{
-					"partOffset": 0,
-				},
-				"partNumber": 1,
-				"partSize":   stream.GetSize(),
-			}},
-			"size":           stream.GetSize(),
-			"parentFileId":   dstDir.GetID(),
-			"name":           stream.GetName(),
-			"type":           "file",
-			"fileRenameMode": "auto_rename",
+			"partInfos":            firstPartInfos,
+			"size":                 stream.GetSize(),
+			"parentFileId":         dstDir.GetID(),
+			"name":                 stream.GetName(),
+			"type":                 "file",
+			"fileRenameMode":       "auto_rename",
 		}
 		pathname := "/hcy/file/create"
 		var resp PersonalUploadResp
@@ -410,32 +440,67 @@ func (d *Yun139) Put(ctx context.Context, dstDir model.Obj, stream model.FileStr
 			return nil
 		}
 
+		uploadPartInfos := resp.Data.PartInfos
+
+		// 获取后续分片的上传地址
+		for i := 101; i < len(partInfos); i += 100 {
+			end := i + 100
+			if end > len(partInfos) {
+				end = len(partInfos)
+			}
+			batchPartInfos := partInfos[i:end]
+
+			moredata := base.Json{
+				"fileId":    resp.Data.FileId,
+				"uploadId":  resp.Data.UploadId,
+				"partInfos": batchPartInfos,
+				"commonAccountInfo": base.Json{
+					"account":     d.Account,
+					"accountType": 1,
+				},
+			}
+			pathname := "/hcy/file/getUploadUrl"
+			var moreresp PersonalUploadUrlResp
+			_, err = d.personalPost(pathname, moredata, &moreresp)
+			if err != nil {
+				return err
+			}
+			uploadPartInfos = append(uploadPartInfos, moreresp.Data.PartInfos...)
+		}
+
 		// Progress
 		p := driver.NewProgress(stream.GetSize(), up)
 
-		// Update Progress
-		r := io.TeeReader(stream, p)
+		// 上传所有分片
+		for _, uploadPartInfo := range uploadPartInfos {
+			index := uploadPartInfo.PartNumber - 1
+			partSize := partInfos[index].PartSize
+			log.Debugf("[139] uploading part %+v/%+v", index, len(uploadPartInfos))
+			limitReader := io.LimitReader(stream, partSize)
 
-		req, err := http.NewRequest("PUT", resp.Data.PartInfos[0].UploadUrl, r)
-		if err != nil {
-			return err
-		}
-		req = req.WithContext(ctx)
-		req.Header.Set("Content-Type", "application/octet-stream")
-		req.Header.Set("Content-Length", fmt.Sprint(stream.GetSize()))
-		req.Header.Set("Origin", "https://yun.139.com")
-		req.Header.Set("Referer", "https://yun.139.com/")
-		req.ContentLength = stream.GetSize()
+			// Update Progress
+			r := io.TeeReader(limitReader, p)
 
-		res, err := base.HttpClient.Do(req)
-		if err != nil {
-			return err
-		}
+			req, err := http.NewRequest("PUT", uploadPartInfo.UploadUrl, r)
+			if err != nil {
+				return err
+			}
+			req = req.WithContext(ctx)
+			req.Header.Set("Content-Type", "application/octet-stream")
+			req.Header.Set("Content-Length", fmt.Sprint(partSize))
+			req.Header.Set("Origin", "https://yun.139.com")
+			req.Header.Set("Referer", "https://yun.139.com/")
+			req.ContentLength = partSize
 
-		_ = res.Body.Close()
-		log.Debugf("%+v", res)
-		if res.StatusCode != http.StatusOK {
-			return fmt.Errorf("unexpected status code: %d", res.StatusCode)
+			res, err := base.HttpClient.Do(req)
+			if err != nil {
+				return err
+			}
+			_ = res.Body.Close()
+			log.Debugf("[139] uploaded: %+v", res)
+			if res.StatusCode != http.StatusOK {
+				return fmt.Errorf("unexpected status code: %d", res.StatusCode)
+			}
 		}
 
 		data = base.Json{
@@ -496,7 +561,7 @@ func (d *Yun139) Put(ctx context.Context, dstDir model.Obj, stream model.FileStr
 		// Progress
 		p := driver.NewProgress(stream.GetSize(), up)
 
-		var partSize = getPartSize(stream.GetSize())
+		var partSize = d.getPartSize(stream.GetSize())
 		part := (stream.GetSize() + partSize - 1) / partSize
 		if part == 0 {
 			part = 1

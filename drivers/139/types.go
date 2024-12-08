@@ -196,6 +196,16 @@ type QueryContentListResp struct {
 	} `json:"data"`
 }
 
+type ParallelHashCtx struct {
+	PartOffset int64 `json:"partOffset"`
+}
+
+type PartInfo struct {
+	PartNumber      int64           `json:"partNumber"`
+	PartSize        int64           `json:"partSize"`
+	ParallelHashCtx ParallelHashCtx `json:"parallelHashCtx"`
+}
+
 type PersonalThumbnail struct {
 	Style string `json:"style"`
 	Url   string `json:"url"`
@@ -232,6 +242,15 @@ type PersonalUploadResp struct {
 		Exist       bool               `json:"exist"`
 		RapidUpload bool               `json:"rapidUpload"`
 		UploadId    string             `json:"uploadId"`
+	}
+}
+
+type PersonalUploadUrlResp struct {
+	BaseResp
+	Data struct {
+		FileId    string             `json:"fileId"`
+		UploadId  string             `json:"uploadId"`
+		PartInfos []PersonalPartInfo `json:"partInfos"`
 	}
 }
 
