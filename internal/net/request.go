@@ -169,9 +169,7 @@ func (d *downloader) sendChunkTask() *chunk {
 
 // when the final reader Close, we interrupt
 func (d *downloader) interrupt() error {
-	if d.chunkChannel == nil {
-		return nil
-	}
+
 	d.cancel()
 	if d.written != d.params.Range.Length {
 		log.Debugf("Downloader interrupt before finish")
@@ -181,7 +179,6 @@ func (d *downloader) interrupt() error {
 	}
 	defer func() {
 		close(d.chunkChannel)
-		d.chunkChannel = nil
 		for _, buf := range d.bufs {
 			buf.Close()
 		}
