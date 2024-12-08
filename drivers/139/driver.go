@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -14,15 +15,16 @@ import (
 	"github.com/alist-org/alist/v3/internal/driver"
 	"github.com/alist-org/alist/v3/internal/errs"
 	"github.com/alist-org/alist/v3/internal/model"
-	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/alist-org/alist/v3/pkg/cron"
+	"github.com/alist-org/alist/v3/pkg/utils"
+	"github.com/alist-org/alist/v3/pkg/utils/random"
 	log "github.com/sirupsen/logrus"
 )
 
 type Yun139 struct {
 	model.Storage
 	Addition
-	cron   *cron.Cron
+	cron    *cron.Cron
 	Account string
 }
 
@@ -108,9 +110,9 @@ func (d *Yun139) Link(ctx context.Context, file model.Obj, args model.LinkArgs) 
 	case MetaPersonalNew:
 		url, err = d.personalGetLink(file.GetID())
 	case MetaPersonal:
-		fallthrough
-	case MetaFamily:
 		url, err = d.getLink(file.GetID())
+	case MetaFamily:
+		url, err = d.familyGetLink(file.GetID(), file.GetPath())
 	default:
 		return nil, errs.NotImplement
 	}
@@ -154,8 +156,9 @@ func (d *Yun139) MakeDir(ctx context.Context, parentDir model.Obj, dirName strin
 				"accountType": 1,
 			},
 			"docLibName": dirName,
+			"path":       path.Join(parentDir.GetPath(), parentDir.GetID()),
 		}
-		pathname := "/orchestration/familyCloud/cloudCatalog/v1.0/createCloudDoc"
+		pathname := "/orchestration/familyCloud-rebuild/cloudCatalog/v1.0/createCloudDoc"
 		_, err = d.post(pathname, data, nil)
 	default:
 		err = errs.NotImplement
@@ -244,6 +247,36 @@ func (d *Yun139) Rename(ctx context.Context, srcObj model.Obj, newName string) e
 				},
 			}
 			pathname = "/orchestration/personalCloud/content/v1.0/updateContentInfo"
+		}
+		_, err = d.post(pathname, data, nil)
+	case MetaFamily:
+		var data base.Json
+		var pathname string
+		if srcObj.IsDir() {
+			// 网页接口不支持重命名家庭云文件夹
+			// data = base.Json{
+			// 	"catalogType": 3,
+			// 	"catalogID":   srcObj.GetID(),
+			// 	"catalogName": newName,
+			// 	"commonAccountInfo": base.Json{
+			// 		"account":     d.Account,
+			// 		"accountType": 1,
+			// 	},
+			// 	"path": srcObj.GetPath(),
+			// }
+			// pathname = "/orchestration/familyCloud-rebuild/photoContent/v1.0/modifyCatalogInfo"
+			return errs.NotImplement
+		} else {
+			data = base.Json{
+				"contentID":   srcObj.GetID(),
+				"contentName": newName,
+				"commonAccountInfo": base.Json{
+					"account":     d.Account,
+					"accountType": 1,
+				},
+				"path": srcObj.GetPath(),
+			}
+			pathname = "/orchestration/familyCloud-rebuild/photoContent/v1.0/modifyContentInfo"
 		}
 		_, err = d.post(pathname, data, nil)
 	default:
@@ -337,10 +370,12 @@ func (d *Yun139) Remove(ctx context.Context, obj model.Obj) error {
 					"account":     d.Account,
 					"accountType": 1,
 				},
+				"sourceCloudID":     d.CloudID,
 				"sourceCatalogType": 1002,
 				"taskType":          2,
+				"path":              obj.GetPath(),
 			}
-			pathname = "/orchestration/familyCloud/batchOprTask/v1.0/createBatchOprTask"
+			pathname = "/orchestration/familyCloud-rebuild/batchOprTask/v1.0/createBatchOprTask"
 		}
 		_, err := d.post(pathname, data, nil)
 		return err
@@ -471,21 +506,20 @@ func (d *Yun139) Put(ctx context.Context, dstDir model.Obj, stream model.FileStr
 		}
 		pathname := "/orchestration/personalCloud/uploadAndDownload/v1.0/pcUploadFileRequest"
 		if d.isFamily() {
-			// data = d.newJson(base.Json{
-			// 	"fileCount":    1,
-			// 	"manualRename": 2,
-			// 	"operation":    0,
-			// 	"path":         "",
-			// 	"seqNo":        "",
-			// 	"totalSize":    0,
-			// 	"uploadContentList": []base.Json{{
-			// 		"contentName": stream.GetName(),
-			// 		"contentSize": 0,
-			// 		// "digest": "5a3231986ce7a6b46e408612d385bafa"
-			// 	}},
-			// })
-			// pathname = "/orchestration/familyCloud/content/v1.0/getFileUploadURL"
-			return errs.NotImplement
+			data = d.newJson(base.Json{
+				"fileCount":    1,
+				"manualRename": 2,
+				"operation":    0,
+				"path":         path.Join(dstDir.GetPath(), dstDir.GetID()),
+				"seqNo":        random.String(32), //序列号不能为空
+				"totalSize":    0,
+				"uploadContentList": []base.Json{{
+					"contentName": stream.GetName(),
+					"contentSize": 0,
+					// "digest": "5a3231986ce7a6b46e408612d385bafa"
+				}},
+			})
+			pathname = "/orchestration/familyCloud-rebuild/content/v1.0/getFileUploadURL"
 		}
 		var resp UploadResp
 		_, err := d.post(pathname, data, &resp)

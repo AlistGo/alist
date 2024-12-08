@@ -13,9 +13,9 @@ import (
 
 	"github.com/alist-org/alist/v3/drivers/base"
 	"github.com/alist-org/alist/v3/internal/model"
+	"github.com/alist-org/alist/v3/internal/op"
 	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/alist-org/alist/v3/pkg/utils/random"
-	"github.com/alist-org/alist/v3/internal/op"
 	"github.com/go-resty/resty/v2"
 	jsoniter "github.com/json-iterator/go"
 	log "github.com/sirupsen/logrus"
@@ -220,10 +220,11 @@ func (d *Yun139) familyGetFiles(catalogID string) ([]model.Obj, error) {
 			"sortDirection": 1,
 		})
 		var resp QueryContentListResp
-		_, err := d.post("/orchestration/familyCloud/content/v1.0/queryContentList", data, &resp)
+		_, err := d.post("/orchestration/familyCloud-rebuild/content/v1.2/queryContentList", data, &resp)
 		if err != nil {
 			return nil, err
 		}
+		path := resp.Data.Path
 		for _, catalog := range resp.Data.CloudCatalogList {
 			f := model.Object{
 				ID:       catalog.CatalogID,
@@ -232,6 +233,7 @@ func (d *Yun139) familyGetFiles(catalogID string) ([]model.Obj, error) {
 				IsFolder: true,
 				Modified: getTime(catalog.LastUpdateTime),
 				Ctime:    getTime(catalog.CreateTime),
+				Path:     path, // 文件夹上一级的Path
 			}
 			files = append(files, &f)
 		}
@@ -243,6 +245,7 @@ func (d *Yun139) familyGetFiles(catalogID string) ([]model.Obj, error) {
 					Size:     content.ContentSize,
 					Modified: getTime(content.LastUpdateTime),
 					Ctime:    getTime(content.CreateTime),
+					Path:     path, // 文件所在目录的Path
 				},
 				Thumbnail: model.Thumbnail{Thumbnail: content.ThumbnailURL},
 				//Thumbnail: content.BigthumbnailURL,
@@ -267,6 +270,18 @@ func (d *Yun139) getLink(contentId string) (string, error) {
 		},
 	}
 	res, err := d.post("/orchestration/personalCloud/uploadAndDownload/v1.0/downloadRequest",
+		data, nil)
+	if err != nil {
+		return "", err
+	}
+	return jsoniter.Get(res, "data", "downloadURL").ToString(), nil
+}
+func (d *Yun139) familyGetLink(contentId string, path string) (string, error) {
+	data := d.newJson(base.Json{
+		"contentID": contentId,
+		"path":      path,
+	})
+	res, err := d.post("/orchestration/familyCloud-rebuild/content/v1.0/getFileDownLoadURL",
 		data, nil)
 	if err != nil {
 		return "", err
