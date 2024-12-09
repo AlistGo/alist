@@ -117,6 +117,14 @@ func (u *User) CanWebdavManage() bool {
 	return u.IsAdmin() || (u.Permission>>9)&1 == 1
 }
 
+func (u *User) CanFTPAccess() bool {
+	return (u.Permission>>10)&1 == 1
+}
+
+func (u *User) CanFTPManage() bool {
+	return (u.Permission>>11)&1 == 1
+}
+
 func (u *User) JoinPath(reqPath string) (string, error) {
 	return utils.JoinBasePath(u.BasePath, reqPath)
 }

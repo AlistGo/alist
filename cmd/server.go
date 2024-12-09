@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	ftpserver "github.com/KirCute/ftpserverlib-pasvportmap"
 	"net"
 	"net/http"
 	"os"
@@ -112,6 +113,24 @@ the address is defined in config file`,
 				}
 			}()
 		}
+		var ftpDriver *server.FtpMainDriver
+		var ftpServer *ftpserver.FtpServer
+		if conf.Conf.FTP.Listen != "" && conf.Conf.FTP.Enable {
+			var err error
+			ftpDriver, err = server.NewMainDriver()
+			if err != nil {
+				utils.Log.Fatalf("failed to start ftp driver: %s", err.Error())
+			} else {
+				utils.Log.Infof("start ftp server on %s", conf.Conf.FTP.Listen)
+				go func() {
+					ftpServer = ftpserver.NewFtpServer(ftpDriver)
+					err = ftpServer.ListenAndServe()
+					if err != nil {
+						utils.Log.Fatalf("problem ftp server listening: %s", err.Error())
+					}
+				}()
+			}
+		}
 		// Wait for interrupt signal to gracefully shutdown the server with
 		// a timeout of 1 second.
 		quit := make(chan os.Signal, 1)
@@ -149,6 +168,16 @@ the address is defined in config file`,
 				defer wg.Done()
 				if err := unixSrv.Shutdown(ctx); err != nil {
 					utils.Log.Fatal("Unix server shutdown err: ", err)
+				}
+			}()
+		}
+		if conf.Conf.FTP.Listen != "" && conf.Conf.FTP.Enable && ftpServer != nil && ftpDriver != nil {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				ftpDriver.Stop()
+				if err := ftpServer.Stop(); err != nil {
+					utils.Log.Fatal("FTP server shutdown err: ", err)
 				}
 			}()
 		}

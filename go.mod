@@ -50,8 +50,9 @@ require (
 	github.com/pquerna/otp v1.4.0
 	github.com/rclone/rclone v1.67.0
 	github.com/sirupsen/logrus v1.9.3
+	github.com/spf13/afero v1.11.0
 	github.com/spf13/cobra v1.8.1
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	github.com/t3rm1n4l/go-mega v0.0.0-20240219080617-d494b6a8ace7
 	github.com/u2takey/ffmpeg-go v0.5.0
 	github.com/upyun/go-sdk/v3 v3.0.4
@@ -75,6 +76,7 @@ require (
 
 require (
 	github.com/BurntSushi/toml v0.3.1 // indirect
+	github.com/KirCute/ftpserverlib-pasvportmap v0.0.0-20241208190057-c9a7bf2571e2 // indirect
 	github.com/blevesearch/go-faiss v1.0.20 // indirect
 	github.com/blevesearch/zapx/v16 v16.1.5 // indirect
 	github.com/bytedance/sonic/loader v0.1.1 // indirect
@@ -83,6 +85,7 @@ require (
 	github.com/cloudwego/base64x v0.1.4 // indirect
 	github.com/cloudwego/iasm v0.2.0 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
+	github.com/fclairamb/go-log v0.5.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hekmon/cunits/v2 v2.1.0 // indirect
 	github.com/ipfs/boxo v0.12.0 // indirect
@@ -221,7 +224,7 @@ require (
 	go.etcd.io/bbolt v1.3.8 // indirect
 	golang.org/x/arch v0.8.0 // indirect
 	golang.org/x/sync v0.8.0 // indirect
-	golang.org/x/sys v0.25.0 // indirect
+	golang.org/x/sys v0.28.0 // indirect
 	golang.org/x/term v0.24.0 // indirect
 	golang.org/x/text v0.18.0 // indirect
 	golang.org/x/tools v0.24.0 // indirect
