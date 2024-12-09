@@ -174,7 +174,7 @@ func ServeHTTP(w http.ResponseWriter, r *http.Request, name string, modTime time
 			pw.Close()
 		}()
 	}
-	defer sendContent.Close()
+	//defer sendContent.Close()
 
 	w.Header().Set("Accept-Ranges", "bytes")
 	if w.Header().Get("Content-Encoding") == "" {
