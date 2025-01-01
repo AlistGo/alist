@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/alist-org/alist/v3/internal/conf"
+	"github.com/alist-org/alist/v3/internal/setting"
 	"strconv"
 
 	"github.com/alist-org/alist/v3/drivers/thunder"
@@ -18,7 +20,7 @@ type Thunder struct {
 }
 
 func (t *Thunder) Name() string {
-	return "thunder"
+	return "Thunder"
 }
 
 func (t *Thunder) Items() []model.SettingItem {
@@ -35,13 +37,23 @@ func (t *Thunder) Init() (string, error) {
 }
 
 func (t *Thunder) IsReady() bool {
+	tempDir := setting.GetStr(conf.ThunderTempDir)
+	if tempDir == "" {
+		return false
+	}
+	storage, _, err := op.GetStorageAndActualPath(tempDir)
+	if err != nil {
+		return false
+	}
+	if _, ok := storage.(*thunder.Thunder); !ok {
+		return false
+	}
 	return true
 }
 
 func (t *Thunder) AddURL(args *tool.AddUrlArgs) (string, error) {
 	// 添加新任务刷新缓存
 	t.refreshTaskCache = true
-	// args.TempDir 已经被修改为了 DstDirPath
 	storage, actualPath, err := op.GetStorageAndActualPath(args.TempDir)
 	if err != nil {
 		return "", err
@@ -52,6 +64,11 @@ func (t *Thunder) AddURL(args *tool.AddUrlArgs) (string, error) {
 	}
 
 	ctx := context.Background()
+
+	if err := op.MakeDir(ctx, storage, actualPath); err != nil {
+		return "", err
+	}
+
 	parentDir, err := op.GetUnwrap(ctx, storage, actualPath)
 	if err != nil {
 		return "", err
@@ -66,7 +83,7 @@ func (t *Thunder) AddURL(args *tool.AddUrlArgs) (string, error) {
 }
 
 func (t *Thunder) Remove(task *tool.DownloadTask) error {
-	storage, _, err := op.GetStorageAndActualPath(task.DstDirPath)
+	storage, _, err := op.GetStorageAndActualPath(task.TempDir)
 	if err != nil {
 		return err
 	}
@@ -83,7 +100,7 @@ func (t *Thunder) Remove(task *tool.DownloadTask) error {
 }
 
 func (t *Thunder) Status(task *tool.DownloadTask) (*tool.Status, error) {
-	storage, _, err := op.GetStorageAndActualPath(task.DstDirPath)
+	storage, _, err := op.GetStorageAndActualPath(task.TempDir)
 	if err != nil {
 		return nil, err
 	}

@@ -3,6 +3,8 @@ package _115
 import (
 	"context"
 	"fmt"
+	"github.com/alist-org/alist/v3/internal/conf"
+	"github.com/alist-org/alist/v3/internal/setting"
 
 	"github.com/alist-org/alist/v3/drivers/115"
 	"github.com/alist-org/alist/v3/internal/errs"
@@ -33,13 +35,23 @@ func (p *Cloud115) Init() (string, error) {
 }
 
 func (p *Cloud115) IsReady() bool {
+	tempDir := setting.GetStr(conf.Pan115TempDir)
+	if tempDir == "" {
+		return false
+	}
+	storage, _, err := op.GetStorageAndActualPath(tempDir)
+	if err != nil {
+		return false
+	}
+	if _, ok := storage.(*_115.Pan115); !ok {
+		return false
+	}
 	return true
 }
 
 func (p *Cloud115) AddURL(args *tool.AddUrlArgs) (string, error) {
 	// 添加新任务刷新缓存
 	p.refreshTaskCache = true
-	// args.TempDir 已经被修改为了 DstDirPath
 	storage, actualPath, err := op.GetStorageAndActualPath(args.TempDir)
 	if err != nil {
 		return "", err
@@ -50,6 +62,11 @@ func (p *Cloud115) AddURL(args *tool.AddUrlArgs) (string, error) {
 	}
 
 	ctx := context.Background()
+
+	if err := op.MakeDir(ctx, storage, actualPath); err != nil {
+		return "", err
+	}
+
 	parentDir, err := op.GetUnwrap(ctx, storage, actualPath)
 	if err != nil {
 		return "", err
@@ -64,7 +81,7 @@ func (p *Cloud115) AddURL(args *tool.AddUrlArgs) (string, error) {
 }
 
 func (p *Cloud115) Remove(task *tool.DownloadTask) error {
-	storage, _, err := op.GetStorageAndActualPath(task.DstDirPath)
+	storage, _, err := op.GetStorageAndActualPath(task.TempDir)
 	if err != nil {
 		return err
 	}
@@ -81,7 +98,7 @@ func (p *Cloud115) Remove(task *tool.DownloadTask) error {
 }
 
 func (p *Cloud115) Status(task *tool.DownloadTask) (*tool.Status, error) {
-	storage, _, err := op.GetStorageAndActualPath(task.DstDirPath)
+	storage, _, err := op.GetStorageAndActualPath(task.TempDir)
 	if err != nil {
 		return nil, err
 	}

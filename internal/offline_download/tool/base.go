@@ -1,10 +1,6 @@
 package tool
 
 import (
-	"io"
-	"os"
-	"time"
-
 	"github.com/alist-org/alist/v3/internal/model"
 )
 
@@ -39,29 +35,4 @@ type Tool interface {
 
 	// Run for simple http download
 	Run(task *DownloadTask) error
-}
-
-type GetFileser interface {
-	// GetFiles return the files of the download task, if nil, means walk the temp dir to get the files
-	GetFiles(task *DownloadTask) []File
-}
-
-type File struct {
-	// ReadCloser for http client
-	ReadCloser io.ReadCloser
-	Name       string
-	Size       int64
-	Path       string
-	Modified   time.Time
-}
-
-func (f *File) GetReadCloser() (io.ReadCloser, error) {
-	if f.ReadCloser != nil {
-		return f.ReadCloser, nil
-	}
-	file, err := os.Open(f.Path)
-	if err != nil {
-		return nil, err
-	}
-	return file, nil
 }

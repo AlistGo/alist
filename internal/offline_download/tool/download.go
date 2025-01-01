@@ -40,7 +40,7 @@ func (t *DownloadTask) Run() error {
 	}
 	if err := t.tool.Run(t); !errs.IsNotSupportError(err) {
 		if err == nil {
-			return t.Complete()
+			return t.Transfer()
 		}
 		return err
 	}
@@ -80,10 +80,10 @@ outer:
 	if err != nil {
 		return err
 	}
-	if t.tool.Name() == "pikpak" {
+	if t.tool.Name() == "Pikpak" {
 		return nil
 	}
-	if t.tool.Name() == "thunder" {
+	if t.tool.Name() == "Thunder" {
 		return nil
 	}
 	if t.tool.Name() == "115 Cloud" {
@@ -109,7 +109,7 @@ outer:
 		}
 	}
 
-	if t.tool.Name() == "transmission" {
+	if t.tool.Name() == "Transmission" {
 		// hack for transmission
 		seedTime := setting.GetInt(conf.TransmissionSeedtime, 0)
 		if seedTime >= 0 {
@@ -146,7 +146,7 @@ func (t *DownloadTask) Update() (bool, error) {
 	}
 	// if download completed
 	if info.Completed {
-		err := t.Complete()
+		err := t.Transfer()
 		return true, errors.WithMessage(err, "failed to transfer file")
 	}
 	// if download failed
@@ -156,45 +156,16 @@ func (t *DownloadTask) Update() (bool, error) {
 	return false, nil
 }
 
-func (t *DownloadTask) Complete() error {
-	var (
-		files []File
-		err   error
-	)
-	if t.tool.Name() == "pikpak" {
-		return nil
-	}
-	if t.tool.Name() == "thunder" {
-		return nil
-	}
-	if t.tool.Name() == "115 Cloud" {
-		return nil
-	}
-	if getFileser, ok := t.tool.(GetFileser); ok {
-		files = getFileser.GetFiles(t)
-	} else {
-		files, err = GetFiles(t.TempDir)
-		if err != nil {
-			return errors.Wrapf(err, "failed to get files")
+func (t *DownloadTask) Transfer() error {
+	toolName := t.tool.Name()
+	if toolName == "115 Cloud" || toolName == "PikPak" || toolName == "Thunder" {
+		// 如果不是直接下载到目标路径，则进行转存
+		if t.TempDir != t.DstDirPath {
+			return transferObj(t.Ctx(), t.TempDir, t.DstDirPath, t.DeletePolicy)
 		}
+		return nil
 	}
-	// upload files
-	for i := range files {
-		file := files[i]
-		tsk := &TransferTask{
-			TaskExtension: task.TaskExtension{
-				Creator: t.GetCreator(),
-			},
-			file:         file,
-			DstDirPath:   t.DstDirPath,
-			TempDir:      t.TempDir,
-			DeletePolicy: t.DeletePolicy,
-			FileDir:      file.Path,
-		}
-		tsk.SetTotalBytes(file.Size)
-		TransferTaskManager.Add(tsk)
-	}
-	return nil
+	return transferStd(t.Ctx(), t.TempDir, t.DstDirPath, t.DeletePolicy)
 }
 
 func (t *DownloadTask) GetName() string {

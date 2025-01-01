@@ -29,7 +29,7 @@ func (t *Transmission) Run(task *tool.DownloadTask) error {
 }
 
 func (t *Transmission) Name() string {
-	return "transmission"
+	return "Transmission"
 }
 
 func (t *Transmission) Items() []model.SettingItem {

@@ -3,6 +3,8 @@ package pikpak
 import (
 	"context"
 	"fmt"
+	"github.com/alist-org/alist/v3/internal/conf"
+	"github.com/alist-org/alist/v3/internal/setting"
 	"strconv"
 
 	"github.com/alist-org/alist/v3/drivers/pikpak"
@@ -17,7 +19,7 @@ type PikPak struct {
 }
 
 func (p *PikPak) Name() string {
-	return "pikpak"
+	return "PikPak"
 }
 
 func (p *PikPak) Items() []model.SettingItem {
@@ -34,13 +36,23 @@ func (p *PikPak) Init() (string, error) {
 }
 
 func (p *PikPak) IsReady() bool {
+	tempDir := setting.GetStr(conf.PikPakTempDir)
+	if tempDir == "" {
+		return false
+	}
+	storage, _, err := op.GetStorageAndActualPath(tempDir)
+	if err != nil {
+		return false
+	}
+	if _, ok := storage.(*pikpak.PikPak); !ok {
+		return false
+	}
 	return true
 }
 
 func (p *PikPak) AddURL(args *tool.AddUrlArgs) (string, error) {
 	// 添加新任务刷新缓存
 	p.refreshTaskCache = true
-	// args.TempDir 已经被修改为了 DstDirPath
 	storage, actualPath, err := op.GetStorageAndActualPath(args.TempDir)
 	if err != nil {
 		return "", err
@@ -51,6 +63,11 @@ func (p *PikPak) AddURL(args *tool.AddUrlArgs) (string, error) {
 	}
 
 	ctx := context.Background()
+
+	if err := op.MakeDir(ctx, storage, actualPath); err != nil {
+		return "", err
+	}
+
 	parentDir, err := op.GetUnwrap(ctx, storage, actualPath)
 	if err != nil {
 		return "", err
@@ -65,7 +82,7 @@ func (p *PikPak) AddURL(args *tool.AddUrlArgs) (string, error) {
 }
 
 func (p *PikPak) Remove(task *tool.DownloadTask) error {
-	storage, _, err := op.GetStorageAndActualPath(task.DstDirPath)
+	storage, _, err := op.GetStorageAndActualPath(task.TempDir)
 	if err != nil {
 		return err
 	}
@@ -82,7 +99,7 @@ func (p *PikPak) Remove(task *tool.DownloadTask) error {
 }
 
 func (p *PikPak) Status(task *tool.DownloadTask) (*tool.Status, error) {
-	storage, _, err := op.GetStorageAndActualPath(task.DstDirPath)
+	storage, _, err := op.GetStorageAndActualPath(task.TempDir)
 	if err != nil {
 		return nil, err
 	}
