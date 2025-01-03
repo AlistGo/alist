@@ -1,6 +1,8 @@
 module github.com/alist-org/alist/v3
 
-go 1.22.4
+go 1.23.0
+
+toolchain go1.23.2
 
 require (
 	github.com/KirCute/ftpserverlib-pasvportmap v1.25.0
@@ -18,7 +20,7 @@ require (
 	github.com/charmbracelet/bubbles v0.20.0
 	github.com/charmbracelet/bubbletea v1.1.0
 	github.com/charmbracelet/lipgloss v0.13.0
-	github.com/city404/v6-public-rpc-proto/go v0.0.0-20240817070657-90f8e24b653e
+	github.com/city404/v6-public-rpc-proto/go v0.0.0-20240923171555-b3ec1371da65
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/deckarep/golang-set/v2 v2.6.0
 	github.com/dhowden/tag v0.0.0-20240417053706-3d75831295e8
@@ -65,7 +67,7 @@ require (
 	golang.org/x/crypto v0.30.0
 	golang.org/x/exp v0.0.0-20240904232852-e7e105dedf7e
 	golang.org/x/image v0.19.0
-	golang.org/x/net v0.28.0
+	golang.org/x/net v0.29.0
 	golang.org/x/oauth2 v0.22.0
 	golang.org/x/time v0.8.0
 	google.golang.org/appengine v1.6.8
@@ -231,8 +233,8 @@ require (
 	golang.org/x/text v0.21.0 // indirect
 	golang.org/x/tools v0.24.0 // indirect
 	google.golang.org/api v0.169.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240604185151-ef581f913117 // indirect
-	google.golang.org/grpc v1.66.0
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240814211410-ddb44dafa142 // indirect
+	google.golang.org/grpc v1.67.0
 	google.golang.org/protobuf v1.34.2 // indirect
 	gopkg.in/asn1-ber.v1 v1.0.0-20181015200546-f715ec2f112d // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
