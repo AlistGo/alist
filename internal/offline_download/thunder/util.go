@@ -2,6 +2,7 @@ package thunder
 
 import (
 	"context"
+	"github.com/alist-org/alist/v3/internal/driver"
 	"time"
 
 	"github.com/Xhofe/go-cache"
@@ -13,8 +14,8 @@ import (
 var taskCache = cache.NewMemCache(cache.WithShards[[]thunder.OfflineTask](16))
 var taskG singleflight.Group[[]thunder.OfflineTask]
 
-func (t *Thunder) GetTasks(thunderDriver *thunder.Thunder) ([]thunder.OfflineTask, error) {
-	key := op.Key(thunderDriver, "/drive/v1/task")
+func (t *Thunder) GetTasks(storage driver.Driver) ([]thunder.OfflineTask, error) {
+	key := op.Key(storage, "/drive/v1/task")
 	if !t.refreshTaskCache {
 		if tasks, ok := taskCache.Get(key); ok {
 			return tasks, nil
@@ -22,8 +23,13 @@ func (t *Thunder) GetTasks(thunderDriver *thunder.Thunder) ([]thunder.OfflineTas
 	}
 	t.refreshTaskCache = false
 	tasks, err, _ := taskG.Do(key, func() ([]thunder.OfflineTask, error) {
-		ctx := context.Background()
-		tasks, err := thunderDriver.OfflineList(ctx, "")
+		var tasks []thunder.OfflineTask
+		var err error
+		if thunderDriver, ok := storage.(*thunder.Thunder); ok {
+			tasks, err = thunderDriver.OfflineList(context.Background(), "")
+		} else if expertDriver, ok := storage.(*thunder.ThunderExpert); ok {
+			tasks, err = expertDriver.OfflineList(context.Background(), "")
+		}
 		if err != nil {
 			return nil, err
 		}

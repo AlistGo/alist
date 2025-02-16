@@ -45,10 +45,13 @@ func (t *Thunder) IsReady() bool {
 	if err != nil {
 		return false
 	}
-	if _, ok := storage.(*thunder.Thunder); !ok {
-		return false
+	if _, ok := storage.(*thunder.Thunder); ok {
+		return true
 	}
-	return true
+	if _, ok := storage.(*thunder.ThunderExpert); ok {
+		return true
+	}
+	return false
 }
 
 func (t *Thunder) AddURL(args *tool.AddUrlArgs) (string, error) {
@@ -58,11 +61,6 @@ func (t *Thunder) AddURL(args *tool.AddUrlArgs) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	thunderDriver, ok := storage.(*thunder.Thunder)
-	if !ok {
-		return "", fmt.Errorf("unsupported storage driver for offline download, only Thunder is supported")
-	}
-
 	ctx := context.Background()
 
 	if err := op.MakeDir(ctx, storage, actualPath); err != nil {
@@ -74,7 +72,15 @@ func (t *Thunder) AddURL(args *tool.AddUrlArgs) (string, error) {
 		return "", err
 	}
 
-	task, err := thunderDriver.OfflineDownload(ctx, args.Url, parentDir, "")
+	var task *thunder.OfflineTask
+	if thunderDriver, ok := storage.(*thunder.Thunder); ok {
+		task, err = thunderDriver.OfflineDownload(ctx, args.Url, parentDir, "")
+	} else if expertDriver, ok := storage.(*thunder.ThunderExpert); ok {
+		task, err = expertDriver.OfflineDownload(ctx, args.Url, parentDir, "")
+	} else {
+		return "", fmt.Errorf("unsupported storage driver for offline download, only Thunder or Thunder Expert is supported")
+	}
+
 	if err != nil {
 		return "", fmt.Errorf("failed to add offline download task: %w", err)
 	}
@@ -87,16 +93,14 @@ func (t *Thunder) Remove(task *tool.DownloadTask) error {
 	if err != nil {
 		return err
 	}
-	thunderDriver, ok := storage.(*thunder.Thunder)
-	if !ok {
-		return fmt.Errorf("unsupported storage driver for offline download, only Thunder is supported")
+	if thunderDriver, ok := storage.(*thunder.Thunder); ok {
+		err = thunderDriver.DeleteOfflineTasks(context.Background(), []string{task.GID}, false)
+	} else if expertDriver, ok := storage.(*thunder.ThunderExpert); ok {
+		err = expertDriver.DeleteOfflineTasks(context.Background(), []string{task.GID}, false)
+	} else {
+		return fmt.Errorf("unsupported storage driver for offline download, only Thunder or Thunder Expert is supported")
 	}
-	ctx := context.Background()
-	err = thunderDriver.DeleteOfflineTasks(ctx, []string{task.GID}, false)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func (t *Thunder) Status(task *tool.DownloadTask) (*tool.Status, error) {
@@ -104,11 +108,14 @@ func (t *Thunder) Status(task *tool.DownloadTask) (*tool.Status, error) {
 	if err != nil {
 		return nil, err
 	}
-	thunderDriver, ok := storage.(*thunder.Thunder)
-	if !ok {
-		return nil, fmt.Errorf("unsupported storage driver for offline download, only Thunder is supported")
+	var tasks []thunder.OfflineTask
+	if thunderDriver, ok := storage.(*thunder.Thunder); ok {
+		tasks, err = t.GetTasks(thunderDriver)
+	} else if expertDriver, ok := storage.(*thunder.ThunderExpert); ok {
+		tasks, err = t.GetTasks(expertDriver)
+	} else {
+		return nil, fmt.Errorf("unsupported storage driver for offline download, only Thunder or Thunder Expert is supported")
 	}
-	tasks, err := t.GetTasks(thunderDriver)
 	if err != nil {
 		return nil, err
 	}
