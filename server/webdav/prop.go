@@ -9,7 +9,6 @@ import (
 	"context"
 	"encoding/xml"
 	"errors"
-	"fmt"
 	"mime"
 	"net/http"
 	"path"
@@ -18,6 +17,7 @@ import (
 	"time"
 
 	"github.com/alist-org/alist/v3/internal/model"
+	"github.com/alist-org/alist/v3/server/common"
 )
 
 // Proppatch describes a property update instruction as defined in RFC 4918.
@@ -473,7 +473,7 @@ func findETag(ctx context.Context, ls LockSystem, name string, fi model.Obj) (st
 	// The Apache http 2.4 web server by default concatenates the
 	// modification time and size of a file. We replicate the heuristic
 	// with nanosecond granularity.
-	return fmt.Sprintf(`"%x%x"`, fi.ModTime().UnixNano(), fi.GetSize()), nil
+	return common.GetEtag(fi), nil
 }
 
 func findSupportedLock(ctx context.Context, ls LockSystem, name string, fi model.Obj) (string, error) {

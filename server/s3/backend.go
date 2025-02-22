@@ -195,11 +195,7 @@ func (b *s3Backend) GetObject(ctx context.Context, bucketName, objectName string
 		}
 		rrc := link.RangeReadCloser
 		if len(link.URL) > 0 {
-			rangedRemoteLink := &model.Link{
-				URL:    link.URL,
-				Header: link.Header,
-			}
-			var converted, err = stream.GetRangeReadCloserFromLink(remoteFileSize, rangedRemoteLink)
+			var converted, err = stream.GetRangeReadCloserFromLink(remoteFileSize, link)
 			if err != nil {
 				return nil, err
 			}

@@ -233,9 +233,3 @@ func CopyWithBufferN(dst io.Writer, src io.Reader, n int64) (written int64, err 
 	}
 	return
 }
-
-type NullWriter struct{}
-
-func (NullWriter) Write(p []byte) (n int, err error) {
-	return len(p), nil
-}

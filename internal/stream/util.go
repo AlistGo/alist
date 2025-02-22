@@ -3,13 +3,13 @@ package stream
 import (
 	"context"
 	"fmt"
-	"github.com/alist-org/alist/v3/pkg/utils"
 	"io"
 	"net/http"
 
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/internal/net"
 	"github.com/alist-org/alist/v3/pkg/http_range"
+	"github.com/alist-org/alist/v3/pkg/utils"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -19,7 +19,11 @@ func GetRangeReadCloserFromLink(size int64, link *model.Link) (model.RangeReadCl
 	}
 	rangeReaderFunc := func(ctx context.Context, r http_range.Range) (io.ReadCloser, error) {
 		if link.Concurrency != 0 || link.PartSize != 0 {
-			header := net.ProcessHeader(http.Header{}, link.Header)
+			requestHeader := ctx.Value("request_header")
+			if requestHeader == nil {
+				requestHeader = &http.Header{}
+			}
+			header := net.ProcessHeader(*(requestHeader.(*http.Header)), link.Header)
 			down := net.NewDownloader(func(d *net.Downloader) {
 				d.Concurrency = link.Concurrency
 				d.PartSize = link.PartSize
@@ -60,7 +64,11 @@ func GetRangeReadCloserFromLink(size int64, link *model.Link) (model.RangeReadCl
 }
 
 func RequestRangedHttp(ctx context.Context, link *model.Link, offset, length int64) (*http.Response, error) {
-	header := net.ProcessHeader(http.Header{}, link.Header)
+	requestHeader := ctx.Value("request_header")
+	if requestHeader == nil {
+		requestHeader = &http.Header{}
+	}
+	header := net.ProcessHeader(*(requestHeader.(*http.Header)), link.Header)
 	header = http_range.ApplyRangeToHttpHeader(http_range.Range{Start: offset, Length: length}, header)
 
 	return net.RequestHttp(ctx, "GET", header, link.URL)
