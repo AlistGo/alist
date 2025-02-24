@@ -189,7 +189,7 @@ func (d *BaiduNetdisk) Put(ctx context.Context, dstDir model.Obj, stream model.F
 	}
 
 	streamSize := stream.GetSize()
-	sliceSize := d.getSliceSize()
+	sliceSize := d.getSliceSize(streamSize)
 	count := int(math.Max(math.Ceil(float64(streamSize)/float64(sliceSize)), 1))
 	lastBlockSize := streamSize % sliceSize
 	if streamSize > 0 && lastBlockSize == 0 {
@@ -197,7 +197,7 @@ func (d *BaiduNetdisk) Put(ctx context.Context, dstDir model.Obj, stream model.F
 	}
 
 	//cal md5 for first 256k data
-	const SliceSize int64 = 256 * 1024
+	const SliceSize int64 = 256 * utils.KB
 	// cal md5
 	blockList := make([]string, 0, count)
 	byteSize := sliceSize

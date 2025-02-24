@@ -136,7 +136,7 @@ func (d *BaiduNetdisk) getFiles(dir string) ([]File, error) {
 	return res, nil
 }
 
-func (d *BaiduNetdisk) linkOfficial(file model.Obj, args model.LinkArgs) (*model.Link, error) {
+func (d *BaiduNetdisk) linkOfficial(file model.Obj, _ model.LinkArgs) (*model.Link, error) {
 	var resp DownloadResp
 	params := map[string]string{
 		"method": "filemetas",
@@ -164,7 +164,7 @@ func (d *BaiduNetdisk) linkOfficial(file model.Obj, args model.LinkArgs) (*model
 	}, nil
 }
 
-func (d *BaiduNetdisk) linkCrack(file model.Obj, args model.LinkArgs) (*model.Link, error) {
+func (d *BaiduNetdisk) linkCrack(file model.Obj, _ model.LinkArgs) (*model.Link, error) {
 	var resp DownloadResp2
 	param := map[string]string{
 		"target": fmt.Sprintf("[\"%s\"]", file.GetPath()),
@@ -230,22 +230,72 @@ func joinTime(form map[string]string, ctime, mtime int64) {
 
 const (
 	DefaultSliceSize int64 = 4 * utils.MB
-	VipSliceSize           = 16 * utils.MB
-	SVipSliceSize          = 32 * utils.MB
+	VipSliceSize     int64 = 16 * utils.MB
+	SVipSliceSize    int64 = 32 * utils.MB
+
+	MaxSliceNum       = 2048 // 文档写的是 1024/没写 ，但实际测试是 2048
+	SliceStep   int64 = 1 * utils.MB
 )
 
-func (d *BaiduNetdisk) getSliceSize() int64 {
-	if d.CustomUploadPartSize != 0 {
-		return d.CustomUploadPartSize
-	}
-	switch d.vipType {
-	case 1:
-		return VipSliceSize
-	case 2:
-		return SVipSliceSize
-	default:
+func (d *BaiduNetdisk) getSliceSize(filesize int64) int64 {
+	// 非会员固定为 4MB
+	if d.vipType == 0 {
+		if d.CustomUploadPartSize != 0 {
+			log.Warnf("CustomUploadPartSize is not supported for non-vip user, use DefaultSliceSize")
+		}
+		if filesize > MaxSliceNum*DefaultSliceSize {
+			log.Warnf("File size(%d) is too large, may cause upload failure", filesize)
+		}
+
 		return DefaultSliceSize
 	}
+
+	if d.CustomUploadPartSize != 0 {
+		if d.CustomUploadPartSize < DefaultSliceSize {
+			log.Warnf("CustomUploadPartSize(%d) is less than DefaultSliceSize(%d), use DefaultSliceSize", d.CustomUploadPartSize, DefaultSliceSize)
+			return DefaultSliceSize
+		}
+
+		if d.vipType == 1 && d.CustomUploadPartSize > VipSliceSize {
+			log.Warnf("CustomUploadPartSize(%d) is greater than VipSliceSize(%d), use VipSliceSize", d.CustomUploadPartSize, VipSliceSize)
+			return VipSliceSize
+		}
+
+		if d.vipType == 2 && d.CustomUploadPartSize > SVipSliceSize {
+			log.Warnf("CustomUploadPartSize(%d) is greater than SVipSliceSize(%d), use SVipSliceSize", d.CustomUploadPartSize, SVipSliceSize)
+			return SVipSliceSize
+		}
+
+		return d.CustomUploadPartSize
+	}
+
+	maxSliceSize := DefaultSliceSize
+
+	switch d.vipType {
+	case 1:
+		maxSliceSize = VipSliceSize
+	case 2:
+		maxSliceSize = SVipSliceSize
+	}
+
+	// upload on low bandwidth
+	if d.LowBandwithUploadMode {
+		size := DefaultSliceSize
+
+		for size <= maxSliceSize {
+			if filesize <= MaxSliceNum*size {
+				return size
+			}
+
+			size += SliceStep
+		}
+	}
+
+	if filesize > MaxSliceNum*maxSliceSize {
+		log.Warnf("File size(%d) is too large, may cause upload failure", filesize)
+	}
+
+	return maxSliceSize
 }
 
 // func encodeURIComponent(str string) string {
