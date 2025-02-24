@@ -120,7 +120,7 @@ func FsArchiveMeta(c *gin.Context) {
 	}
 	s := ""
 	if isEncrypt(meta, reqPath) || setting.GetBool(conf.SignAll) {
-		s = sign.Sign(reqPath)
+		s = sign.SignArchive(reqPath)
 	}
 	api := "/ae"
 	if ret.DriverProviding {

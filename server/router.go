@@ -4,6 +4,7 @@ import (
 	"github.com/alist-org/alist/v3/cmd/flags"
 	"github.com/alist-org/alist/v3/internal/conf"
 	"github.com/alist-org/alist/v3/internal/message"
+	"github.com/alist-org/alist/v3/internal/sign"
 	"github.com/alist-org/alist/v3/internal/stream"
 	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/alist-org/alist/v3/server/common"
@@ -40,16 +41,18 @@ func Init(e *gin.Engine) {
 	S3(g.Group("/s3"))
 
 	downloadLimiter := middlewares.DownloadRateLimiter(stream.ClientDownloadLimit)
-	g.GET("/d/*path", middlewares.Down, downloadLimiter, handles.Down)
-	g.GET("/p/*path", middlewares.Down, downloadLimiter, handles.Proxy)
-	g.HEAD("/d/*path", middlewares.Down, handles.Down)
-	g.HEAD("/p/*path", middlewares.Down, handles.Proxy)
-	g.GET("/ad/*path", middlewares.Down, downloadLimiter, handles.ArchiveDown)
-	g.GET("/ap/*path", middlewares.Down, downloadLimiter, handles.ArchiveProxy)
-	g.GET("/ae/*path", middlewares.Down, downloadLimiter, handles.ArchiveInternalExtract)
-	g.HEAD("/ad/*path", middlewares.Down, handles.ArchiveDown)
-	g.HEAD("/ap/*path", middlewares.Down, handles.ArchiveProxy)
-	g.HEAD("/ae/*path", middlewares.Down, handles.ArchiveInternalExtract)
+	signCheck := middlewares.Down(sign.Verify)
+	g.GET("/d/*path", signCheck, downloadLimiter, handles.Down)
+	g.GET("/p/*path", signCheck, downloadLimiter, handles.Proxy)
+	g.HEAD("/d/*path", signCheck, handles.Down)
+	g.HEAD("/p/*path", signCheck, handles.Proxy)
+	archiveSignCheck := middlewares.Down(sign.VerifyArchive)
+	g.GET("/ad/*path", archiveSignCheck, downloadLimiter, handles.ArchiveDown)
+	g.GET("/ap/*path", archiveSignCheck, downloadLimiter, handles.ArchiveProxy)
+	g.GET("/ae/*path", archiveSignCheck, downloadLimiter, handles.ArchiveInternalExtract)
+	g.HEAD("/ad/*path", archiveSignCheck, handles.ArchiveDown)
+	g.HEAD("/ap/*path", archiveSignCheck, handles.ArchiveProxy)
+	g.HEAD("/ae/*path", archiveSignCheck, handles.ArchiveInternalExtract)
 
 	api := g.Group("/api")
 	auth := api.Group("", middlewares.Auth)
