@@ -1,22 +1,86 @@
 package common
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 
+	"github.com/alist-org/alist/v3/internal/conf"
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/internal/net"
+	"github.com/alist-org/alist/v3/internal/setting"
 	"github.com/alist-org/alist/v3/internal/stream"
 	"github.com/alist-org/alist/v3/pkg/http_range"
 	"github.com/alist-org/alist/v3/pkg/utils"
+	"github.com/microcosm-cc/bluemonday"
 	log "github.com/sirupsen/logrus"
+	"github.com/yuin/goldmark"
 )
 
+func processMarkdown(content []byte) ([]byte, error) {
+	var buf bytes.Buffer
+	if err := goldmark.New().Convert(content, &buf); err != nil {
+		return nil, fmt.Errorf("markdown conversion failed: %w", err)
+	}
+	return bluemonday.UGCPolicy().SanitizeBytes(buf.Bytes()), nil
+}
+
 func Proxy(w http.ResponseWriter, r *http.Request, link *model.Link, file model.Obj) error {
+
+	//优先处理md文件
+	if utils.Ext(file.GetName()) == "md" && setting.GetBool(conf.FilterReadMeScripts) {
+		var markdownContent []byte
+		var err error
+
+		if link.MFile != nil {
+			defer link.MFile.Close()
+			attachFileName(w, file)
+			markdownContent, err = io.ReadAll(link.MFile)
+			if err != nil {
+				return fmt.Errorf("failed to read markdown content: %w", err)
+			}
+
+		} else {
+			header := net.ProcessHeader(r.Header, link.Header)
+			res, err := net.RequestHttp(r.Context(), r.Method, header, link.URL)
+			if err != nil {
+				return err
+			}
+			defer res.Body.Close()
+			for h, v := range res.Header {
+				w.Header()[h] = v
+			}
+			w.WriteHeader(res.StatusCode)
+			if r.Method == http.MethodHead {
+				return nil
+			}
+			markdownContent, err = io.ReadAll(res.Body)
+			if err != nil {
+				return fmt.Errorf("failed to read markdown content: %w", err)
+			}
+
+		}
+
+		safeHTML, err := processMarkdown(markdownContent)
+		if err != nil {
+			return err
+		}
+
+		safeHTMLReader := bytes.NewReader(safeHTML)
+		w.Header().Set("Content-Length", strconv.FormatInt(int64(len(safeHTML)), 10))
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, err = utils.CopyWithBuffer(w, safeHTMLReader)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
 	if link.MFile != nil {
 		defer link.MFile.Close()
 		attachFileName(w, file)
@@ -91,6 +155,7 @@ func Proxy(w http.ResponseWriter, r *http.Request, link *model.Link, file model.
 		return nil
 	}
 }
+
 func attachFileName(w http.ResponseWriter, file model.Obj) {
 	fileName := file.GetName()
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"; filename*=UTF-8''%s`, fileName, url.PathEscape(fileName)))

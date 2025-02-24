@@ -31,7 +31,8 @@ const (
 	AudioAutoplay            = "audio_autoplay"
 	VideoAutoplay            = "video_autoplay"
 	PreviewArchivesByDefault = "preview_archives_by_default"
-
+	ReadMeAutoRender         = "readme_autorender"
+	FilterReadMeScripts      = "filter_readme_scripts"
 	// global
 	HideFiles               = "hide_files"
 	CustomizeHead           = "customize_head"
