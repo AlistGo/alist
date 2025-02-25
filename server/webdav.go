@@ -82,7 +82,7 @@ func WebDAVAuth(c *gin.Context) {
 		return
 	}
 	user, err := op.GetUserByName(username)
-	if err != nil || user.ValidateRawPassword(password) != nil {
+	if err != nil || user.IsOtpEnabled() || user.ValidateRawPassword(password) != nil {
 		if c.Request.Method == "OPTIONS" {
 			c.Set("user", guest)
 			c.Next()
