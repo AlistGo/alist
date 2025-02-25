@@ -304,10 +304,6 @@ func (d *Quqi) linkFromCDN(id string) (*model.Link, error) {
 	}
 
 	return &model.Link{
-		Header: http.Header{
-			"Origin": []string{"https://quqi.com"},
-			"Cookie": []string{d.Cookie},
-		},
 		RangeReadCloser: &model.RangeReadCloser{RangeReader: resultRangeReader, Closers: remoteClosers},
 		Expiration:      &expiration,
 	}, nil

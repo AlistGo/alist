@@ -114,7 +114,7 @@ func ServeHTTP(w http.ResponseWriter, r *http.Request, name string, modTime time
 
 	// 使用请求的Context
 	// 不然从sendContent读不到数据，即使请求断开CopyBuffer也会一直堵塞
-	ctx := r.Context()
+	ctx := context.WithValue(r.Context(), "request_header", &r.Header)
 	switch {
 	case len(ranges) == 0:
 		reader, err := RangeReadCloser.RangeRead(ctx, http_range.Range{Length: -1})

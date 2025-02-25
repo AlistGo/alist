@@ -382,6 +382,9 @@ func (d *downloader) tryDownloadChunk(params *HttpRequestParams, ch *chunk) (int
 		if resp == nil {
 			return 0, err
 		}
+		if resp.StatusCode == http.StatusRequestedRangeNotSatisfiable {
+			return 0, err
+		}
 		if ch.id == 0 { //第1个任务 有限的重试，超过重试就会结束请求
 			switch resp.StatusCode {
 			default:

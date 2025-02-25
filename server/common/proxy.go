@@ -19,7 +19,7 @@ import (
 func Proxy(w http.ResponseWriter, r *http.Request, link *model.Link, file model.Obj) error {
 	if link.MFile != nil {
 		defer link.MFile.Close()
-		attachFileName(w, file)
+		attachHeader(w, file)
 		contentType := link.Header.Get("Content-Type")
 		if contentType != "" {
 			w.Header().Set("Content-Type", contentType)
@@ -35,17 +35,21 @@ func Proxy(w http.ResponseWriter, r *http.Request, link *model.Link, file model.
 		http.ServeContent(w, r, file.GetName(), file.ModTime(), mFile)
 		return nil
 	} else if link.RangeReadCloser != nil {
-		attachFileName(w, file)
+		attachHeader(w, file)
 		net.ServeHTTP(w, r, file.GetName(), file.ModTime(), file.GetSize(), &stream.RateLimitRangeReadCloser{
 			RangeReadCloserIF: link.RangeReadCloser,
 			Limiter:           stream.ServerDownloadLimit,
 		})
 		return nil
 	} else if link.Concurrency != 0 || link.PartSize != 0 {
-		attachFileName(w, file)
+		attachHeader(w, file)
 		size := file.GetSize()
-		header := net.ProcessHeader(r.Header, link.Header)
 		rangeReader := func(ctx context.Context, httpRange http_range.Range) (io.ReadCloser, error) {
+			requestHeader := ctx.Value("request_header")
+			if requestHeader == nil {
+				requestHeader = &http.Header{}
+			}
+			header := net.ProcessHeader(*(requestHeader.(*http.Header)), link.Header)
 			down := net.NewDownloader(func(d *net.Downloader) {
 				d.Concurrency = link.Concurrency
 				d.PartSize = link.PartSize
@@ -91,10 +95,20 @@ func Proxy(w http.ResponseWriter, r *http.Request, link *model.Link, file model.
 		return nil
 	}
 }
-func attachFileName(w http.ResponseWriter, file model.Obj) {
+func attachHeader(w http.ResponseWriter, file model.Obj) {
 	fileName := file.GetName()
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"; filename*=UTF-8''%s`, fileName, url.PathEscape(fileName)))
 	w.Header().Set("Content-Type", utils.GetMimeType(fileName))
+	w.Header().Set("Etag", GetEtag(file))
+}
+func GetEtag(file model.Obj) string {
+	for _, v := range file.GetHash().Export() {
+		if len(v) != 0 {
+			return fmt.Sprintf(`"%s"`, v)
+		}
+	}
+	// 参考nginx
+	return fmt.Sprintf(`"%x-%x"`, file.ModTime().Unix(), file.GetSize())
 }
 
 var NoProxyRange = &model.RangeReadCloser{}

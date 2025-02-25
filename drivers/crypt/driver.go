@@ -263,12 +263,7 @@ func (d *Crypt) Link(ctx context.Context, file model.Obj, args model.LinkArgs) (
 		}
 		rrc := remoteLink.RangeReadCloser
 		if len(remoteLink.URL) > 0 {
-
-			rangedRemoteLink := &model.Link{
-				URL:    remoteLink.URL,
-				Header: remoteLink.Header,
-			}
-			var converted, err = stream.GetRangeReadCloserFromLink(remoteFileSize, rangedRemoteLink)
+			var converted, err = stream.GetRangeReadCloserFromLink(remoteFileSize, remoteLink)
 			if err != nil {
 				return nil, err
 			}
@@ -304,7 +299,6 @@ func (d *Crypt) Link(ctx context.Context, file model.Obj, args model.LinkArgs) (
 
 	resultRangeReadCloser := &model.RangeReadCloser{RangeReader: resultRangeReader, Closers: remoteClosers}
 	resultLink := &model.Link{
-		Header:          remoteLink.Header,
 		RangeReadCloser: resultRangeReadCloser,
 		Expiration:      remoteLink.Expiration,
 	}

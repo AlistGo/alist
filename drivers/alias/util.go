@@ -63,6 +63,7 @@ func (d *Alias) get(ctx context.Context, path string, dst, sub string) (model.Ob
 		Size:     obj.GetSize(),
 		Modified: obj.ModTime(),
 		IsFolder: obj.IsDir(),
+		HashInfo: obj.GetHash(),
 	}, nil
 }
 
