@@ -2,9 +2,6 @@ package tool
 
 import (
 	"context"
-	_115 "github.com/alist-org/alist/v3/drivers/115"
-	"github.com/alist-org/alist/v3/drivers/pikpak"
-	"github.com/alist-org/alist/v3/drivers/thunder"
 	"github.com/alist-org/alist/v3/internal/driver"
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/internal/setting"
@@ -81,24 +78,18 @@ func AddURL(ctx context.Context, args *AddURLArgs) (task.TaskExtensionInfo, erro
 	deletePolicy := args.DeletePolicy
 
 	// 如果当前 storage 是对应网盘，则直接下载到目标路径，无需转存
-	switch args.Tool {
-	case "115 Cloud":
-		if _, ok := storage.(*_115.Pan115); ok {
+	tempDirConfMap := map[string]string{
+		"115 Cloud": conf.Pan115TempDir,
+		"PikPak":    conf.PikPakTempDir,
+		"Thunder":   conf.ThunderTempDir,
+	}
+	if tempDirConf, ok := tempDirConfMap[args.Tool]; ok {
+		tempDir = setting.GetStr(tempDirConf)
+		tempDirStorage, _, _ := op.GetStorageAndActualPath(tempDir)
+		if storage == tempDirStorage {
 			tempDir = args.DstDirPath
 		} else {
-			tempDir = filepath.Join(setting.GetStr(conf.Pan115TempDir), uid)
-		}
-	case "PikPak":
-		if _, ok := storage.(*pikpak.PikPak); ok {
-			tempDir = args.DstDirPath
-		} else {
-			tempDir = filepath.Join(setting.GetStr(conf.PikPakTempDir), uid)
-		}
-	case "Thunder":
-		if _, ok := storage.(*thunder.Thunder); ok {
-			tempDir = args.DstDirPath
-		} else {
-			tempDir = filepath.Join(setting.GetStr(conf.ThunderTempDir), uid)
+			tempDir = filepath.Join(tempDir, uid)
 		}
 	}
 
