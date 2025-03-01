@@ -216,8 +216,10 @@ func SetThunder(c *gin.Context) {
 			return
 		}
 		if _, ok := storage.(*thunder.Thunder); !ok {
-			common.ErrorStrResp(c, "unsupported storage driver for offline download, only Thunder is supported", 400)
-			return
+			if _, ok := storage.(*thunder.ThunderExpert); !ok {
+				common.ErrorStrResp(c, "unsupported storage driver for offline download, only Thunder or Thunder Expert is supported", 400)
+				return
+			}
 		}
 	}
 	items := []model.SettingItem{
