@@ -3,7 +3,6 @@ package tool
 import (
 	"fmt"
 	"github.com/alist-org/alist/v3/internal/model"
-	"sort"
 )
 
 var (
@@ -26,11 +25,8 @@ func (t ToolsManager) Add(tool Tool) {
 func (t ToolsManager) Names() []string {
 	names := make([]string, 0, len(t))
 	for name := range t {
-		if tool, err := t.Get(name); err == nil && tool.IsReady() {
-			names = append(names, name)
-		}
+		names = append(names, name)
 	}
-	sort.Strings(names)
 	return names
 }
 
