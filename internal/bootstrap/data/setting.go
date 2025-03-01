@@ -90,6 +90,20 @@ func InitialSettings() []model.SettingItem {
 	} else {
 		token = random.Token()
 	}
+	defaultTaskOfflineDownloadThreadsNum := "5"
+	defaultTaskOfflineDownloadTransferThreadsNum := "5"
+	defaultTaskUploadThreadsNum := "5"
+	defaultTaskCopyThreadsNum := "5"
+	defaultTaskDecompressDownloadThreadsNum := "5"
+	defaultTaskDecompressUploadThreadsNum := "5"
+	if conf.Conf != nil {
+		defaultTaskOfflineDownloadThreadsNum = strconv.Itoa(conf.Conf.Tasks.Download.Workers)
+		defaultTaskOfflineDownloadTransferThreadsNum = strconv.Itoa(conf.Conf.Tasks.Transfer.Workers)
+		defaultTaskUploadThreadsNum = strconv.Itoa(conf.Conf.Tasks.Upload.Workers)
+		defaultTaskCopyThreadsNum = strconv.Itoa(conf.Conf.Tasks.Copy.Workers)
+		defaultTaskDecompressDownloadThreadsNum = strconv.Itoa(conf.Conf.Tasks.Decompress.Workers)
+		defaultTaskDecompressUploadThreadsNum = strconv.Itoa(conf.Conf.Tasks.DecompressUpload.Workers)
+	}
 	initialSettingItems = []model.SettingItem{
 		// site settings
 		{Key: conf.VERSION, Value: conf.Version, Type: conf.TypeString, Group: model.SITE, Flag: model.READONLY},
@@ -209,12 +223,12 @@ func InitialSettings() []model.SettingItem {
 		{Key: conf.FTPTLSPublicCertPath, Value: "", Type: conf.TypeString, Group: model.FTP, Flag: model.PRIVATE},
 
 		// traffic settings
-		{Key: conf.TaskOfflineDownloadThreadsNum, Value: strconv.Itoa(conf.Conf.Tasks.Download.Workers), Type: conf.TypeNumber, Group: model.TRAFFIC, Flag: model.PRIVATE},
-		{Key: conf.TaskOfflineDownloadTransferThreadsNum, Value: strconv.Itoa(conf.Conf.Tasks.Transfer.Workers), Type: conf.TypeNumber, Group: model.TRAFFIC, Flag: model.PRIVATE},
-		{Key: conf.TaskUploadThreadsNum, Value: strconv.Itoa(conf.Conf.Tasks.Upload.Workers), Type: conf.TypeNumber, Group: model.TRAFFIC, Flag: model.PRIVATE},
-		{Key: conf.TaskCopyThreadsNum, Value: strconv.Itoa(conf.Conf.Tasks.Copy.Workers), Type: conf.TypeNumber, Group: model.TRAFFIC, Flag: model.PRIVATE},
-		{Key: conf.TaskDecompressDownloadThreadsNum, Value: strconv.Itoa(conf.Conf.Tasks.Decompress.Workers), Type: conf.TypeNumber, Group: model.TRAFFIC, Flag: model.PRIVATE},
-		{Key: conf.TaskDecompressUploadThreadsNum, Value: strconv.Itoa(conf.Conf.Tasks.DecompressUpload.Workers), Type: conf.TypeNumber, Group: model.TRAFFIC, Flag: model.PRIVATE},
+		{Key: conf.TaskOfflineDownloadThreadsNum, Value: defaultTaskOfflineDownloadThreadsNum, Type: conf.TypeNumber, Group: model.TRAFFIC, Flag: model.PRIVATE},
+		{Key: conf.TaskOfflineDownloadTransferThreadsNum, Value: defaultTaskOfflineDownloadTransferThreadsNum, Type: conf.TypeNumber, Group: model.TRAFFIC, Flag: model.PRIVATE},
+		{Key: conf.TaskUploadThreadsNum, Value: defaultTaskUploadThreadsNum, Type: conf.TypeNumber, Group: model.TRAFFIC, Flag: model.PRIVATE},
+		{Key: conf.TaskCopyThreadsNum, Value: defaultTaskCopyThreadsNum, Type: conf.TypeNumber, Group: model.TRAFFIC, Flag: model.PRIVATE},
+		{Key: conf.TaskDecompressDownloadThreadsNum, Value: defaultTaskDecompressDownloadThreadsNum, Type: conf.TypeNumber, Group: model.TRAFFIC, Flag: model.PRIVATE},
+		{Key: conf.TaskDecompressUploadThreadsNum, Value: defaultTaskDecompressUploadThreadsNum, Type: conf.TypeNumber, Group: model.TRAFFIC, Flag: model.PRIVATE},
 		{Key: conf.StreamMaxClientDownloadSpeed, Value: "-1", Type: conf.TypeNumber, Group: model.TRAFFIC, Flag: model.PRIVATE},
 		{Key: conf.StreamMaxClientUploadSpeed, Value: "-1", Type: conf.TypeNumber, Group: model.TRAFFIC, Flag: model.PRIVATE},
 		{Key: conf.StreamMaxServerDownloadSpeed, Value: "-1", Type: conf.TypeNumber, Group: model.TRAFFIC, Flag: model.PRIVATE},
