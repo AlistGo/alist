@@ -10,6 +10,7 @@ import (
 	"errors"
 	"hash"
 	"io"
+	"iter"
 
 	"github.com/alist-org/alist/v3/internal/errs"
 	log "github.com/sirupsen/logrus"
@@ -225,4 +226,14 @@ func (hi HashInfo) GetHash(ht *HashType) string {
 
 func (hi HashInfo) Export() map[*HashType]string {
 	return hi.h
+}
+
+func (hi HashInfo) All() iter.Seq2[*HashType, string] {
+	return func(yield func(*HashType, string) bool) {
+		for hashType, hashValue := range hi.h {
+			if !yield(hashType, hashValue) {
+				return
+			}
+		}
+	}
 }

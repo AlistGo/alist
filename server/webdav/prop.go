@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/xml"
 	"errors"
+	"fmt"
 	"mime"
 	"net/http"
 	"path"
@@ -101,7 +102,7 @@ type DeadPropsHolder interface {
 	Patch([]Proppatch) ([]Propstat, error)
 }
 
-// liveProps contains all supported, protected DAV: properties.
+// liveProps contains all supported properties.
 var liveProps = map[xml.Name]struct {
 	// findFn implements the propfind function of this property. If nil,
 	// it indicates a hidden property.
@@ -159,6 +160,10 @@ var liveProps = map[xml.Name]struct {
 	{Space: "DAV:", Local: "supportedlock"}: {
 		findFn: findSupportedLock,
 		dir:    true,
+	},
+	{Space: "http://owncloud.org/ns", Local: "checksums"}: {
+		findFn: findChecksums,
+		dir:    false,
 	},
 }
 
@@ -482,4 +487,12 @@ func findSupportedLock(ctx context.Context, ls LockSystem, name string, fi model
 		`<D:lockscope><D:exclusive/></D:lockscope>` +
 		`<D:locktype><D:write/></D:locktype>` +
 		`</D:lockentry>`, nil
+}
+
+func findChecksums(ctx context.Context, ls LockSystem, name string, fi model.Obj) (string, error) {
+	checksums := ""
+	for hashType, hashValue := range fi.GetHash().All() {
+		checksums += fmt.Sprintf("<checksum>%s:%s</checksum>", hashType.Name, hashValue)
+	}
+	return checksums, nil
 }
