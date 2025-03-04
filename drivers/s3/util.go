@@ -199,7 +199,7 @@ func (d *S3) copyFile(ctx context.Context, src string, dst string) error {
 	dstKey := getKey(dst, false)
 	input := &s3.CopyObjectInput{
 		Bucket:     &d.Bucket,
-		CopySource: aws.String(url.PathEscape("/" + d.Bucket + "/" + srcKey)),
+		CopySource: aws.String(url.PathEscape(d.Bucket + "/" + srcKey)),
 		Key:        &dstKey,
 	}
 	_, err := d.client.CopyObject(input)
