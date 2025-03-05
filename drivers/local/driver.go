@@ -35,6 +35,10 @@ type Local struct {
 	// zero means no limit
 	thumbConcurrency int
 	thumbTokenBucket TokenBucket
+
+	// video thumb position
+	videoThumbPos             float64
+	videoThumbPosIsPercentage bool
 }
 
 func (d *Local) Config() driver.Config {
@@ -92,6 +96,8 @@ func (d *Local) Init(ctx context.Context) error {
 		if val < 0 || val > 100 {
 			return fmt.Errorf("invalid video_thumb_pos value: %s, the precentage must be a number between 0 and 100", d.VideoThumbPos)
 		}
+		d.videoThumbPosIsPercentage = true
+		d.videoThumbPos = val / 100
 	} else {
 		val, err := strconv.ParseFloat(d.VideoThumbPos, 64)
 		if err != nil {
@@ -100,6 +106,8 @@ func (d *Local) Init(ctx context.Context) error {
 		if val < 0 {
 			return fmt.Errorf("invalid video_thumb_pos value: %s, the time must be a positive number", d.VideoThumbPos)
 		}
+		d.videoThumbPosIsPercentage = false
+		d.videoThumbPos = val
 	}
 	return nil
 }

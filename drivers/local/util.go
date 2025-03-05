@@ -61,22 +61,14 @@ func (d *Local) GetSnapshot(videoPath string) (imgData *bytes.Buffer, err error)
 	}
 
 	var ss string
-	if strings.HasSuffix(d.VideoThumbPos, "%") {
-		percentage, err := strconv.ParseFloat(strings.TrimSuffix(d.VideoThumbPos, "%"), 64)
-		if err != nil {
-			return nil, err
-		}
-		ss = fmt.Sprintf("%f", totalDuration*percentage/100)
+	if d.videoThumbPosIsPercentage {
+		ss = fmt.Sprintf("%f", totalDuration*d.videoThumbPos)
 	} else {
-		val, err := strconv.ParseFloat(d.VideoThumbPos, 64)
-		if err != nil {
-			return nil, err
-		}
 		// If the value is greater than the total duration, use the total duration
-		if val > totalDuration {
+		if d.videoThumbPos > totalDuration {
 			ss = fmt.Sprintf("%f", totalDuration)
 		} else {
-			ss = d.VideoThumbPos
+			ss = fmt.Sprintf("%f", d.videoThumbPos)
 		}
 	}
 
