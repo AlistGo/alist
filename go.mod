@@ -1,8 +1,6 @@
 module github.com/alist-org/alist/v3
 
-go 1.23
-
-toolchain go1.23.1
+go 1.23.4
 
 require (
 	github.com/KirCute/ftpserverlib-pasvportmap v1.25.0
@@ -70,7 +68,7 @@ require (
 	golang.org/x/crypto v0.31.0
 	golang.org/x/exp v0.0.0-20240904232852-e7e105dedf7e
 	golang.org/x/image v0.19.0
-	golang.org/x/net v0.28.0
+	golang.org/x/net v0.33.0
 	golang.org/x/oauth2 v0.22.0
 	golang.org/x/time v0.8.0
 	google.golang.org/appengine v1.6.8
@@ -113,8 +111,10 @@ require (
 	github.com/taruti/bytepool v0.0.0-20160310082835-5e3a9ea56543 // indirect
 	github.com/therootcompany/xz v1.0.1 // indirect
 	github.com/ulikunitz/xz v0.5.12 // indirect
+	github.com/xhofe/115-sdk-go v0.0.0-20250315150140-fdd63697ac5e // indirect
 	github.com/yuin/goldmark v1.7.8 
 	go4.org v0.0.0-20230225012048-214862532bf5 // indirect
+	resty.dev/v3 v3.0.0-beta.1 // indirect
 )
 
 require (
@@ -261,3 +261,5 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	lukechampine.com/blake3 v1.1.7 // indirect
 )
+
+// replace github.com/xhofe/115-sdk-go => ../../xhofe/115-sdk-go
