@@ -15,6 +15,7 @@ require (
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/aws/aws-sdk-go v1.55.5
 	github.com/blevesearch/bleve/v2 v2.4.2
+	github.com/caarlos0/env/v11 v11.2.2
 	github.com/caarlos0/env/v9 v9.0.0
 	github.com/charmbracelet/bubbles v0.20.0
 	github.com/charmbracelet/bubbletea v1.1.0
