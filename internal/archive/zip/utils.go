@@ -2,9 +2,12 @@ package zip
 
 import (
 	"bytes"
+	"io"
+	"io/fs"
+	"strings"
+
+	"github.com/alist-org/alist/v3/internal/archive/tool"
 	"github.com/alist-org/alist/v3/internal/errs"
-	"github.com/alist-org/alist/v3/internal/model"
-	"github.com/alist-org/alist/v3/internal/stream"
 	"github.com/saintfish/chardet"
 	"github.com/yeka/zip"
 	"golang.org/x/text/encoding"
@@ -16,65 +19,50 @@ import (
 	"golang.org/x/text/encoding/unicode"
 	"golang.org/x/text/encoding/unicode/utf32"
 	"golang.org/x/text/transform"
-	"io"
-	"os"
-	stdpath "path"
-	"strings"
 )
 
-func toModelObj(file os.FileInfo) *model.Object {
-	return &model.Object{
-		Name:     decodeName(file.Name()),
-		Size:     file.Size(),
-		Modified: file.ModTime(),
-		IsFolder: file.IsDir(),
-	}
+type WrapReader struct {
+	Reader *zip.Reader
 }
 
-func decompress(file *zip.File, filePath, outputPath, password string) error {
-	targetPath := outputPath
-	dir, base := stdpath.Split(filePath)
-	if dir != "" {
-		targetPath = stdpath.Join(targetPath, dir)
-		err := os.MkdirAll(targetPath, 0700)
-		if err != nil {
-			return err
-		}
+func (r *WrapReader) Files() []tool.SubFile {
+	ret := make([]tool.SubFile, 0, len(r.Reader.File))
+	for _, f := range r.Reader.File {
+		ret = append(ret, &WrapFile{f: f})
 	}
-	if base != "" {
-		err := _decompress(file, targetPath, password, func(_ float64) {})
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	return ret
 }
 
-func _decompress(file *zip.File, targetPath, password string, up model.UpdateProgress) error {
-	if file.IsEncrypted() {
-		file.SetPassword(password)
-	}
-	rc, err := file.Open()
-	if err != nil {
-		return err
-	}
-	defer rc.Close()
-	f, err := os.OpenFile(stdpath.Join(targetPath, decodeName(file.FileInfo().Name())), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	_, err = io.Copy(f, &stream.ReaderUpdatingProgress{
-		Reader: &stream.SimpleReaderWithSize{
-			Reader: rc,
-			Size:   file.FileInfo().Size(),
-		},
-		UpdateProgress: up,
-	})
-	if err != nil {
-		return err
-	}
-	return nil
+type WrapFileInfo struct {
+	fs.FileInfo
+}
+
+func (f *WrapFileInfo) Name() string {
+	return decodeName(f.FileInfo.Name())
+}
+
+type WrapFile struct {
+	f *zip.File
+}
+
+func (f *WrapFile) Name() string {
+	return decodeName(f.f.Name)
+}
+
+func (f *WrapFile) FileInfo() fs.FileInfo {
+	return &WrapFileInfo{FileInfo: f.f.FileInfo()}
+}
+
+func (f *WrapFile) Open() (io.ReadCloser, error) {
+	return f.f.Open()
+}
+
+func (f *WrapFile) IsEncrypted() bool {
+	return f.f.IsEncrypted()
+}
+
+func (f *WrapFile) SetPassword(password string) {
+	f.f.SetPassword(password)
 }
 
 func filterPassword(err error) error {

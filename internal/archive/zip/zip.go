@@ -2,7 +2,6 @@ package zip
 
 import (
 	"io"
-	"os"
 	stdpath "path"
 	"strings"
 
@@ -16,100 +15,37 @@ import (
 type Zip struct {
 }
 
-func (*Zip) AcceptedExtensions() []string {
+func (Zip) AcceptedExtensions() []string {
 	return []string{".zip"}
 }
 
-func (*Zip) GetMeta(ss *stream.SeekableStream, args model.ArchiveArgs) (model.ArchiveMeta, error) {
-	reader, err := stream.NewReadAtSeeker(ss, 0)
+func (Zip) AcceptedMultipartExtensions() []string {
+	return []string{}
+}
+
+func (Zip) GetMeta(ss []*stream.SeekableStream, args model.ArchiveArgs) (model.ArchiveMeta, error) {
+	reader, err := stream.NewReadAtSeeker(ss[0], 0)
 	if err != nil {
 		return nil, err
 	}
-	zipReader, err := zip.NewReader(reader, ss.GetSize())
+	zipReader, err := zip.NewReader(reader, ss[0].GetSize())
 	if err != nil {
 		return nil, err
 	}
-	encrypted := false
-	dirMap := make(map[string]*model.ObjectTree)
-	dirMap["."] = &model.ObjectTree{}
-	for _, file := range zipReader.File {
-		if file.IsEncrypted() {
-			encrypted = true
-		}
-
-		name := strings.TrimPrefix(decodeName(file.Name), "/")
-		var dir string
-		var dirObj *model.ObjectTree
-		isNewFolder := false
-		if !file.FileInfo().IsDir() {
-			// 先将 文件 添加到 所在的文件夹
-			dir = stdpath.Dir(name)
-			dirObj = dirMap[dir]
-			if dirObj == nil {
-				isNewFolder = true
-				dirObj = &model.ObjectTree{}
-				dirObj.IsFolder = true
-				dirObj.Name = stdpath.Base(dir)
-				dirObj.Modified = file.ModTime()
-				dirMap[dir] = dirObj
-			}
-			dirObj.Children = append(
-				dirObj.Children, &model.ObjectTree{
-					Object: *toModelObj(file.FileInfo()),
-				},
-			)
-		} else {
-			dir = strings.TrimSuffix(name, "/")
-			dirObj = dirMap[dir]
-			if dirObj == nil {
-				isNewFolder = true
-				dirObj = &model.ObjectTree{}
-				dirMap[dir] = dirObj
-			}
-			dirObj.IsFolder = true
-			dirObj.Name = stdpath.Base(dir)
-			dirObj.Modified = file.ModTime()
-			dirObj.Children = make([]model.ObjTree, 0)
-		}
-		if isNewFolder {
-			// 将 文件夹 添加到 父文件夹
-			dir = stdpath.Dir(dir)
-			pDirObj := dirMap[dir]
-			if pDirObj != nil {
-				pDirObj.Children = append(pDirObj.Children, dirObj)
-				continue
-			}
-
-			for {
-				//	考虑压缩包仅记录文件的路径，不记录文件夹
-				pDirObj = &model.ObjectTree{}
-				pDirObj.IsFolder = true
-				pDirObj.Name = stdpath.Base(dir)
-				pDirObj.Modified = file.ModTime()
-				dirMap[dir] = pDirObj
-				pDirObj.Children = append(pDirObj.Children, dirObj)
-				dir = stdpath.Dir(dir)
-				if dirMap[dir] != nil {
-					break
-				}
-				dirObj = pDirObj
-			}
-		}
-	}
-
+	encrypted, tree := tool.GenerateMetaTreeFromFolderTraversal(&WrapReader{Reader: zipReader})
 	return &model.ArchiveMetaInfo{
 		Comment:   zipReader.Comment,
 		Encrypted: encrypted,
-		Tree:      dirMap["."].GetChildren(),
+		Tree:      tree,
 	}, nil
 }
 
-func (*Zip) List(ss *stream.SeekableStream, args model.ArchiveInnerArgs) ([]model.Obj, error) {
-	reader, err := stream.NewReadAtSeeker(ss, 0)
+func (Zip) List(ss []*stream.SeekableStream, args model.ArchiveInnerArgs) ([]model.Obj, error) {
+	reader, err := stream.NewReadAtSeeker(ss[0], 0)
 	if err != nil {
 		return nil, err
 	}
-	zipReader, err := zip.NewReader(reader, ss.GetSize())
+	zipReader, err := zip.NewReader(reader, ss[0].GetSize())
 	if err != nil {
 		return nil, err
 	}
@@ -134,13 +70,13 @@ func (*Zip) List(ss *stream.SeekableStream, args model.ArchiveInnerArgs) ([]mode
 				if dir == nil && len(strs) == 2 {
 					dir = &model.Object{
 						Name:     strs[0],
-						Modified: ss.ModTime(),
+						Modified: ss[0].ModTime(),
 						IsFolder: true,
 					}
 				}
 				continue
 			}
-			ret = append(ret, toModelObj(file.FileInfo()))
+			ret = append(ret, tool.MakeModelObj(&WrapFileInfo{FileInfo: file.FileInfo()}))
 		}
 		if len(ret) == 0 && dir != nil {
 			ret = append(ret, dir)
@@ -157,7 +93,7 @@ func (*Zip) List(ss *stream.SeekableStream, args model.ArchiveInnerArgs) ([]mode
 				continue
 			}
 			exist = true
-			ret = append(ret, toModelObj(file.FileInfo()))
+			ret = append(ret, tool.MakeModelObj(&WrapFileInfo{file.FileInfo()}))
 		}
 		if !exist {
 			return nil, errs.ObjectNotFound
@@ -166,12 +102,12 @@ func (*Zip) List(ss *stream.SeekableStream, args model.ArchiveInnerArgs) ([]mode
 	}
 }
 
-func (*Zip) Extract(ss *stream.SeekableStream, args model.ArchiveInnerArgs) (io.ReadCloser, int64, error) {
-	reader, err := stream.NewReadAtSeeker(ss, 0)
+func (Zip) Extract(ss []*stream.SeekableStream, args model.ArchiveInnerArgs) (io.ReadCloser, int64, error) {
+	reader, err := stream.NewReadAtSeeker(ss[0], 0)
 	if err != nil {
 		return nil, 0, err
 	}
-	zipReader, err := zip.NewReader(reader, ss.GetSize())
+	zipReader, err := zip.NewReader(reader, ss[0].GetSize())
 	if err != nil {
 		return nil, 0, err
 	}
@@ -191,58 +127,20 @@ func (*Zip) Extract(ss *stream.SeekableStream, args model.ArchiveInnerArgs) (io.
 	return nil, 0, errs.ObjectNotFound
 }
 
-func (*Zip) Decompress(ss *stream.SeekableStream, outputPath string, args model.ArchiveInnerArgs, up model.UpdateProgress) error {
-	reader, err := stream.NewReadAtSeeker(ss, 0)
+func (Zip) Decompress(ss []*stream.SeekableStream, outputPath string, args model.ArchiveInnerArgs, up model.UpdateProgress) error {
+	reader, err := stream.NewReadAtSeeker(ss[0], 0)
 	if err != nil {
 		return err
 	}
-	zipReader, err := zip.NewReader(reader, ss.GetSize())
+	zipReader, err := zip.NewReader(reader, ss[0].GetSize())
 	if err != nil {
 		return err
 	}
-	if args.InnerPath == "/" {
-		for i, file := range zipReader.File {
-			name := decodeName(file.Name)
-			err = decompress(file, name, outputPath, args.Password)
-			if err != nil {
-				return err
-			}
-			up(float64(i+1) * 100.0 / float64(len(zipReader.File)))
-		}
-	} else {
-		innerPath := strings.TrimPrefix(args.InnerPath, "/")
-		innerBase := stdpath.Base(innerPath)
-		createdBaseDir := false
-		for _, file := range zipReader.File {
-			name := decodeName(file.Name)
-			if name == innerPath {
-				err = _decompress(file, outputPath, args.Password, up)
-				if err != nil {
-					return err
-				}
-				break
-			} else if strings.HasPrefix(name, innerPath+"/") {
-				targetPath := stdpath.Join(outputPath, innerBase)
-				if !createdBaseDir {
-					err = os.Mkdir(targetPath, 0700)
-					if err != nil {
-						return err
-					}
-					createdBaseDir = true
-				}
-				restPath := strings.TrimPrefix(name, innerPath+"/")
-				err = decompress(file, restPath, targetPath, args.Password)
-				if err != nil {
-					return err
-				}
-			}
-		}
-	}
-	return nil
+	return tool.DecompressFromFolderTraversal(&WrapReader{Reader: zipReader}, outputPath, args, up)
 }
 
 var _ tool.Tool = (*Zip)(nil)
 
 func init() {
-	tool.RegisterTool(&Zip{})
+	tool.RegisterTool(Zip{})
 }

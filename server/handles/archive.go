@@ -1,10 +1,11 @@
 package handles
 
 import (
+	"encoding/json"
 	"fmt"
+	"github.com/alist-org/alist/v3/internal/task"
 	"net/url"
 	stdpath "path"
-	"strings"
 
 	"github.com/alist-org/alist/v3/internal/archive/tool"
 	"github.com/alist-org/alist/v3/internal/conf"
@@ -208,14 +209,30 @@ func FsArchiveList(c *gin.Context) {
 	})
 }
 
+type StringOrArray []string
+
+func (s *StringOrArray) UnmarshalJSON(data []byte) error {
+	var value string
+	if err := json.Unmarshal(data, &value); err == nil {
+		*s = []string{value}
+		return nil
+	}
+	var sliceValue []string
+	if err := json.Unmarshal(data, &sliceValue); err != nil {
+		return err
+	}
+	*s = sliceValue
+	return nil
+}
+
 type ArchiveDecompressReq struct {
-	SrcDir        string `json:"src_dir" form:"src_dir"`
-	DstDir        string `json:"dst_dir" form:"dst_dir"`
-	Name          string `json:"name" form:"name"`
-	ArchivePass   string `json:"archive_pass" form:"archive_pass"`
-	InnerPath     string `json:"inner_path" form:"inner_path"`
-	CacheFull     bool   `json:"cache_full" form:"cache_full"`
-	PutIntoNewDir bool   `json:"put_into_new_dir" form:"put_into_new_dir"`
+	SrcDir        string        `json:"src_dir" form:"src_dir"`
+	DstDir        string        `json:"dst_dir" form:"dst_dir"`
+	Name          StringOrArray `json:"name" form:"name"`
+	ArchivePass   string        `json:"archive_pass" form:"archive_pass"`
+	InnerPath     string        `json:"inner_path" form:"inner_path"`
+	CacheFull     bool          `json:"cache_full" form:"cache_full"`
+	PutIntoNewDir bool          `json:"put_into_new_dir" form:"put_into_new_dir"`
 }
 
 func FsArchiveDecompress(c *gin.Context) {
@@ -229,41 +246,49 @@ func FsArchiveDecompress(c *gin.Context) {
 		common.ErrorResp(c, errs.PermissionDenied, 403)
 		return
 	}
-	srcPath, err := user.JoinPath(stdpath.Join(req.SrcDir, req.Name))
-	if err != nil {
-		common.ErrorResp(c, err, 403)
-		return
+	srcPaths := make([]string, 0, len(req.Name))
+	for _, name := range req.Name {
+		srcPath, err := user.JoinPath(stdpath.Join(req.SrcDir, name))
+		if err != nil {
+			common.ErrorResp(c, err, 403)
+			return
+		}
+		srcPaths = append(srcPaths, srcPath)
 	}
 	dstDir, err := user.JoinPath(req.DstDir)
 	if err != nil {
 		common.ErrorResp(c, err, 403)
 		return
 	}
-	t, err := fs.ArchiveDecompress(c, srcPath, dstDir, model.ArchiveDecompressArgs{
-		ArchiveInnerArgs: model.ArchiveInnerArgs{
-			ArchiveArgs: model.ArchiveArgs{
-				LinkArgs: model.LinkArgs{
-					Header:  c.Request.Header,
-					Type:    c.Query("type"),
-					HttpReq: c.Request,
+	tasks := make([]task.TaskExtensionInfo, 0, len(srcPaths))
+	for _, srcPath := range srcPaths {
+		t, e := fs.ArchiveDecompress(c, srcPath, dstDir, model.ArchiveDecompressArgs{
+			ArchiveInnerArgs: model.ArchiveInnerArgs{
+				ArchiveArgs: model.ArchiveArgs{
+					LinkArgs: model.LinkArgs{
+						Header:  c.Request.Header,
+						Type:    c.Query("type"),
+						HttpReq: c.Request,
+					},
+					Password: req.ArchivePass,
 				},
-				Password: req.ArchivePass,
+				InnerPath: utils.FixAndCleanPath(req.InnerPath),
 			},
-			InnerPath: utils.FixAndCleanPath(req.InnerPath),
-		},
-		CacheFull:     req.CacheFull,
-		PutIntoNewDir: req.PutIntoNewDir,
-	})
-	if err != nil {
-		if errors.Is(err, errs.WrongArchivePassword) {
-			common.ErrorResp(c, err, 202)
-		} else {
-			common.ErrorResp(c, err, 500)
+			CacheFull:     req.CacheFull,
+			PutIntoNewDir: req.PutIntoNewDir,
+		})
+		if e != nil {
+			if errors.Is(e, errs.WrongArchivePassword) {
+				common.ErrorResp(c, e, 202)
+			} else {
+				common.ErrorResp(c, e, 500)
+			}
+			return
 		}
-		return
+		tasks = append(tasks, t)
 	}
 	common.SuccessResp(c, gin.H{
-		"task": getTaskInfo(t),
+		"task": getTaskInfos(tasks),
 	})
 }
 
@@ -376,7 +401,7 @@ func ArchiveInternalExtract(c *gin.Context) {
 func ArchiveExtensions(c *gin.Context) {
 	var ext []string
 	for key := range tool.Tools {
-		ext = append(ext, strings.TrimPrefix(key, "."))
+		ext = append(ext, key)
 	}
 	common.SuccessResp(c, ext)
 }

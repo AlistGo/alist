@@ -139,7 +139,7 @@ type RateLimitRangeReadCloser struct {
 	Limiter Limiter
 }
 
-func (rrc RateLimitRangeReadCloser) RangeRead(ctx context.Context, httpRange http_range.Range) (io.ReadCloser, error) {
+func (rrc *RateLimitRangeReadCloser) RangeRead(ctx context.Context, httpRange http_range.Range) (io.ReadCloser, error) {
 	rc, err := rrc.RangeReadCloserIF.RangeRead(ctx, httpRange)
 	if err != nil {
 		return nil, err

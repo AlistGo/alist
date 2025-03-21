@@ -16,14 +16,18 @@ import (
 type Archives struct {
 }
 
-func (*Archives) AcceptedExtensions() []string {
+func (Archives) AcceptedExtensions() []string {
 	return []string{
-		".br", ".bz2", ".gz", ".lz4", ".lz", ".sz", ".s2", ".xz", ".zz", ".zst", ".tar", ".rar", ".7z",
+		".br", ".bz2", ".gz", ".lz4", ".lz", ".sz", ".s2", ".xz", ".zz", ".zst", ".tar",
 	}
 }
 
-func (*Archives) GetMeta(ss *stream.SeekableStream, args model.ArchiveArgs) (model.ArchiveMeta, error) {
-	fsys, err := getFs(ss, args)
+func (Archives) AcceptedMultipartExtensions() []string {
+	return []string{}
+}
+
+func (Archives) GetMeta(ss []*stream.SeekableStream, args model.ArchiveArgs) (model.ArchiveMeta, error) {
+	fsys, err := getFs(ss[0], args)
 	if err != nil {
 		return nil, err
 	}
@@ -47,8 +51,8 @@ func (*Archives) GetMeta(ss *stream.SeekableStream, args model.ArchiveArgs) (mod
 	}, nil
 }
 
-func (*Archives) List(ss *stream.SeekableStream, args model.ArchiveInnerArgs) ([]model.Obj, error) {
-	fsys, err := getFs(ss, args.ArchiveArgs)
+func (Archives) List(ss []*stream.SeekableStream, args model.ArchiveInnerArgs) ([]model.Obj, error) {
+	fsys, err := getFs(ss[0], args.ArchiveArgs)
 	if err != nil {
 		return nil, err
 	}
@@ -69,8 +73,8 @@ func (*Archives) List(ss *stream.SeekableStream, args model.ArchiveInnerArgs) ([
 	})
 }
 
-func (*Archives) Extract(ss *stream.SeekableStream, args model.ArchiveInnerArgs) (io.ReadCloser, int64, error) {
-	fsys, err := getFs(ss, args.ArchiveArgs)
+func (Archives) Extract(ss []*stream.SeekableStream, args model.ArchiveInnerArgs) (io.ReadCloser, int64, error) {
+	fsys, err := getFs(ss[0], args.ArchiveArgs)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -85,8 +89,8 @@ func (*Archives) Extract(ss *stream.SeekableStream, args model.ArchiveInnerArgs)
 	return file, stat.Size(), nil
 }
 
-func (*Archives) Decompress(ss *stream.SeekableStream, outputPath string, args model.ArchiveInnerArgs, up model.UpdateProgress) error {
-	fsys, err := getFs(ss, args.ArchiveArgs)
+func (Archives) Decompress(ss []*stream.SeekableStream, outputPath string, args model.ArchiveInnerArgs, up model.UpdateProgress) error {
+	fsys, err := getFs(ss[0], args.ArchiveArgs)
 	if err != nil {
 		return err
 	}
@@ -133,5 +137,5 @@ func (*Archives) Decompress(ss *stream.SeekableStream, outputPath string, args m
 var _ tool.Tool = (*Archives)(nil)
 
 func init() {
-	tool.RegisterTool(&Archives{})
+	tool.RegisterTool(Archives{})
 }

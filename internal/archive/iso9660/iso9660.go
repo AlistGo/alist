@@ -14,19 +14,23 @@ import (
 type ISO9660 struct {
 }
 
-func (t *ISO9660) AcceptedExtensions() []string {
+func (ISO9660) AcceptedExtensions() []string {
 	return []string{".iso"}
 }
 
-func (t *ISO9660) GetMeta(ss *stream.SeekableStream, args model.ArchiveArgs) (model.ArchiveMeta, error) {
+func (ISO9660) AcceptedMultipartExtensions() []string {
+	return []string{}
+}
+
+func (ISO9660) GetMeta(ss []*stream.SeekableStream, args model.ArchiveArgs) (model.ArchiveMeta, error) {
 	return &model.ArchiveMetaInfo{
 		Comment:   "",
 		Encrypted: false,
 	}, nil
 }
 
-func (t *ISO9660) List(ss *stream.SeekableStream, args model.ArchiveInnerArgs) ([]model.Obj, error) {
-	img, err := getImage(ss)
+func (ISO9660) List(ss []*stream.SeekableStream, args model.ArchiveInnerArgs) ([]model.Obj, error) {
+	img, err := getImage(ss[0])
 	if err != nil {
 		return nil, err
 	}
@@ -48,8 +52,8 @@ func (t *ISO9660) List(ss *stream.SeekableStream, args model.ArchiveInnerArgs) (
 	return ret, nil
 }
 
-func (t *ISO9660) Extract(ss *stream.SeekableStream, args model.ArchiveInnerArgs) (io.ReadCloser, int64, error) {
-	img, err := getImage(ss)
+func (ISO9660) Extract(ss []*stream.SeekableStream, args model.ArchiveInnerArgs) (io.ReadCloser, int64, error) {
+	img, err := getImage(ss[0])
 	if err != nil {
 		return nil, 0, err
 	}
@@ -63,8 +67,8 @@ func (t *ISO9660) Extract(ss *stream.SeekableStream, args model.ArchiveInnerArgs
 	return io.NopCloser(obj.Reader()), obj.Size(), nil
 }
 
-func (t *ISO9660) Decompress(ss *stream.SeekableStream, outputPath string, args model.ArchiveInnerArgs, up model.UpdateProgress) error {
-	img, err := getImage(ss)
+func (ISO9660) Decompress(ss []*stream.SeekableStream, outputPath string, args model.ArchiveInnerArgs, up model.UpdateProgress) error {
+	img, err := getImage(ss[0])
 	if err != nil {
 		return err
 	}
@@ -92,5 +96,5 @@ func (t *ISO9660) Decompress(ss *stream.SeekableStream, outputPath string, args 
 var _ tool.Tool = (*ISO9660)(nil)
 
 func init() {
-	tool.RegisterTool(&ISO9660{})
+	tool.RegisterTool(ISO9660{})
 }

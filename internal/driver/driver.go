@@ -79,13 +79,13 @@ type Remove interface {
 type Put interface {
 	// Put a file (provided as a FileStreamer) into the driver
 	// Besides the most basic upload functionality, the following features also need to be implemented:
-	// 1. Canceling (when `<-ctx.Done()` returns), by the following methods:
+	// 1. Canceling (when `<-ctx.Done()` returns), which can be supported by the following methods:
 	//   (1) Use request methods that carry context, such as the following:
 	//      a. http.NewRequestWithContext
 	//      b. resty.Request.SetContext
 	//      c. s3manager.Uploader.UploadWithContext
 	//      d. utils.CopyWithCtx
-	//   (2) Use a `driver.ReaderWithCtx` or a `driver.NewLimitedUploadStream`
+	//   (2) Use a `driver.ReaderWithCtx` or `driver.NewLimitedUploadStream`
 	//   (3) Use `utils.IsCanceled` to check if the upload has been canceled during the upload process,
 	//       this is typically applicable to chunked uploads.
 	// 2. Submit upload progress (via `up`) in real-time. There are three recommended ways as follows:
