@@ -3,9 +3,9 @@ package fs
 import (
 	"context"
 
-	"github.com/alist-org/alist/v3/internal/errs"
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/internal/op"
+	"github.com/alist-org/alist/v3/internal/task"
 	"github.com/pkg/errors"
 )
 
@@ -27,7 +27,22 @@ func move(ctx context.Context, srcPath, dstDirPath string, lazyCache ...bool) er
 		return errors.WithMessage(err, "failed get dst storage")
 	}
 	if srcStorage.GetStorage() != dstStorage.GetStorage() {
-		return errors.WithStack(errs.MoveBetweenTwoStorages)
+		taskCreator, _ := ctx.Value("user").(*model.User)
+		CopyTaskManager.Add(&CopyTask{
+			TaskExtension: task.TaskExtension{
+				Creator: taskCreator,
+			},
+			srcStorage:   srcStorage,
+			dstStorage:   dstStorage,
+			SrcObjPath:   srcActualPath,
+			DstDirPath:   dstDirActualPath,
+			SrcStorageMp: srcStorage.GetStorage().MountPath,
+			DstStorageMp: dstStorage.GetStorage().MountPath,
+			Callback: func(t *CopyTask) error {
+				return op.Remove(t.Ctx(), srcStorage, srcActualPath)
+			},
+		})
+		return nil
 	}
 	return op.Move(ctx, srcStorage, srcActualPath, dstDirActualPath, lazyCache...)
 }
