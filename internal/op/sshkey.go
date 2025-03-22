@@ -17,7 +17,6 @@ func CreateSSHPublicKey(k *model.SSHPublicKey) (error, bool) {
 	if err != nil {
 		return err, false
 	}
-	k.KeyStr = string(pubKey.Marshal())
 	k.Fingerprint = ssh.FingerprintSHA256(pubKey)
 	k.AddedTime = time.Now()
 	k.LastUsedTime = k.AddedTime

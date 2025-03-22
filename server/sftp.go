@@ -113,11 +113,15 @@ func (d *SftpDriver) PublicKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	}
 	marshal := string(key.Marshal())
 	for _, sk := range keys {
-		if marshal == sk.KeyStr {
-			sk.LastUsedTime = time.Now()
-			_ = op.UpdateSSHPublicKey(&sk)
-			return nil, nil
+		if marshal != sk.KeyStr {
+			pubKey, _, _, _, e := ssh.ParseAuthorizedKey([]byte(sk.KeyStr))
+			if e != nil || marshal != string(pubKey.Marshal()) {
+				continue
+			}
 		}
+		sk.LastUsedTime = time.Now()
+		_ = op.UpdateSSHPublicKey(&sk)
+		return nil, nil
 	}
 	return nil, errors.New("public key refused")
 }
