@@ -279,7 +279,7 @@ func (c *Pan115) UploadByOSS(ctx context.Context, params *driver115.UploadOSSPar
 	if err != nil {
 		return nil, err
 	}
-	ossClient, err := oss.New(driver115.OSSEndpoint, ossToken.AccessKeyID, ossToken.AccessKeySecret)
+	ossClient, err := oss.New(c.client.GetOSSEndpoint(c.Addition.UseInternalUpload), ossToken.AccessKeyID, ossToken.AccessKeySecret)
 	if err != nil {
 		return nil, err
 	}
@@ -339,7 +339,7 @@ func (d *Pan115) UploadByMultipart(ctx context.Context, params *driver115.Upload
 		return nil, err
 	}
 
-	if ossClient, err = oss.New(driver115.OSSEndpoint, ossToken.AccessKeyID, ossToken.AccessKeySecret, oss.EnableMD5(true), oss.EnableCRC(true)); err != nil {
+	if ossClient, err = oss.New(d.client.GetOSSEndpoint(d.Addition.UseInternalUpload), ossToken.AccessKeyID, ossToken.AccessKeySecret, oss.EnableMD5(true), oss.EnableCRC(true)); err != nil {
 		return nil, err
 	}
 
