@@ -162,6 +162,8 @@ func (d *Cloudreve) Put(ctx context.Context, dstDir model.Obj, stream model.File
 	switch r.Policy.Type {
 	case "onedrive":
 		err = d.upOneDrive(ctx, stream, u, up)
+	case "s3":
+		err = d.upS3(ctx, stream, u, up)
 	case "remote": // 从机存储
 		err = d.upRemote(ctx, stream, u, up)
 	case "local": // 本机存储
