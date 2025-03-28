@@ -29,7 +29,6 @@ type ArchiveReader interface {
 func GenerateMetaTreeFromFolderTraversal(r ArchiveReader) (bool, []model.ObjTree) {
 	encrypted := false
 	dirMap := make(map[string]*model.ObjectTree)
-	dirMap["."] = &model.ObjectTree{}
 	for _, file := range r.Files() {
 		if encrypt, ok := file.(CanEncryptSubFile); ok && encrypt.IsEncrypted() {
 			encrypted = true
@@ -44,7 +43,7 @@ func GenerateMetaTreeFromFolderTraversal(r ArchiveReader) (bool, []model.ObjTree
 			dir = stdpath.Dir(name)
 			dirObj = dirMap[dir]
 			if dirObj == nil {
-				isNewFolder = true
+				isNewFolder = dir != "."
 				dirObj = &model.ObjectTree{}
 				dirObj.IsFolder = true
 				dirObj.Name = stdpath.Base(dir)
@@ -60,41 +59,45 @@ func GenerateMetaTreeFromFolderTraversal(r ArchiveReader) (bool, []model.ObjTree
 			dir = strings.TrimSuffix(name, "/")
 			dirObj = dirMap[dir]
 			if dirObj == nil {
-				isNewFolder = true
+				isNewFolder = dir != "."
 				dirObj = &model.ObjectTree{}
 				dirMap[dir] = dirObj
 			}
 			dirObj.IsFolder = true
 			dirObj.Name = stdpath.Base(dir)
 			dirObj.Modified = file.FileInfo().ModTime()
-			dirObj.Children = make([]model.ObjTree, 0)
 		}
 		if isNewFolder {
 			// 将 文件夹 添加到 父文件夹
-			dir = stdpath.Dir(dir)
-			pDirObj := dirMap[dir]
-			if pDirObj != nil {
-				pDirObj.Children = append(pDirObj.Children, dirObj)
-				continue
-			}
-
+			// 考虑压缩包仅记录文件的路径，不记录文件夹
+			// 循环创建所有父文件夹
+			parentDir := stdpath.Dir(dir)
 			for {
-				//	考虑压缩包仅记录文件的路径，不记录文件夹
-				pDirObj = &model.ObjectTree{}
-				pDirObj.IsFolder = true
-				pDirObj.Name = stdpath.Base(dir)
-				pDirObj.Modified = file.FileInfo().ModTime()
-				dirMap[dir] = pDirObj
-				pDirObj.Children = append(pDirObj.Children, dirObj)
-				dir = stdpath.Dir(dir)
-				if dirMap[dir] != nil {
+				parentDirObj := dirMap[parentDir]
+				if parentDirObj == nil {
+					parentDirObj = &model.ObjectTree{}
+					if parentDir != "." {
+						parentDirObj.IsFolder = true
+						parentDirObj.Name = stdpath.Base(parentDir)
+						parentDirObj.Modified = file.FileInfo().ModTime()
+					}
+					dirMap[parentDir] = parentDirObj
+				}
+				parentDirObj.Children = append(parentDirObj.Children, dirObj)
+
+				parentDir = stdpath.Dir(parentDir)
+				if dirMap[parentDir] != nil {
 					break
 				}
-				dirObj = pDirObj
+				dirObj = parentDirObj
 			}
 		}
 	}
-	return encrypted, dirMap["."].GetChildren()
+	if len(dirMap) > 0 {
+		return encrypted, dirMap["."].GetChildren()
+	} else {
+		return encrypted, nil
+	}
 }
 
 func MakeModelObj(file os.FileInfo) *model.Object {
