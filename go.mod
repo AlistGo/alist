@@ -4,6 +4,7 @@ go 1.23.4
 
 require (
 	github.com/KirCute/ftpserverlib-pasvportmap v1.25.0
+	github.com/KirCute/go-smb2-alist v0.0.3
 	github.com/KirCute/sftpd-alist v0.0.12
 	github.com/ProtonMail/go-crypto v1.0.0
 	github.com/SheltonZhu/115driver v1.0.34

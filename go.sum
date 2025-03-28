@@ -24,6 +24,8 @@ github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/KirCute/ftpserverlib-pasvportmap v1.25.0 h1:ikwCzeqoqN6wvBHOB9OI6dde/jbV7EoTMpUcxtYl5Po=
 github.com/KirCute/ftpserverlib-pasvportmap v1.25.0/go.mod h1:v0NgMtKDDi/6CM6r4P+daCljCW3eO9yS+Z+pZDTKo1E=
+github.com/KirCute/go-smb2-alist v0.0.3 h1:NgL2F6cb0iW4GWa+rR75Bh8Z4TjDoDnt4mBCnhiSqck=
+github.com/KirCute/go-smb2-alist v0.0.3/go.mod h1:BzUuyzAaJbS4Eb733i9SBxIllZQYDZe5UBsGpkoP6U4=
 github.com/KirCute/sftpd-alist v0.0.12 h1:GNVM5QLbQLAfXP4wGUlXFA2IO6fVek0n0IsGnOuISdg=
 github.com/KirCute/sftpd-alist v0.0.12/go.mod h1:2wNK7yyW2XfjyJq10OY6xB4COLac64hOwfV6clDJn6s=
 github.com/Max-Sum/base32768 v0.0.0-20230304063302-18e6ce5945fd h1:nzE1YQBdx1bq9IlZinHa+HVffy+NmVRoKr+wHN8fpLE=

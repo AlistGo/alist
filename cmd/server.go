@@ -4,9 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	ftpserver "github.com/KirCute/ftpserverlib-pasvportmap"
-	"github.com/KirCute/sftpd-alist"
-	"github.com/alist-org/alist/v3/internal/fs"
+	smb2 "github.com/KirCute/go-smb2-alist/server"
 	"net"
 	"net/http"
 	"os"
@@ -16,9 +14,12 @@ import (
 	"syscall"
 	"time"
 
+	ftpserver "github.com/KirCute/ftpserverlib-pasvportmap"
+	"github.com/KirCute/sftpd-alist"
 	"github.com/alist-org/alist/v3/cmd/flags"
 	"github.com/alist-org/alist/v3/internal/bootstrap"
 	"github.com/alist-org/alist/v3/internal/conf"
+	"github.com/alist-org/alist/v3/internal/fs"
 	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/alist-org/alist/v3/server"
 	"github.com/gin-gonic/gin"
@@ -151,6 +152,22 @@ the address is defined in config file`,
 				}()
 			}
 		}
+		var smbServer *smb2.Server
+		if conf.Conf.SMB.Listen != "" && conf.Conf.SMB.Enable {
+			var err error
+			smbServer, err = server.NewSmbServer()
+			if err != nil {
+				utils.Log.Fatalf("failed to start smb server: %s", err.Error())
+			} else {
+				utils.Log.Infof("start smb server on %s", conf.Conf.SMB.Listen)
+				go func() {
+					err = smbServer.Serve(conf.Conf.SMB.Listen)
+					if err != nil {
+						utils.Log.Fatalf("problem smb server listening: %s", err.Error())
+					}
+				}()
+			}
+		}
 		// Wait for interrupt signal to gracefully shutdown the server with
 		// a timeout of 1 second.
 		quit := make(chan os.Signal, 1)
@@ -209,6 +226,13 @@ the address is defined in config file`,
 				if err := sftpServer.Close(); err != nil {
 					utils.Log.Fatal("SFTP server shutdown err: ", err)
 				}
+			}()
+		}
+		if conf.Conf.SMB.Listen != "" && conf.Conf.SMB.Enable && smbServer != nil {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				smbServer.Shutdown()
 			}()
 		}
 		wg.Wait()

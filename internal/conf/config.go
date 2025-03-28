@@ -92,6 +92,19 @@ type SFTP struct {
 	Listen string `json:"listen" env:"LISTEN"`
 }
 
+type SMB struct {
+	Enable      bool   `json:"enable" env:"ENABLE"`
+	Listen      string `json:"listen" env:"LISTEN"`
+	MaxIOReads  int    `json:"max_io_reads" env:"MAX_IO_READS"`
+	MaxIOWrites int    `json:"max_io_writes" env:"MAX_IO_WRITES"`
+	TargetSPN   string `json:"target_spn" env:"TARGET_SPN"`
+	NbDomain    string `json:"nb_domain" env:"NB_DOMAIN"`
+	NbName      string `json:"nb_name" env:"NB_NAME"`
+	DnsName     string `json:"dns_name" env:"DNS_NAME"`
+	DnsDomain   string `json:"dns_domain" env:"DNS_DOMAIN"`
+	ShareName   string `json:"share_name" env:"SHARE_NAME"`
+}
+
 type Config struct {
 	Force                 bool        `json:"force" env:"FORCE"`
 	SiteURL               string      `json:"site_url" env:"SITE_URL"`
@@ -114,6 +127,7 @@ type Config struct {
 	S3                    S3          `json:"s3" envPrefix:"S3_"`
 	FTP                   FTP         `json:"ftp" envPrefix:"FTP_"`
 	SFTP                  SFTP        `json:"sftp" envPrefix:"SFTP_"`
+	SMB                   SMB         `json:"smb" envPrefix:"SMB_"`
 	LastLaunchedVersion   string      `json:"last_launched_version"`
 }
 
@@ -210,6 +224,18 @@ func DefaultConfig() *Config {
 		SFTP: SFTP{
 			Enable: false,
 			Listen: ":5222",
+		},
+		SMB: SMB{
+			Enable:      false,
+			Listen:      ":5445",
+			MaxIOReads:  4,
+			MaxIOWrites: 4,
+			TargetSPN:   "",
+			NbDomain:    "",
+			NbName:      "",
+			DnsName:     "",
+			DnsDomain:   "",
+			ShareName:   "AList",
 		},
 		LastLaunchedVersion: "",
 	}
