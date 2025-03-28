@@ -12,6 +12,7 @@ import (
 	"github.com/alist-org/alist/v3/internal/errs"
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/internal/op"
+	"github.com/alist-org/alist/v3/internal/stream"
 	"github.com/alist-org/alist/v3/pkg/utils"
 	hash_extend "github.com/alist-org/alist/v3/pkg/utils/hash"
 	"github.com/aws/aws-sdk-go/aws"
@@ -333,22 +334,17 @@ func (xc *XunLeiCommon) Remove(ctx context.Context, obj model.Obj) error {
 }
 
 func (xc *XunLeiCommon) Put(ctx context.Context, dstDir model.Obj, file model.FileStreamer, up driver.UpdateProgress) error {
-	hi := file.GetHash()
-	gcid := hi.GetHash(hash_extend.GCID)
+	gcid := file.GetHash().GetHash(hash_extend.GCID)
+	var err error
 	if len(gcid) < hash_extend.GCID.Width {
-		tFile, err := file.CacheFullInTempFile()
-		if err != nil {
-			return err
-		}
-
-		gcid, err = utils.HashFile(hash_extend.GCID, tFile, file.GetSize())
+		_, gcid, err = stream.CacheFullInTempFileAndHash(file, hash_extend.GCID, file.GetSize())
 		if err != nil {
 			return err
 		}
 	}
 
 	var resp UploadTaskResponse
-	_, err := xc.Request(FILE_API_URL, http.MethodPost, func(r *resty.Request) {
+	_, err = xc.Request(FILE_API_URL, http.MethodPost, func(r *resty.Request) {
 		r.SetContext(ctx)
 		r.SetBody(&base.Json{
 			"kind":        FILE,

@@ -3,16 +3,15 @@ package _189pc
 import (
 	"bytes"
 	"context"
-	"crypto/md5"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/xml"
 	"fmt"
 	"io"
-	"math"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -28,6 +27,7 @@ import (
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/internal/op"
 	"github.com/alist-org/alist/v3/internal/setting"
+	"github.com/alist-org/alist/v3/internal/stream"
 	"github.com/alist-org/alist/v3/pkg/errgroup"
 	"github.com/alist-org/alist/v3/pkg/utils"
 
@@ -473,12 +473,8 @@ func (y *Cloud189PC) refreshSession() (err error) {
 // 普通上传
 // 无法上传大小为0的文件
 func (y *Cloud189PC) StreamUpload(ctx context.Context, dstDir model.Obj, file model.FileStreamer, up driver.UpdateProgress, isFamily bool, overwrite bool) (model.Obj, error) {
-	var sliceSize = partSize(file.GetSize())
-	count := int(math.Ceil(float64(file.GetSize()) / float64(sliceSize)))
-	lastPartSize := file.GetSize() % sliceSize
-	if file.GetSize() > 0 && lastPartSize == 0 {
-		lastPartSize = sliceSize
-	}
+	size := file.GetSize()
+	sliceSize := partSize(size)
 
 	params := Params{
 		"parentFolderId": dstDir.GetID(),
@@ -512,22 +508,29 @@ func (y *Cloud189PC) StreamUpload(ctx context.Context, dstDir model.Obj, file mo
 		retry.DelayType(retry.BackOffDelay))
 	sem := semaphore.NewWeighted(3)
 
-	fileMd5 := md5.New()
-	silceMd5 := md5.New()
+	count := int(size / sliceSize)
+	lastPartSize := size % sliceSize
+	if lastPartSize > 0 {
+		count++
+	} else {
+		lastPartSize = sliceSize
+	}
+	fileMd5 := utils.MD5.NewFunc()
+	silceMd5 := utils.MD5.NewFunc()
 	silceMd5Hexs := make([]string, 0, count)
-
+	teeReader := io.TeeReader(file, io.MultiWriter(fileMd5, silceMd5))
+	byteSize := sliceSize
 	for i := 1; i <= count; i++ {
 		if utils.IsCanceled(upCtx) {
 			break
 		}
-		byteData := make([]byte, sliceSize)
 		if i == count {
-			byteData = byteData[:lastPartSize]
+			byteSize = lastPartSize
 		}
-
+		byteData := make([]byte, byteSize)
 		// 读取块
 		silceMd5.Reset()
-		if _, err := io.ReadFull(io.TeeReader(file, io.MultiWriter(fileMd5, silceMd5)), byteData); err != io.EOF && err != nil {
+		if _, err := io.ReadFull(teeReader, byteData); err != io.EOF && err != nil {
 			sem.Release(1)
 			return nil, err
 		}
@@ -607,24 +610,43 @@ func (y *Cloud189PC) RapidUpload(ctx context.Context, dstDir model.Obj, stream m
 
 // 快传
 func (y *Cloud189PC) FastUpload(ctx context.Context, dstDir model.Obj, file model.FileStreamer, up driver.UpdateProgress, isFamily bool, overwrite bool) (model.Obj, error) {
-	tempFile, err := file.CacheFullInTempFile()
-	if err != nil {
-		return nil, err
+	var (
+		cache = file.GetFile()
+		tmpF  *os.File
+		err   error
+	)
+	size := file.GetSize()
+	if _, ok := cache.(io.ReaderAt); !ok && size > 0 {
+		tmpF, err = os.CreateTemp(conf.Conf.TempDir, "file-*")
+		if err != nil {
+			return nil, err
+		}
+		defer func() {
+			_ = tmpF.Close()
+			_ = os.Remove(tmpF.Name())
+		}()
+		cache = tmpF
 	}
-
-	var sliceSize = partSize(file.GetSize())
-	count := int(math.Ceil(float64(file.GetSize()) / float64(sliceSize)))
-	lastSliceSize := file.GetSize() % sliceSize
-	if file.GetSize() > 0 && lastSliceSize == 0 {
+	sliceSize := partSize(size)
+	count := int(size / sliceSize)
+	lastSliceSize := size % sliceSize
+	if lastSliceSize > 0 {
+		count++
+	} else {
 		lastSliceSize = sliceSize
 	}
 
 	//step.1 优先计算所需信息
 	byteSize := sliceSize
-	fileMd5 := md5.New()
-	silceMd5 := md5.New()
-	silceMd5Hexs := make([]string, 0, count)
+	fileMd5 := utils.MD5.NewFunc()
+	sliceMd5 := utils.MD5.NewFunc()
+	sliceMd5Hexs := make([]string, 0, count)
 	partInfos := make([]string, 0, count)
+	writers := []io.Writer{fileMd5, sliceMd5}
+	if tmpF != nil {
+		writers = append(writers, tmpF)
+	}
+	written := int64(0)
 	for i := 1; i <= count; i++ {
 		if utils.IsCanceled(ctx) {
 			return nil, ctx.Err()
@@ -634,19 +656,31 @@ func (y *Cloud189PC) FastUpload(ctx context.Context, dstDir model.Obj, file mode
 			byteSize = lastSliceSize
 		}
 
-		silceMd5.Reset()
-		if _, err := utils.CopyWithBufferN(io.MultiWriter(fileMd5, silceMd5), tempFile, byteSize); err != nil && err != io.EOF {
+		n, err := utils.CopyWithBufferN(io.MultiWriter(writers...), file, byteSize)
+		written += n
+		if err != nil && err != io.EOF {
 			return nil, err
 		}
-		md5Byte := silceMd5.Sum(nil)
-		silceMd5Hexs = append(silceMd5Hexs, strings.ToUpper(hex.EncodeToString(md5Byte)))
+		md5Byte := sliceMd5.Sum(nil)
+		sliceMd5Hexs = append(sliceMd5Hexs, strings.ToUpper(hex.EncodeToString(md5Byte)))
 		partInfos = append(partInfos, fmt.Sprint(i, "-", base64.StdEncoding.EncodeToString(md5Byte)))
+		sliceMd5.Reset()
+	}
+
+	if tmpF != nil {
+		if size > 0 && written != size {
+			return nil, errs.NewErr(err, "CreateTempFile failed, incoming stream actual size= %d, expect = %d ", written, size)
+		}
+		_, err = tmpF.Seek(0, io.SeekStart)
+		if err != nil {
+			return nil, errs.NewErr(err, "CreateTempFile failed, can't seek to 0 ")
+		}
 	}
 
 	fileMd5Hex := strings.ToUpper(hex.EncodeToString(fileMd5.Sum(nil)))
 	sliceMd5Hex := fileMd5Hex
-	if file.GetSize() > sliceSize {
-		sliceMd5Hex = strings.ToUpper(utils.GetMD5EncodeStr(strings.Join(silceMd5Hexs, "\n")))
+	if size > sliceSize {
+		sliceMd5Hex = strings.ToUpper(utils.GetMD5EncodeStr(strings.Join(sliceMd5Hexs, "\n")))
 	}
 
 	fullUrl := UPLOAD_URL
@@ -712,7 +746,7 @@ func (y *Cloud189PC) FastUpload(ctx context.Context, dstDir model.Obj, file mode
 				}
 
 				// step.4 上传切片
-				_, err = y.put(ctx, uploadUrl.RequestURL, uploadUrl.Headers, false, io.NewSectionReader(tempFile, offset, byteSize), isFamily)
+				_, err = y.put(ctx, uploadUrl.RequestURL, uploadUrl.Headers, false, io.NewSectionReader(cache, offset, byteSize), isFamily)
 				if err != nil {
 					return err
 				}
@@ -794,11 +828,7 @@ func (y *Cloud189PC) GetMultiUploadUrls(ctx context.Context, isFamily bool, uplo
 
 // 旧版本上传，家庭云不支持覆盖
 func (y *Cloud189PC) OldUpload(ctx context.Context, dstDir model.Obj, file model.FileStreamer, up driver.UpdateProgress, isFamily bool, overwrite bool) (model.Obj, error) {
-	tempFile, err := file.CacheFullInTempFile()
-	if err != nil {
-		return nil, err
-	}
-	fileMd5, err := utils.HashFile(utils.MD5, tempFile)
+	tempFile, fileMd5, err := stream.CacheFullInTempFileAndHash(file, utils.MD5)
 	if err != nil {
 		return nil, err
 	}

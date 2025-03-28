@@ -10,6 +10,7 @@ import (
 	"github.com/alist-org/alist/v3/internal/errs"
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/internal/stream"
+	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/mholt/archives"
 )
 
@@ -73,7 +74,7 @@ func decompress(fsys fs2.FS, filePath, targetPath string, up model.UpdateProgres
 		return err
 	}
 	defer f.Close()
-	_, err = io.Copy(f, &stream.ReaderUpdatingProgress{
+	_, err = utils.CopyWithBuffer(f, &stream.ReaderUpdatingProgress{
 		Reader: &stream.SimpleReaderWithSize{
 			Reader: rc,
 			Size:   stat.Size(),

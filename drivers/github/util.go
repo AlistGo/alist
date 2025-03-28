@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 	"text/template"
 	"time"
@@ -159,7 +158,7 @@ func signCommit(m *map[string]interface{}, entity *openpgp.Entity) (string, erro
 	if err != nil {
 		return "", err
 	}
-	if _, err = io.Copy(armorWriter, &sigBuffer); err != nil {
+	if _, err = utils.CopyWithBuffer(armorWriter, &sigBuffer); err != nil {
 		return "", err
 	}
 	_ = armorWriter.Close()

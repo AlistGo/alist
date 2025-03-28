@@ -2,7 +2,6 @@ package template
 
 import (
 	"context"
-	"crypto/md5"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -17,6 +16,7 @@ import (
 	"github.com/alist-org/alist/v3/internal/driver"
 	"github.com/alist-org/alist/v3/internal/errs"
 	"github.com/alist-org/alist/v3/internal/model"
+	"github.com/alist-org/alist/v3/internal/stream"
 	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/foxxorcat/mopan-sdk-go"
 	"github.com/go-resty/resty/v2"
@@ -273,23 +273,14 @@ func (d *ILanZou) Remove(ctx context.Context, obj model.Obj) error {
 const DefaultPartSize = 1024 * 1024 * 8
 
 func (d *ILanZou) Put(ctx context.Context, dstDir model.Obj, s model.FileStreamer, up driver.UpdateProgress) (model.Obj, error) {
-	h := md5.New()
-	// need to calculate md5 of the full content
-	tempFile, err := s.CacheFullInTempFile()
-	if err != nil {
-		return nil, err
+	etag := s.GetHash().GetHash(utils.MD5)
+	var err error
+	if len(etag) != utils.MD5.Width {
+		_, etag, err = stream.CacheFullInTempFileAndHash(s, utils.MD5)
+		if err != nil {
+			return nil, err
+		}
 	}
-	defer func() {
-		_ = tempFile.Close()
-	}()
-	if _, err = utils.CopyWithBuffer(h, tempFile); err != nil {
-		return nil, err
-	}
-	_, err = tempFile.Seek(0, io.SeekStart)
-	if err != nil {
-		return nil, err
-	}
-	etag := hex.EncodeToString(h.Sum(nil))
 	// get upToken
 	res, err := d.proved("/7n/getUpToken", http.MethodPost, func(req *resty.Request) {
 		req.SetBody(base.Json{
@@ -309,7 +300,7 @@ func (d *ILanZou) Put(ctx context.Context, dstDir model.Obj, s model.FileStreame
 	key := fmt.Sprintf("disk/%d/%d/%d/%s/%016d", now.Year(), now.Month(), now.Day(), d.account, now.UnixMilli())
 	reader := driver.NewLimitedUploadStream(ctx, &driver.ReaderUpdatingProgress{
 		Reader: &driver.SimpleReaderWithSize{
-			Reader: tempFile,
+			Reader: s,
 			Size:   s.GetSize(),
 		},
 		UpdateProgress: up,

@@ -248,8 +248,9 @@ func (d *downloader) sendChunkTask(newConcurrency bool) error {
 			size:  finalSize,
 			id:    d.nextChunk,
 			buf:   buf,
+
+			newConcurrency: newConcurrency,
 		}
-		ch.newConcurrency = newConcurrency
 		d.pos += finalSize
 		d.nextChunk++
 		d.chunkChannel <- ch

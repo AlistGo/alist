@@ -204,7 +204,7 @@ func (d *Cloudreve) upLocal(ctx context.Context, stream model.FileStreamer, u Up
 			req.SetContentLength(true)
 			req.SetHeader("Content-Length", strconv.FormatInt(byteSize, 10))
 			req.SetHeader("User-Agent", d.getUA())
-			req.SetBody(driver.NewLimitedUploadStream(ctx, bytes.NewBuffer(byteData)))
+			req.SetBody(driver.NewLimitedUploadStream(ctx, bytes.NewReader(byteData)))
 		}, nil)
 		if err != nil {
 			break
@@ -239,7 +239,7 @@ func (d *Cloudreve) upRemote(ctx context.Context, stream model.FileStreamer, u U
 			return err
 		}
 		req, err := http.NewRequest("POST", uploadUrl+"?chunk="+strconv.Itoa(chunk),
-			driver.NewLimitedUploadStream(ctx, bytes.NewBuffer(byteData)))
+			driver.NewLimitedUploadStream(ctx, bytes.NewReader(byteData)))
 		if err != nil {
 			return err
 		}
@@ -280,7 +280,7 @@ func (d *Cloudreve) upOneDrive(ctx context.Context, stream model.FileStreamer, u
 		if err != nil {
 			return err
 		}
-		req, err := http.NewRequest("PUT", uploadUrl, driver.NewLimitedUploadStream(ctx, bytes.NewBuffer(byteData)))
+		req, err := http.NewRequest("PUT", uploadUrl, driver.NewLimitedUploadStream(ctx, bytes.NewReader(byteData)))
 		if err != nil {
 			return err
 		}

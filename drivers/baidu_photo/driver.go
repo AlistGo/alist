@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -16,6 +16,7 @@ import (
 	"golang.org/x/sync/semaphore"
 
 	"github.com/alist-org/alist/v3/drivers/base"
+	"github.com/alist-org/alist/v3/internal/conf"
 	"github.com/alist-org/alist/v3/internal/driver"
 	"github.com/alist-org/alist/v3/internal/errs"
 	"github.com/alist-org/alist/v3/internal/model"
@@ -241,11 +242,21 @@ func (d *BaiduPhoto) Put(ctx context.Context, dstDir model.Obj, stream model.Fil
 
 	// TODO:
 	// 暂时没有找到妙传方式
-
-	// 需要获取完整文件md5,必须支持 io.Seek
-	tempFile, err := stream.CacheFullInTempFile()
-	if err != nil {
-		return nil, err
+	var (
+		cache = stream.GetFile()
+		tmpF  *os.File
+		err   error
+	)
+	if _, ok := cache.(io.ReaderAt); !ok {
+		tmpF, err = os.CreateTemp(conf.Conf.TempDir, "file-*")
+		if err != nil {
+			return nil, err
+		}
+		defer func() {
+			_ = tmpF.Close()
+			_ = os.Remove(tmpF.Name())
+		}()
+		cache = tmpF
 	}
 
 	const DEFAULT int64 = 1 << 22
@@ -253,9 +264,11 @@ func (d *BaiduPhoto) Put(ctx context.Context, dstDir model.Obj, stream model.Fil
 
 	// 计算需要的数据
 	streamSize := stream.GetSize()
-	count := int(math.Ceil(float64(streamSize) / float64(DEFAULT)))
+	count := int(streamSize / DEFAULT)
 	lastBlockSize := streamSize % DEFAULT
-	if lastBlockSize == 0 {
+	if lastBlockSize > 0 {
+		count++
+	} else {
 		lastBlockSize = DEFAULT
 	}
 
@@ -266,6 +279,11 @@ func (d *BaiduPhoto) Put(ctx context.Context, dstDir model.Obj, stream model.Fil
 	sliceMd5H := md5.New()
 	sliceMd5H2 := md5.New()
 	slicemd5H2Write := utils.LimitWriter(sliceMd5H2, SliceSize)
+	writers := []io.Writer{fileMd5H, sliceMd5H, slicemd5H2Write}
+	if tmpF != nil {
+		writers = append(writers, tmpF)
+	}
+	written := int64(0)
 	for i := 1; i <= count; i++ {
 		if utils.IsCanceled(ctx) {
 			return nil, ctx.Err()
@@ -273,12 +291,22 @@ func (d *BaiduPhoto) Put(ctx context.Context, dstDir model.Obj, stream model.Fil
 		if i == count {
 			byteSize = lastBlockSize
 		}
-		_, err := utils.CopyWithBufferN(io.MultiWriter(fileMd5H, sliceMd5H, slicemd5H2Write), tempFile, byteSize)
+		n, err := utils.CopyWithBufferN(io.MultiWriter(writers...), stream, byteSize)
+		written += n
 		if err != nil && err != io.EOF {
 			return nil, err
 		}
 		sliceMD5List = append(sliceMD5List, hex.EncodeToString(sliceMd5H.Sum(nil)))
 		sliceMd5H.Reset()
+	}
+	if tmpF != nil {
+		if written != streamSize {
+			return nil, errs.NewErr(err, "CreateTempFile failed, incoming stream actual size= %d, expect = %d ", written, streamSize)
+		}
+		_, err = tmpF.Seek(0, io.SeekStart)
+		if err != nil {
+			return nil, errs.NewErr(err, "CreateTempFile failed, can't seek to 0 ")
+		}
 	}
 	contentMd5 := hex.EncodeToString(fileMd5H.Sum(nil))
 	sliceMd5 := hex.EncodeToString(sliceMd5H2.Sum(nil))
@@ -291,7 +319,7 @@ func (d *BaiduPhoto) Put(ctx context.Context, dstDir model.Obj, stream model.Fil
 		"rtype":       "1",
 		"ctype":       "11",
 		"path":        fmt.Sprintf("/%s", stream.GetName()),
-		"size":        fmt.Sprint(stream.GetSize()),
+		"size":        fmt.Sprint(streamSize),
 		"slice-md5":   sliceMd5,
 		"content-md5": contentMd5,
 		"block_list":  blockListStr,
@@ -343,7 +371,7 @@ func (d *BaiduPhoto) Put(ctx context.Context, dstDir model.Obj, stream model.Fil
 					r.SetContext(ctx)
 					r.SetQueryParams(uploadParams)
 					r.SetFileReader("file", stream.GetName(),
-						driver.NewLimitedUploadStream(ctx, io.NewSectionReader(tempFile, offset, byteSize)))
+						driver.NewLimitedUploadStream(ctx, io.NewSectionReader(cache, offset, byteSize)))
 				}, nil)
 				if err != nil {
 					return err

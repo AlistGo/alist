@@ -2,6 +2,7 @@ package model
 
 import (
 	"io"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -48,7 +49,8 @@ type FileStreamer interface {
 	RangeRead(http_range.Range) (io.Reader, error)
 	//for a non-seekable Stream, if Read is called, this function won't work
 	CacheFullInTempFile() (File, error)
-	CacheFullInTempFileAndUpdateProgress(up UpdateProgress) (File, error)
+	SetTmpFile(r *os.File)
+	GetFile() File
 }
 
 type UpdateProgress func(percentage float64)

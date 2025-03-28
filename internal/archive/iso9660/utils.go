@@ -1,14 +1,15 @@
 package iso9660
 
 import (
-	"github.com/alist-org/alist/v3/internal/errs"
-	"github.com/alist-org/alist/v3/internal/model"
-	"github.com/alist-org/alist/v3/internal/stream"
-	"github.com/kdomanski/iso9660"
-	"io"
 	"os"
 	stdpath "path"
 	"strings"
+
+	"github.com/alist-org/alist/v3/internal/errs"
+	"github.com/alist-org/alist/v3/internal/model"
+	"github.com/alist-org/alist/v3/internal/stream"
+	"github.com/alist-org/alist/v3/pkg/utils"
+	"github.com/kdomanski/iso9660"
 )
 
 func getImage(ss *stream.SeekableStream) (*iso9660.Image, error) {
@@ -66,7 +67,7 @@ func decompress(f *iso9660.File, path string, up model.UpdateProgress) error {
 		return err
 	}
 	defer file.Close()
-	_, err = io.Copy(file, &stream.ReaderUpdatingProgress{
+	_, err = utils.CopyWithBuffer(file, &stream.ReaderUpdatingProgress{
 		Reader: &stream.SimpleReaderWithSize{
 			Reader: f.Reader(),
 			Size:   f.Size(),

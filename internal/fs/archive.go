@@ -90,9 +90,11 @@ func (t *ArchiveDownloadTask) RunWithoutPushUploadTask() (*ArchiveContentUploadT
 		t.SetTotalBytes(total)
 		t.status = "getting src object"
 		for _, s := range ss {
-			_, err = s.CacheFullInTempFileAndUpdateProgress(func(p float64) {
-				t.SetProgress((float64(cur) + float64(s.GetSize())*p/100.0) / float64(total))
-			})
+			if s.GetFile() == nil {
+				_, err = stream.CacheFullInTempFileAndUpdateProgress(s, func(p float64) {
+					t.SetProgress((float64(cur) + float64(s.GetSize())*p/100.0) / float64(total))
+				})
+			}
 			cur += s.GetSize()
 			if err != nil {
 				return nil, err
