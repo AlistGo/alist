@@ -3,6 +3,7 @@ package _139
 import (
 	"context"
 	"encoding/base64"
+	"encoding/xml"
 	"fmt"
 	"io"
 	"net/http"
@@ -740,14 +741,20 @@ func (d *Yun139) Put(ctx context.Context, dstDir model.Obj, stream model.FileStr
 				break
 			}
 		}
+		var reportSize int64
+		if d.ReportRealSize {
+			reportSize = stream.GetSize()
+		} else {
+			reportSize = 0
+		}
 		data := base.Json{
 			"manualRename": 2,
 			"operation":    0,
 			"fileCount":    1,
-			"totalSize":    0, // 去除上传大小限制
+			"totalSize":    reportSize,
 			"uploadContentList": []base.Json{{
 				"contentName": stream.GetName(),
-				"contentSize": 0, // 去除上传大小限制
+				"contentSize": reportSize,
 				// "digest": "5a3231986ce7a6b46e408612d385bafa"
 			}},
 			"parentCatalogID": dstDir.GetID(),
@@ -765,10 +772,10 @@ func (d *Yun139) Put(ctx context.Context, dstDir model.Obj, stream model.FileStr
 				"operation":    0,
 				"path":         path.Join(dstDir.GetPath(), dstDir.GetID()),
 				"seqNo":        random.String(32), //序列号不能为空
-				"totalSize":    0,
+				"totalSize":    reportSize,
 				"uploadContentList": []base.Json{{
 					"contentName": stream.GetName(),
-					"contentSize": 0,
+					"contentSize": reportSize,
 					// "digest": "5a3231986ce7a6b46e408612d385bafa"
 				}},
 			})
@@ -778,6 +785,9 @@ func (d *Yun139) Put(ctx context.Context, dstDir model.Obj, stream model.FileStr
 		_, err = d.post(pathname, data, &resp)
 		if err != nil {
 			return err
+		}
+		if resp.Data.Result.ResultCode != "0" {
+			return fmt.Errorf("get file upload url failed with result code: %s, message: %s", resp.Data.Result.ResultCode, resp.Data.Result.ResultDesc)
 		}
 
 		// Progress
@@ -820,13 +830,23 @@ func (d *Yun139) Put(ctx context.Context, dstDir model.Obj, stream model.FileStr
 			if err != nil {
 				return err
 			}
-			_ = res.Body.Close()
-			log.Debugf("%+v", res)
 			if res.StatusCode != http.StatusOK {
+				res.Body.Close()
 				return fmt.Errorf("unexpected status code: %d", res.StatusCode)
 			}
+			bodyBytes, err := io.ReadAll(res.Body)
+			if err != nil {
+				return fmt.Errorf("error reading response body: %v", err)
+			}
+			var result InterLayerUploadResult
+			err = xml.Unmarshal(bodyBytes, &result)
+			if err != nil {
+				return fmt.Errorf("error parsing XML: %v", err)
+			}
+			if result.ResultCode != 0 {
+				return fmt.Errorf("upload failed with result code: %d, message: %s", result.ResultCode, result.Msg)
+			}
 		}
-
 		return nil
 	default:
 		return errs.NotImplement

@@ -143,6 +143,13 @@ type UploadResp struct {
 	} `json:"data"`
 }
 
+type InterLayerUploadResult struct {
+	XMLName    xml.Name `xml:"result"`
+	Text       string   `xml:",chardata"`
+	ResultCode int      `xml:"resultCode"`
+	Msg        string   `xml:"msg"`
+}
+
 type CloudContent struct {
 	ContentID string `json:"contentID"`
 	//Modifier         string      `json:"modifier"`
