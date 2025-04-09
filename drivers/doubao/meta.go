@@ -10,7 +10,8 @@ type Addition struct {
 	// driver.RootPath
 	driver.RootID
 	// define other
-	Cookie string `json:"cookie" type:"text"`
+	Cookie       string `json:"cookie" type:"text"`
+	UploadThread string `json:"upload_thread" default:"3"`
 }
 
 var config = driver.Config{
@@ -19,7 +20,7 @@ var config = driver.Config{
 	OnlyLocal:         false,
 	OnlyProxy:         false,
 	NoCache:           false,
-	NoUpload:          true,
+	NoUpload:          false,
 	NeedMs:            false,
 	DefaultRoot:       "0",
 	CheckStatus:       false,

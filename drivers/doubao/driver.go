@@ -3,19 +3,25 @@ package doubao
 import (
 	"context"
 	"errors"
-	"time"
-
 	"github.com/alist-org/alist/v3/drivers/base"
 	"github.com/alist-org/alist/v3/internal/driver"
 	"github.com/alist-org/alist/v3/internal/errs"
 	"github.com/alist-org/alist/v3/internal/model"
+	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/go-resty/resty/v2"
 	"github.com/google/uuid"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
 )
 
 type Doubao struct {
 	model.Storage
 	Addition
+	*UploadToken
+	UserId       string
+	uploadThread int
 }
 
 func (d *Doubao) Config() driver.Config {
@@ -29,6 +35,29 @@ func (d *Doubao) GetAddition() driver.Additional {
 func (d *Doubao) Init(ctx context.Context) error {
 	// TODO login / refresh token
 	//op.MustSaveDriverStorage(d)
+	d.uploadThread, _ = strconv.Atoi(d.UploadThread)
+	if d.uploadThread < 1 {
+		d.uploadThread, d.UploadThread = 3, "3"
+	}
+
+	if d.UserId == "" {
+		userInfo, err := d.getUserInfo()
+		if err != nil {
+			return err
+		}
+
+		d.UserId = strconv.FormatInt(userInfo.UserID, 10)
+	}
+
+	if d.UploadToken == nil {
+		uploadToken, err := d.initUploadToken()
+		if err != nil {
+			return err
+		}
+
+		d.UploadToken = uploadToken
+	}
+
 	return nil
 }
 
@@ -38,18 +67,12 @@ func (d *Doubao) Drop(ctx context.Context) error {
 
 func (d *Doubao) List(ctx context.Context, dir model.Obj, args model.ListArgs) ([]model.Obj, error) {
 	var files []model.Obj
-	var r NodeInfoResp
-	_, err := d.request("/samantha/aispace/node_info", "POST", func(req *resty.Request) {
-		req.SetBody(base.Json{
-			"node_id":        dir.GetID(),
-			"need_full_path": false,
-		})
-	}, &r)
+	fileList, err := d.getFiles(dir.GetID(), "")
 	if err != nil {
 		return nil, err
 	}
 
-	for _, child := range r.Data.Children {
+	for _, child := range fileList {
 		files = append(files, &Object{
 			Object: model.Object{
 				ID:       child.ID,
@@ -60,34 +83,65 @@ func (d *Doubao) List(ctx context.Context, dir model.Obj, args model.ListArgs) (
 				Ctime:    time.Unix(child.CreateTime, 0),
 				IsFolder: child.NodeType == 1,
 			},
-			Key: child.Key,
+			Key:      child.Key,
+			NodeType: child.NodeType,
 		})
 	}
+
 	return files, nil
 }
 
 func (d *Doubao) Link(ctx context.Context, file model.Obj, args model.LinkArgs) (*model.Link, error) {
+	var downloadUrl string
+
 	if u, ok := file.(*Object); ok {
-		var r GetFileUrlResp
-		_, err := d.request("/alice/message/get_file_url", "POST", func(req *resty.Request) {
-			req.SetBody(base.Json{
-				"uris": []string{u.Key},
-				"type": "file",
-			})
-		}, &r)
-		if err != nil {
-			return nil, err
+		switch u.NodeType {
+		case VideoType, AudioType:
+			var r GetVideoFileUrlResp
+			_, err := d.request("/samantha/media/get_play_info", http.MethodPost, func(req *resty.Request) {
+				req.SetBody(base.Json{
+					"key":     u.Key,
+					"node_id": file.GetID(),
+				})
+			}, &r)
+			if err != nil {
+				return nil, err
+			}
+
+			downloadUrl = r.Data.OriginalMediaInfo.MainURL
+		default:
+			var r GetFileUrlResp
+			_, err := d.request("/alice/message/get_file_url", http.MethodPost, func(req *resty.Request) {
+				req.SetBody(base.Json{
+					"uris": []string{u.Key},
+					"type": FileNodeType[u.NodeType],
+				})
+			}, &r)
+			if err != nil {
+				return nil, err
+			}
+
+			downloadUrl = r.Data.FileUrls[0].MainURL
 		}
+
+		// 生成标准的Content-Disposition
+		contentDisposition := generateContentDisposition(u.Name)
+
 		return &model.Link{
-			URL: r.Data.FileUrls[0].MainURL,
+			URL: downloadUrl,
+			Header: http.Header{
+				"User-Agent":          []string{UserAgent},
+				"Content-Disposition": []string{contentDisposition},
+			},
 		}, nil
 	}
+
 	return nil, errors.New("can't convert obj to URL")
 }
 
 func (d *Doubao) MakeDir(ctx context.Context, parentDir model.Obj, dirName string) error {
 	var r UploadNodeResp
-	_, err := d.request("/samantha/aispace/upload_node", "POST", func(req *resty.Request) {
+	_, err := d.request("/samantha/aispace/upload_node", http.MethodPost, func(req *resty.Request) {
 		req.SetBody(base.Json{
 			"node_list": []base.Json{
 				{
@@ -104,7 +158,7 @@ func (d *Doubao) MakeDir(ctx context.Context, parentDir model.Obj, dirName strin
 
 func (d *Doubao) Move(ctx context.Context, srcObj, dstDir model.Obj) error {
 	var r UploadNodeResp
-	_, err := d.request("/samantha/aispace/move_node", "POST", func(req *resty.Request) {
+	_, err := d.request("/samantha/aispace/move_node", http.MethodPost, func(req *resty.Request) {
 		req.SetBody(base.Json{
 			"node_list": []base.Json{
 				{"id": srcObj.GetID()},
@@ -118,7 +172,7 @@ func (d *Doubao) Move(ctx context.Context, srcObj, dstDir model.Obj) error {
 
 func (d *Doubao) Rename(ctx context.Context, srcObj model.Obj, newName string) error {
 	var r BaseResp
-	_, err := d.request("/samantha/aispace/rename_node", "POST", func(req *resty.Request) {
+	_, err := d.request("/samantha/aispace/rename_node", http.MethodPost, func(req *resty.Request) {
 		req.SetBody(base.Json{
 			"node_id":   srcObj.GetID(),
 			"node_name": newName,
@@ -134,15 +188,38 @@ func (d *Doubao) Copy(ctx context.Context, srcObj, dstDir model.Obj) (model.Obj,
 
 func (d *Doubao) Remove(ctx context.Context, obj model.Obj) error {
 	var r BaseResp
-	_, err := d.request("/samantha/aispace/delete_node", "POST", func(req *resty.Request) {
+	_, err := d.request("/samantha/aispace/delete_node", http.MethodPost, func(req *resty.Request) {
 		req.SetBody(base.Json{"node_list": []base.Json{{"id": obj.GetID()}}})
 	}, &r)
 	return err
 }
 
 func (d *Doubao) Put(ctx context.Context, dstDir model.Obj, file model.FileStreamer, up driver.UpdateProgress) (model.Obj, error) {
-	// TODO upload file, optional
-	return nil, errs.NotImplement
+	// 根据MIME类型确定数据类型
+	mimetype := file.GetMimetype()
+	dataType := FileDataType
+
+	switch {
+	case strings.HasPrefix(mimetype, "video/"):
+		dataType = VideoDataType
+	case strings.HasPrefix(mimetype, "audio/"):
+		dataType = VideoDataType // 音频与视频使用相同的处理方式
+	case strings.HasPrefix(mimetype, "image/"):
+		dataType = ImgDataType
+	}
+
+	// 获取上传配置
+	uploadConfig := UploadConfig{}
+	if err := d.getUploadConfig(&uploadConfig, dataType, file); err != nil {
+		return nil, err
+	}
+
+	// 根据文件大小选择上传方式
+	if file.GetSize() <= 1*utils.MB { // 小于1MB，使用普通模式上传
+		return d.Upload(&uploadConfig, dstDir, file, up, dataType)
+	}
+	// 大文件使用分片上传
+	return d.UploadByMultipart(ctx, &uploadConfig, file.GetSize(), dstDir, file, up, dataType)
 }
 
 func (d *Doubao) GetArchiveMeta(ctx context.Context, obj model.Obj, args model.ArchiveArgs) (model.ArchiveMeta, error) {
