@@ -6,8 +6,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
-	"math"
 	"net/url"
+	"os"
 	stdpath "path"
 	"strconv"
 	"time"
@@ -15,6 +15,7 @@ import (
 	"golang.org/x/sync/semaphore"
 
 	"github.com/alist-org/alist/v3/drivers/base"
+	"github.com/alist-org/alist/v3/internal/conf"
 	"github.com/alist-org/alist/v3/internal/driver"
 	"github.com/alist-org/alist/v3/internal/errs"
 	"github.com/alist-org/alist/v3/internal/model"
@@ -185,16 +186,30 @@ func (d *BaiduNetdisk) Put(ctx context.Context, dstDir model.Obj, stream model.F
 		return newObj, nil
 	}
 
-	tempFile, err := stream.CacheFullInTempFile()
-	if err != nil {
-		return nil, err
+	var (
+		cache = stream.GetFile()
+		tmpF  *os.File
+		err   error
+	)
+	if _, ok := cache.(io.ReaderAt); !ok {
+		tmpF, err = os.CreateTemp(conf.Conf.TempDir, "file-*")
+		if err != nil {
+			return nil, err
+		}
+		defer func() {
+			_ = tmpF.Close()
+			_ = os.Remove(tmpF.Name())
+		}()
+		cache = tmpF
 	}
 
 	streamSize := stream.GetSize()
 	sliceSize := d.getSliceSize(streamSize)
-	count := int(math.Max(math.Ceil(float64(streamSize)/float64(sliceSize)), 1))
+	count := int(streamSize / sliceSize)
 	lastBlockSize := streamSize % sliceSize
-	if streamSize > 0 && lastBlockSize == 0 {
+	if lastBlockSize > 0 {
+		count++
+	} else {
 		lastBlockSize = sliceSize
 	}
 
@@ -207,6 +222,11 @@ func (d *BaiduNetdisk) Put(ctx context.Context, dstDir model.Obj, stream model.F
 	sliceMd5H := md5.New()
 	sliceMd5H2 := md5.New()
 	slicemd5H2Write := utils.LimitWriter(sliceMd5H2, SliceSize)
+	writers := []io.Writer{fileMd5H, sliceMd5H, slicemd5H2Write}
+	if tmpF != nil {
+		writers = append(writers, tmpF)
+	}
+	written := int64(0)
 
 	for i := 1; i <= count; i++ {
 		if utils.IsCanceled(ctx) {
@@ -215,12 +235,22 @@ func (d *BaiduNetdisk) Put(ctx context.Context, dstDir model.Obj, stream model.F
 		if i == count {
 			byteSize = lastBlockSize
 		}
-		_, err := utils.CopyWithBufferN(io.MultiWriter(fileMd5H, sliceMd5H, slicemd5H2Write), tempFile, byteSize)
+		n, err := utils.CopyWithBufferN(io.MultiWriter(writers...), stream, byteSize)
+		written += n
 		if err != nil && err != io.EOF {
 			return nil, err
 		}
 		blockList = append(blockList, hex.EncodeToString(sliceMd5H.Sum(nil)))
 		sliceMd5H.Reset()
+	}
+	if tmpF != nil {
+		if written != streamSize {
+			return nil, errs.NewErr(err, "CreateTempFile failed, incoming stream actual size= %d, expect = %d ", written, streamSize)
+		}
+		_, err = tmpF.Seek(0, io.SeekStart)
+		if err != nil {
+			return nil, errs.NewErr(err, "CreateTempFile failed, can't seek to 0 ")
+		}
 	}
 	contentMd5 := hex.EncodeToString(fileMd5H.Sum(nil))
 	sliceMd5 := hex.EncodeToString(sliceMd5H2.Sum(nil))
@@ -291,7 +321,7 @@ func (d *BaiduNetdisk) Put(ctx context.Context, dstDir model.Obj, stream model.F
 				"partseq":      strconv.Itoa(partseq),
 			}
 			err := d.uploadSlice(ctx, params, stream.GetName(),
-				driver.NewLimitedUploadStream(ctx, io.NewSectionReader(tempFile, offset, byteSize)))
+				driver.NewLimitedUploadStream(ctx, io.NewSectionReader(cache, offset, byteSize)))
 			if err != nil {
 				return err
 			}

@@ -269,9 +269,6 @@ func (d *MoPan) Put(ctx context.Context, dstDir model.Obj, stream model.FileStre
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		_ = file.Close()
-	}()
 
 	// step.1
 	uploadPartData, err := mopan.InitUploadPartData(ctx, mopan.UpdloadFileParam{

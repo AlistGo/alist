@@ -227,7 +227,6 @@ func (d *NeteaseMusic) putSongStream(ctx context.Context, stream model.FileStrea
 	if err != nil {
 		return err
 	}
-	defer tmp.Close()
 
 	u := uploader{driver: d, file: tmp}
 

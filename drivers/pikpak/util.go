@@ -7,13 +7,6 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
-	"github.com/alist-org/alist/v3/internal/driver"
-	"github.com/alist-org/alist/v3/internal/model"
-	"github.com/alist-org/alist/v3/internal/op"
-	"github.com/alist-org/alist/v3/pkg/utils"
-	"github.com/aliyun/aliyun-oss-go-sdk/oss"
-	jsoniter "github.com/json-iterator/go"
-	"github.com/pkg/errors"
 	"io"
 	"net/http"
 	"path/filepath"
@@ -24,7 +17,14 @@ import (
 	"time"
 
 	"github.com/alist-org/alist/v3/drivers/base"
+	"github.com/alist-org/alist/v3/internal/driver"
+	"github.com/alist-org/alist/v3/internal/model"
+	"github.com/alist-org/alist/v3/internal/op"
+	"github.com/alist-org/alist/v3/pkg/utils"
+	"github.com/aliyun/aliyun-oss-go-sdk/oss"
 	"github.com/go-resty/resty/v2"
+	jsoniter "github.com/json-iterator/go"
+	"github.com/pkg/errors"
 )
 
 var AndroidAlgorithms = []string{
@@ -516,7 +516,7 @@ func (d *PikPak) UploadByMultipart(ctx context.Context, params *S3Params, fileSi
 						continue
 					}
 
-					b := driver.NewLimitedUploadStream(ctx, bytes.NewBuffer(buf))
+					b := driver.NewLimitedUploadStream(ctx, bytes.NewReader(buf))
 					if part, err = bucket.UploadPart(imur, b, chunk.Size, chunk.Number, OssOption(params)...); err == nil {
 						break
 					}

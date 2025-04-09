@@ -2,6 +2,7 @@ package stream
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
@@ -95,4 +96,46 @@ func (r *ReaderWithCtx) Close() error {
 		return c.Close()
 	}
 	return nil
+}
+
+func CacheFullInTempFileAndUpdateProgress(stream model.FileStreamer, up model.UpdateProgress) (model.File, error) {
+	if cache := stream.GetFile(); cache != nil {
+		up(100)
+		return cache, nil
+	}
+	tmpF, err := utils.CreateTempFile(&ReaderUpdatingProgress{
+		Reader:         stream,
+		UpdateProgress: up,
+	}, stream.GetSize())
+	if err == nil {
+		stream.SetTmpFile(tmpF)
+	}
+	return tmpF, err
+}
+
+func CacheFullInTempFileAndWriter(stream model.FileStreamer, w io.Writer) (model.File, error) {
+	if cache := stream.GetFile(); cache != nil {
+		_, err := cache.Seek(0, io.SeekStart)
+		if err == nil {
+			_, err = utils.CopyWithBuffer(w, cache)
+			if err == nil {
+				_, err = cache.Seek(0, io.SeekStart)
+			}
+		}
+		return cache, err
+	}
+	tmpF, err := utils.CreateTempFile(io.TeeReader(stream, w), stream.GetSize())
+	if err == nil {
+		stream.SetTmpFile(tmpF)
+	}
+	return tmpF, err
+}
+
+func CacheFullInTempFileAndHash(stream model.FileStreamer, hashType *utils.HashType, params ...any) (model.File, string, error) {
+	h := hashType.NewFunc(params...)
+	tmpF, err := CacheFullInTempFileAndWriter(stream, h)
+	if err != nil {
+		return nil, "", err
+	}
+	return tmpF, hex.EncodeToString(h.Sum(nil)), err
 }

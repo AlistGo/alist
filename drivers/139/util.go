@@ -67,6 +67,7 @@ func (d *Yun139) refreshToken() error {
 	if len(splits) < 3 {
 		return fmt.Errorf("authorization is invalid, splits < 3")
 	}
+	d.Account = splits[1]
 	strs := strings.Split(splits[2], "|")
 	if len(strs) < 4 {
 		return fmt.Errorf("authorization is invalid, strs < 4")
