@@ -18,6 +18,10 @@ type ErrResp struct {
 }
 
 func (e *ErrResp) IsError() bool {
+	if e.ErrorMsg == "success" {
+		return false
+	}
+
 	return e.ErrorCode != 0 || e.ErrorMsg != "" || e.ErrorDescription != ""
 }
 
@@ -61,13 +65,79 @@ func (t *TokenResp) Token() string {
 }
 
 type SignInRequest struct {
-	CaptchaToken string `json:"captcha_token"`
-
 	ClientID     string `json:"client_id"`
 	ClientSecret string `json:"client_secret"`
 
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Provider    string `json:"provider"`
+	SigninToken string `json:"signin_token"`
+}
+
+type CoreLoginRequest struct {
+	ProtocolVersion string `json:"protocolVersion"`
+	SequenceNo      string `json:"sequenceNo"`
+	PlatformVersion string `json:"platformVersion"`
+	IsCompressed    string `json:"isCompressed"`
+	Appid           string `json:"appid"`
+	ClientVersion   string `json:"clientVersion"`
+	PeerID          string `json:"peerID"`
+	AppName         string `json:"appName"`
+	SdkVersion      string `json:"sdkVersion"`
+	Devicesign      string `json:"devicesign"`
+	NetWorkType     string `json:"netWorkType"`
+	ProviderName    string `json:"providerName"`
+	DeviceModel     string `json:"deviceModel"`
+	DeviceName      string `json:"deviceName"`
+	OSVersion       string `json:"OSVersion"`
+	Creditkey       string `json:"creditkey"`
+	Hl              string `json:"hl"`
+	UserName        string `json:"userName"`
+	PassWord        string `json:"passWord"`
+	VerifyKey       string `json:"verifyKey"`
+	VerifyCode      string `json:"verifyCode"`
+	IsMd5Pwd        string `json:"isMd5Pwd"`
+}
+
+type CoreLoginResp struct {
+	Account   string `json:"account"`
+	Creditkey string `json:"creditkey"`
+	/*	Error              string `json:"error"`
+		ErrorCode          string `json:"errorCode"`
+		ErrorDescription   string `json:"error_description"`*/
+	ExpiresIn          int    `json:"expires_in"`
+	IsCompressed       string `json:"isCompressed"`
+	IsSetPassWord      string `json:"isSetPassWord"`
+	KeepAliveMinPeriod string `json:"keepAliveMinPeriod"`
+	KeepAlivePeriod    string `json:"keepAlivePeriod"`
+	LoginKey           string `json:"loginKey"`
+	NickName           string `json:"nickName"`
+	PlatformVersion    string `json:"platformVersion"`
+	ProtocolVersion    string `json:"protocolVersion"`
+	SecureKey          string `json:"secureKey"`
+	SequenceNo         string `json:"sequenceNo"`
+	SessionID          string `json:"sessionID"`
+	Timestamp          string `json:"timestamp"`
+	UserID             string `json:"userID"`
+	UserName           string `json:"userName"`
+	UserNewNo          string `json:"userNewNo"`
+	Version            string `json:"version"`
+	/*	VipList []struct {
+		ExpireDate string `json:"expireDate"`
+		IsAutoDeduct string `json:"isAutoDeduct"`
+		IsVip string `json:"isVip"`
+		IsYear string `json:"isYear"`
+		PayID string `json:"payId"`
+		PayName string `json:"payName"`
+		Register string `json:"register"`
+		Vasid string `json:"vasid"`
+		VasType string `json:"vasType"`
+		VipDayGrow string `json:"vipDayGrow"`
+		VipGrow string `json:"vipGrow"`
+		VipLevel string `json:"vipLevel"`
+		Icon struct {
+			General string `json:"general"`
+			Small string `json:"small"`
+		} `json:"icon"`
+	} `json:"vipList"`*/
 }
 
 /*
@@ -250,4 +320,30 @@ type Params struct {
 	FolderType   string `json:"folder_type"`
 	PredictSpeed string `json:"predict_speed"`
 	PredictType  string `json:"predict_type"`
+}
+
+// LoginReviewResp 登录验证响应
+type LoginReviewResp struct {
+	Creditkey        string `json:"creditkey"`
+	Error            string `json:"error"`
+	ErrorCode        string `json:"errorCode"`
+	ErrorDesc        string `json:"errorDesc"`
+	ErrorDescURL     string `json:"errorDescUrl"`
+	ErrorIsRetry     int    `json:"errorIsRetry"`
+	ErrorDescription string `json:"error_description"`
+	IsCompressed     string `json:"isCompressed"`
+	PlatformVersion  string `json:"platformVersion"`
+	ProtocolVersion  string `json:"protocolVersion"`
+	Reviewurl        string `json:"reviewurl"`
+	SequenceNo       string `json:"sequenceNo"`
+	UserID           string `json:"userID"`
+	VerifyType       string `json:"verifyType"`
+}
+
+// ReviewData 验证数据
+type ReviewData struct {
+	Creditkey  string `json:"creditkey"`
+	Reviewurl  string `json:"reviewurl"`
+	Deviceid   string `json:"deviceid"`
+	Devicesign string `json:"devicesign"`
 }

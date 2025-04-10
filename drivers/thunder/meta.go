@@ -23,23 +23,25 @@ type ExpertAddition struct {
 	RefreshToken string `json:"refresh_token" required:"true" help:"login type is refresh_token,this is required"`
 
 	// 签名方法1
-	Algorithms string `json:"algorithms" required:"true" help:"sign type is algorithms,this is required" default:"HPxr4BVygTQVtQkIMwQH33ywbgYG5l4JoR,GzhNkZ8pOBsCY+7,v+l0ImTpG7c7/,e5ztohgVXNP,t,EbXUWyVVqQbQX39Mbjn2geok3/0WEkAVxeqhtx857++kjJiRheP8l77gO,o7dvYgbRMOpHXxCs,6MW8TD8DphmakaxCqVrfv7NReRRN7ck3KLnXBculD58MvxjFRqT+,kmo0HxCKVfmxoZswLB4bVA/dwqbVAYghSb,j,4scKJNdd7F27Hv7tbt"`
+	Algorithms string `json:"algorithms" required:"true" help:"sign type is algorithms,this is required" default:"9uJNVj/wLmdwKrJaVj/omlQ,Oz64Lp0GigmChHMf/6TNfxx7O9PyopcczMsnf,Eb+L7Ce+Ej48u,jKY0,ASr0zCl6v8W4aidjPK5KHd1Lq3t+vBFf41dqv5+fnOd,wQlozdg6r1qxh0eRmt3QgNXOvSZO6q/GXK,gmirk+ciAvIgA/cxUUCema47jr/YToixTT+Q6O,5IiCoM9B1/788ntB,P07JH0h6qoM6TSUAK2aL9T5s2QBVeY9JWvalf,+oK0AN"`
 	// 签名方法2
 	CaptchaSign string `json:"captcha_sign" required:"true" help:"sign type is captcha_sign,this is required"`
 	Timestamp   string `json:"timestamp" required:"true" help:"sign type is captcha_sign,this is required"`
 
 	// 验证码
 	CaptchaToken string `json:"captcha_token"`
+	// 信任密钥
+	CreditKey string `json:"credit_key" help:"credit key,used for login"`
 
 	// 必要且影响登录,由签名决定
-	DeviceID      string `json:"device_id"  required:"true" default:"9aa5c268e7bcfc197a9ad88e2fb330e5"`
+	DeviceID      string `json:"device_id" default:""`
 	ClientID      string `json:"client_id"  required:"true" default:"Xp6vsxz_7IYVw2BB"`
 	ClientSecret  string `json:"client_secret"  required:"true" default:"Xp6vsy4tN9toTVdMSpomVdXpRmES"`
-	ClientVersion string `json:"client_version"  required:"true" default:"7.51.0.8196"`
+	ClientVersion string `json:"client_version"  required:"true" default:"8.31.0.9726"`
 	PackageName   string `json:"package_name"  required:"true" default:"com.xunlei.downloadprovider"`
 
 	//不影响登录,影响下载速度
-	UserAgent         string `json:"user_agent"  required:"true" default:"ANDROID-com.xunlei.downloadprovider/7.51.0.8196 netWorkType/4G appid/40 deviceName/Xiaomi_M2004j7ac deviceModel/M2004J7AC OSVersion/12 protocolVersion/301 platformVersion/10 sdkVersion/220200 Oauth2Client/0.9 (Linux 4_14_186-perf-gdcf98eab238b) (JAVA 0)"`
+	UserAgent         string `json:"user_agent"  required:"true" default:"ANDROID-com.xunlei.downloadprovider/8.31.0.9726 netWorkType/5G appid/40 deviceName/Xiaomi_M2004j7ac deviceModel/M2004J7AC OSVersion/12 protocolVersion/301 platformVersion/10 sdkVersion/512000 Oauth2Client/0.9 (Linux 4_14_186-perf-gddfs8vbb238b) (JAVA 0)"`
 	DownloadUserAgent string `json:"download_user_agent"  required:"true" default:"Dalvik/2.1.0 (Linux; U; Android 12; M2004J7AC Build/SP1A.210812.016)"`
 
 	//优先使用视频链接代替下载链接
@@ -74,6 +76,10 @@ type Addition struct {
 	Username     string `json:"username" required:"true"`
 	Password     string `json:"password" required:"true"`
 	CaptchaToken string `json:"captcha_token"`
+	// 信任密钥
+	CreditKey string `json:"credit_key" help:"credit key,used for login"`
+	// 登录设备ID
+	DeviceID string `json:"device_id" default:""`
 }
 
 // 登录特征,用于判断是否重新登录
