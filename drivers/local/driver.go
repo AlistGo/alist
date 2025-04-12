@@ -255,6 +255,10 @@ func (d *Local) MakeDir(ctx context.Context, parentDir model.Obj, dirName string
 	if err != nil {
 		return err
 	}
+	err = os.Chmod(fullPath, os.FileMode(d.mkdirPerm))
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
