@@ -77,10 +77,10 @@ func Init(e *gin.Engine) {
 	api.GET("/auth/sso_get_token", handles.SSOLoginCallback)
 
 	// webauthn
+	api.GET("/authn/webauthn_begin_login", handles.BeginAuthnLogin)
+	api.POST("/authn/webauthn_finish_login", handles.FinishAuthnLogin)
 	webauthn.GET("/webauthn_begin_registration", handles.BeginAuthnRegistration)
 	webauthn.POST("/webauthn_finish_registration", handles.FinishAuthnRegistration)
-	webauthn.GET("/webauthn_begin_login", handles.BeginAuthnLogin)
-	webauthn.POST("/webauthn_finish_login", handles.FinishAuthnLogin)
 	webauthn.POST("/delete_authn", handles.DeleteAuthnLogin)
 	webauthn.GET("/getcredentials", handles.GetAuthnCredentials)
 
