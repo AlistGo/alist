@@ -3,10 +3,13 @@ package fs
 import (
 	"context"
 	"fmt"
-	"github.com/alist-org/alist/v3/internal/errs"
 	"net/http"
 	stdpath "path"
+	"sync"
+	"sync/atomic"
 	"time"
+
+	"github.com/alist-org/alist/v3/internal/errs"
 
 	"github.com/alist-org/alist/v3/internal/conf"
 	"github.com/alist-org/alist/v3/internal/driver"
@@ -19,6 +22,7 @@ import (
 	"github.com/xhofe/tache"
 )
 
+type CopyCallback func(t *CopyTask) error
 type CopyTask struct {
 	task.TaskExtension
 	Status       string        `json:"-"` //don't save status to save space
@@ -28,6 +32,7 @@ type CopyTask struct {
 	dstStorage   driver.Driver `json:"-"`
 	SrcStorageMp string        `json:"src_storage_mp"`
 	DstStorageMp string        `json:"dst_storage_mp"`
+	Callback     CopyCallback  `json:"-"`
 }
 
 func (t *CopyTask) GetName() string {
@@ -53,7 +58,16 @@ func (t *CopyTask) Run() error {
 	if err != nil {
 		return errors.WithMessage(err, "failed get storage")
 	}
-	return copyBetween2Storages(t, t.srcStorage, t.dstStorage, t.SrcObjPath, t.DstDirPath)
+	err = copyBetween2Storages(t, t.srcStorage, t.dstStorage, t.SrcObjPath, t.DstDirPath)
+	if err != nil {
+		return err
+	}
+
+	if t.Callback != nil {
+		return t.Callback(t)
+	}
+
+	return nil
 }
 
 var CopyTaskManager *tache.Manager[*CopyTask]
@@ -130,12 +144,16 @@ func copyBetween2Storages(t *CopyTask, srcStorage, dstStorage driver.Driver, src
 		if err != nil {
 			return errors.WithMessagef(err, "failed list src [%s] objs", srcObjPath)
 		}
+		var wg sync.WaitGroup
+		var doneCount uint64 = 0
+		totalTaskCount := len(objs)
 		for _, obj := range objs {
 			if utils.IsCanceled(t.Ctx()) {
 				return nil
 			}
 			srcObjPath := stdpath.Join(srcObjPath, obj.GetName())
 			dstObjPath := stdpath.Join(dstDirPath, srcObj.GetName())
+			wg.Add(1)
 			CopyTaskManager.Add(&CopyTask{
 				TaskExtension: task.TaskExtension{
 					Creator: t.GetCreator(),
@@ -146,9 +164,17 @@ func copyBetween2Storages(t *CopyTask, srcStorage, dstStorage driver.Driver, src
 				DstDirPath:   dstObjPath,
 				SrcStorageMp: srcStorage.GetStorage().MountPath,
 				DstStorageMp: dstStorage.GetStorage().MountPath,
+				Callback: func(ct *CopyTask) error {
+					atomic.AddUint64(&doneCount, 1)
+					t.SetProgress(100 * (float64(doneCount) / float64(totalTaskCount)))
+					wg.Done()
+
+					return nil
+				},
 			})
 		}
 		t.Status = "src object is dir, added all copy tasks of objs"
+		wg.Wait()
 		return nil
 	}
 	return copyFileBetween2Storages(t, srcStorage, dstStorage, srcObjPath, dstDirPath)
