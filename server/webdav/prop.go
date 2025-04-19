@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/alist-org/alist/v3/internal/model"
+	"github.com/alist-org/alist/v3/internal/usage"
 	"github.com/alist-org/alist/v3/server/common"
 )
 
@@ -164,6 +165,14 @@ var liveProps = map[xml.Name]struct {
 	{Space: "http://owncloud.org/ns", Local: "checksums"}: {
 		findFn: findChecksums,
 		dir:    false,
+	},
+	{Space: "DAV:", Local: "quota-available-bytes"}: {
+		findFn: findQuotaAvailable,
+		dir:    true,
+	},
+	{Space: "DAV:", Local: "quota-used-bytes"}: {
+		findFn: findQuotaUsed,
+		dir:    true,
 	},
 }
 
@@ -495,4 +504,19 @@ func findChecksums(ctx context.Context, ls LockSystem, name string, fi model.Obj
 		checksums += fmt.Sprintf("<checksum>%s:%s</checksum>", hashType.Name, hashValue)
 	}
 	return checksums, nil
+}
+
+func findQuotaAvailable(ctx context.Context, ls LockSystem, name string, fi model.Obj) (string, error) {
+	globalUsage := usage.GetGlobalUsage()
+	if globalUsage.Available < 0 {
+		// 如果是无限空间，返回一个大数值
+		return "9223372036854775807", nil // maxInt64
+	}
+
+	return strconv.FormatInt(globalUsage.Available, 10), nil
+}
+
+func findQuotaUsed(ctx context.Context, ls LockSystem, name string, fi model.Obj) (string, error) {
+	globalUsage := usage.GetGlobalUsage()
+	return strconv.FormatInt(globalUsage.Used, 10), nil
 }

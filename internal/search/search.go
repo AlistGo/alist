@@ -51,6 +51,27 @@ func Search(ctx context.Context, req model.SearchReq) ([]model.SearchNode, int64
 	return instance.Search(ctx, req)
 }
 
+// GetAllNodes 获取所有索引的节点
+func GetAllNodes(ctx context.Context) ([]model.SearchNode, error) {
+	if instance == nil {
+		return nil, errs.SearchNotAvailable
+	}
+
+	// 使用一个空白的搜索请求，获取所有文件
+	req := model.SearchReq{
+		Parent:   "",
+		Keywords: "",
+		Scope:    0, // 所有类型
+		PageReq: model.PageReq{
+			Page:    1,
+			PerPage: model.MaxInt, // 获取所有结果
+		},
+	}
+
+	nodes, _, err := instance.Search(ctx, req)
+	return nodes, err
+}
+
 func Index(ctx context.Context, parent string, obj model.Obj) error {
 	if instance == nil {
 		return errs.SearchNotAvailable
