@@ -1,20 +1,9 @@
 name: auto_lang
-
 on:
-  push:
-    branches:
-      - 'main'
-    paths:
-      - 'drivers/**'
-      - 'internal/bootstrap/data/setting.go'
-      - 'internal/conf/const.go'
-      - 'cmd/lang.go'
-  workflow_dispatch:
-
+  workflow_dispatch:  # Manual trigger only
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
-
 jobs:
   auto_lang:
     strategy:
@@ -28,12 +17,10 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
-
       - name: Checkout alist
         uses: actions/checkout@v4
         with:
           path: alist
-
       - name: Checkout alist-web
         uses: actions/checkout@v4
         with:
@@ -42,17 +29,14 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
           path: alist-web
-
       - name: Generate lang
         run: |
           cd alist
           go run ./main.go lang
           cd ..
-
       - name: Copy lang file
         run: |
           cp -f ./alist/lang/*.json ./alist-web/src/lang/en/ 2>/dev/null || :
-
       - name: Commit git
         run: |
           cd alist-web
@@ -61,7 +45,6 @@ jobs:
           git config --local user.name "IlaBot"
           git commit -m "chore: auto update i18n file" -a 2>/dev/null || :
           cd ..
-
       - name: Push lang files
         uses: ad-m/github-push-action@master
         with:

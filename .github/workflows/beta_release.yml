@@ -1,16 +1,11 @@
 name: beta release
-
 on:
-  push:
-    branches: [ 'main' ]
-
+  workflow_dispatch:  # Manual trigger only
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
-
 permissions:
   contents: write
-
 jobs:
   changelog:
     strategy:
@@ -24,25 +19,21 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - name: Create or update ref
         id: create-or-update-ref
         uses: ovsds/create-or-update-ref-action@v1
         with:
           ref: tags/beta
           sha: ${{ github.sha }}
-
       - name: Delete beta tag
         run: git tag -d beta
         continue-on-error: true
-
       - name: changelog # or changelogithub@0.12 if ensure the stable result
         id: changelog
         run: |
           git tag -l
           npx changelogithub --output CHANGELOG.md
 #          npx changelogen@latest --output CHANGELOG.md
-
       - name: Upload assets
         uses: softprops/action-gh-release@v2
         with:
@@ -50,7 +41,6 @@ jobs:
           files: CHANGELOG.md
           prerelease: true
           tag_name: beta
-
   release:
     needs:
       - changelog
@@ -69,7 +59,6 @@ jobs:
             hash: "md5-android"
           - target: 'freebsd-*' #freebsd
             hash: "md5-freebsd"
-
     name: Beta Release
     runs-on: ubuntu-latest
     steps:
@@ -77,15 +66,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
-
       - name: Setup web
         run: bash build.sh dev web
-
       - name: Build
         uses: go-cross/cgo-actions@v1
         with:
@@ -98,7 +84,6 @@ jobs:
             github.com/alist-org/alist/v3/internal/conf.GitCommit=$git_commit
             github.com/alist-org/alist/v3/internal/conf.Version=$tag
             github.com/alist-org/alist/v3/internal/conf.WebVersion=dev
-
       - name: Compress
         run: |
           bash build.sh zip ${{ matrix.hash }}
@@ -123,13 +108,11 @@ jobs:
           ref: main
           persist-credentials: false
           fetch-depth: 0
-
       - name: Commit
         run: |
           git config --local user.email "bot@nn.ci"
           git config --local user.name "IlaBot"
           git commit --allow-empty -m "Trigger build for ${{ github.sha }}"
-
       - name: Push commit
         uses: ad-m/github-push-action@master
         with:

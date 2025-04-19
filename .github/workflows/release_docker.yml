@@ -1,33 +1,31 @@
 name: release_docker
 
 on:
-  push:
-    tags:
-      - 'v*'
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Release type (beta or release)'
+        required: true
+        default: 'beta'
+        type: choice
+        options:
+          - beta
+          - release
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.run_id }}
   cancel-in-progress: true
 
 env:
-  REGISTRY: 'xhofe/alist'
-  REGISTRY_USERNAME: 'xhofe'
+  REGISTRY: 'zhr520v/alist'
+  REGISTRY_USERNAME: 'zhr520v'
   REGISTRY_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
   ARTIFACT_NAME: 'binaries_docker_release'
-  RELEASE_PLATFORMS: 'linux/amd64,linux/arm64,linux/arm/v7,linux/386,linux/arm/v6,linux/s390x,linux/ppc64le,linux/riscv64'
-  IMAGE_PUSH: ${{ github.event_name == 'push' }}
-  IMAGE_IS_PROD: ${{ github.ref_type == 'tag' }}
+  RELEASE_PLATFORMS: 'linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v6'
+  IMAGE_PUSH: true
+  IMAGE_IS_PROD: ${{ github.event.inputs.release_type == 'release' }}
   IMAGE_TAGS_BETA: |
-    type=schedule
-    type=ref,event=branch
-    type=ref,event=tag
-    type=ref,event=pr
-    type=raw,value=beta,enable={{is_default_branch}}
+    type=raw,value=beta
 
 jobs:
   build_binary:
@@ -53,11 +51,11 @@ jobs:
         run: bash build.sh prepare docker-multiplatform
 
       - name: Build go binary (beta)
-        if: env.IMAGE_IS_PROD != 'true'
+        if: github.event.inputs.release_type == 'beta'
         run: bash build.sh beta docker-multiplatform
 
       - name: Build go binary (release)
-        if: env.IMAGE_IS_PROD == 'true'
+        if: github.event.inputs.release_type == 'release'
         run: bash build.sh release docker-multiplatform
 
       - name: Upload artifacts
@@ -107,7 +105,6 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Login to DockerHub
-        if: env.IMAGE_PUSH == 'true'
         uses: docker/login-action@v3
         with:
           logout: true
@@ -130,7 +127,7 @@ jobs:
         with:
           context: .
           file: Dockerfile.ci
-          push: ${{ env.IMAGE_PUSH == 'true' }}
+          push: true
           build-args: ${{ matrix.build_arg }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

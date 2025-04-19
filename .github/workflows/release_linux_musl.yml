@@ -1,8 +1,7 @@
 name: release_linux_musl
 
 on:
-  release:
-    types: [ published ]
+  workflow_dispatch: # 手动触发工作流
 
 jobs:
   release_linux_musl:

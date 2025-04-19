@@ -69,6 +69,10 @@ func (d *Pan123) Link(ctx context.Context, file model.Obj, args model.LinkArgs) 
 			headers = map[string]string{
 				//"X-Real-IP":       "1.1.1.1",
 				"X-Forwarded-For": args.IP,
+				"user-agent": "123pan/2.5.5(Android_13.1.2;Vivo)",
+		"platform": "android",
+		"app-version": "78",
+		"x-app-version": "2.5.5",
 			}
 		}
 		data := base.Json{
