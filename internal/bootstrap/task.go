@@ -18,7 +18,7 @@ func taskFilterNegative(num int) int64 {
 }
 
 func InitTaskManager() {
-	fs.UploadTaskManager = tache.NewManager[*fs.UploadTask](tache.WithWorks(setting.GetInt(conf.TaskUploadThreadsNum, conf.Conf.Tasks.Upload.Workers)), tache.WithMaxRetry(conf.Conf.Tasks.Upload.MaxRetry)) //upload will not support persist
+	fs.UploadTaskManager = tache.NewManager[*fs.UploadTask](tache.WithWorks(setting.GetInt(conf.TaskUploadThreadsNum, conf.Conf.Tasks.Upload.Workers)), tache.WithPersistFunction(db.GetTaskDataFunc("upload", conf.Conf.Tasks.Upload.TaskPersistant), db.UpdateTaskDataFunc("upload", conf.Conf.Tasks.Upload.TaskPersistant)), tache.WithMaxRetry(conf.Conf.Tasks.Upload.MaxRetry))
 	op.RegisterSettingChangingCallback(func() {
 		fs.UploadTaskManager.SetWorkersNumActive(taskFilterNegative(setting.GetInt(conf.TaskUploadThreadsNum, conf.Conf.Tasks.Upload.Workers)))
 	})
