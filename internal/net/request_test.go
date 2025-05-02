@@ -70,7 +70,7 @@ func TestDownloadOrder(t *testing.T) {
 		t.Errorf("expect %v API calls, got %v", e, a)
 	}
 
-	expectRngs := []string{"2-3", "5-3", "8-3", "11-1"}
+	expectRngs := []string{"2-1", "3-3", "6-3", "9-3"}
 	for _, rng := range expectRngs {
 		if !slices.Contains(*ranges, rng) {
 			t.Errorf("expect range %v, but absent in return", rng)
