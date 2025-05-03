@@ -13,6 +13,7 @@ import (
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/internal/op"
 	"github.com/alist-org/alist/v3/internal/setting"
+	"github.com/alist-org/alist/v3/internal/usage"
 	"github.com/alist-org/alist/v3/server/webdav"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
@@ -44,6 +45,7 @@ func WebDav(dav *gin.RouterGroup) {
 }
 
 func ServeWebDAV(c *gin.Context) {
+	usage.ScanUsageIfNeeded()
 	user := c.MustGet("user").(*model.User)
 	ctx := context.WithValue(c.Request.Context(), "user", user)
 	handler.ServeHTTP(c.Writer, c.Request.WithContext(ctx))
