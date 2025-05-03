@@ -99,7 +99,7 @@ English | [中文](./README_cn.md) | [日本語](./README_ja.md) | [Contributing
 
 ## Document
 
-<https://alistgo.com/>
+<https://alist.nn.ci/>
 
 ## Demo
 
