@@ -160,6 +160,8 @@ func InitialSettings() []model.SettingItem {
 		{Key: conf.ForwardDirectLinkParams, Value: "false", Type: conf.TypeBool, Group: model.GLOBAL},
 		{Key: conf.IgnoreDirectLinkParams, Value: "sign,alist_ts", Type: conf.TypeString, Group: model.GLOBAL},
 		{Key: conf.WebauthnLoginEnabled, Value: "false", Type: conf.TypeBool, Group: model.GLOBAL, Flag: model.PUBLIC},
+		{Key: conf.GlobalStorageSize, Value: "-1", Type: conf.TypeNumber, Group: model.GLOBAL, Flag: model.PUBLIC},
+		{Key: conf.UsageScanInterval, Value: "3600", Type: conf.TypeNumber, Group: model.GLOBAL, Flag: model.PRIVATE},
 
 		// single settings
 		{Key: conf.Token, Value: token, Type: conf.TypeString, Group: model.SINGLE, Flag: model.PRIVATE},

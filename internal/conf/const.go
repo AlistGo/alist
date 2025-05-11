@@ -45,6 +45,8 @@ const (
 	ForwardDirectLinkParams = "forward_direct_link_params"
 	IgnoreDirectLinkParams  = "ignore_direct_link_params"
 	WebauthnLoginEnabled    = "webauthn_login_enabled"
+	GlobalStorageSize       = "global_storage_size"
+	UsageScanInterval       = "usage_scan_interval"
 
 	// index
 	SearchIndex     = "search_index"
