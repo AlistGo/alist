@@ -18,6 +18,7 @@ env:
   REGISTRY: 'xhofe/alist'
   REGISTRY_USERNAME: 'xhofe'
   REGISTRY_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
+  GITHUB_CR_REPO: ghcr.io/${{ github.repository }}
   ARTIFACT_NAME: 'binaries_docker_release'
   RELEASE_PLATFORMS: 'linux/amd64,linux/arm64,linux/arm/v7,linux/386,linux/arm/v6,linux/s390x,linux/ppc64le,linux/riscv64'
   IMAGE_PUSH: ${{ github.event_name == 'push' }}
@@ -114,11 +115,21 @@ jobs:
           username: ${{ env.REGISTRY_USERNAME }}
           password: ${{ env.REGISTRY_PASSWORD }}
 
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          logout: true
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}
+          images: |
+            ${{ env.REGISTRY }}
+            ${{ env.GITHUB_CR_REPO }}
           tags: ${{ env.IMAGE_IS_PROD == 'true' && '' || env.IMAGE_TAGS_BETA }}
           flavor: |
             ${{ env.IMAGE_IS_PROD == 'true' && 'latest=true' || '' }}
