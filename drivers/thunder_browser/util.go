@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"crypto/sha1"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,30 +18,35 @@ import (
 )
 
 const (
-	API_URL        = "https://x-api-pan.xunlei.com/drive/v1"
-	FILE_API_URL   = API_URL + "/files"
-	XLUSER_API_URL = "https://xluser-ssl.xunlei.com/v1"
+	API_URL             = "https://x-api-pan.xunlei.com/drive/v1"
+	FILE_API_URL        = API_URL + "/files"
+	TASK_API_URL        = API_URL + "/tasks"
+	XLUSER_API_BASE_URL = "https://xluser-ssl.xunlei.com"
+	XLUSER_API_URL      = XLUSER_API_BASE_URL + "/v1"
 )
 
 var Algorithms = []string{
-	"uWRwO7gPfdPB/0NfPtfQO+71",
-	"F93x+qPluYy6jdgNpq+lwdH1ap6WOM+nfz8/V",
-	"0HbpxvpXFsBK5CoTKam",
-	"dQhzbhzFRcawnsZqRETT9AuPAJ+wTQso82mRv",
-	"SAH98AmLZLRa6DB2u68sGhyiDh15guJpXhBzI",
-	"unqfo7Z64Rie9RNHMOB",
-	"7yxUdFADp3DOBvXdz0DPuKNVT35wqa5z0DEyEvf",
-	"RBG",
-	"ThTWPG5eC0UBqlbQ+04nZAptqGCdpv9o55A",
+	"Cw4kArmKJ/aOiFTxnQ0ES+D4mbbrIUsFn",
+	"HIGg0Qfbpm5ThZ/RJfjoao4YwgT9/M",
+	"u/PUD",
+	"OlAm8tPkOF1qO5bXxRN2iFttuDldrg",
+	"FFIiM6sFhWhU7tIMVUKOF7CUv/KzgwwV8FE",
+	"yN",
+	"4m5mglrIHksI6wYdq",
+	"LXEfS7",
+	"T+p+C+F2yjgsUtiXWU/cMNYEtJI4pq7GofW",
+	"14BrGIEMXkbvFvZ49nDUfVCRcHYFOJ1BP1Y",
+	"kWIH3Row",
+	"RAmRTKNCjucPWC",
 }
 
 const (
 	ClientID          = "ZUBzD9J_XPXfn7f7"
 	ClientSecret      = "yESVmHecEe6F0aou69vl-g"
-	ClientVersion     = "1.10.0.2633"
+	ClientVersion     = "1.40.0.7208"
 	PackageName       = "com.xunlei.browser"
 	DownloadUserAgent = "AndroidDownloadManager/13 (Linux; U; Android 13; M2004J7AC Build/SP1A.210812.016)"
-	SdkVersion        = "233100"
+	SdkVersion        = "509300"
 )
 
 const (
@@ -65,6 +71,12 @@ const (
 	ThunderBrowserDriveSafeFolderType = "BROWSER_SAFE"
 )
 
+const (
+	SignProvider = "access_end_point_token"
+	APPID        = "22062"
+	APPKey       = "a5d7416858147a4ab99573872ffccef8"
+)
+
 func GetAction(method string, url string) string {
 	urlpath := regexp.MustCompile(`://[^/]+((/[^/\s?#]+)*)`).FindStringSubmatch(url)[1]
 	return method + ":" + urlpath
@@ -74,6 +86,8 @@ type Common struct {
 	client *resty.Client
 
 	captchaToken string
+
+	creditKey string
 
 	// 签名相关,二选一
 	Algorithms             []string
@@ -103,6 +117,13 @@ func (c *Common) SetCaptchaToken(captchaToken string) {
 }
 func (c *Common) GetCaptchaToken() string {
 	return c.captchaToken
+}
+
+func (c *Common) SetCreditKey(creditKey string) {
+	c.creditKey = creditKey
+}
+func (c *Common) GetCreditKey() string {
+	return c.creditKey
 }
 
 // RefreshCaptchaTokenAtLogin 刷新验证码token(登录后)
@@ -206,10 +227,51 @@ func (c *Common) Request(url, method string, callback base.ReqCallback, resp int
 	var erron ErrResp
 	utils.Json.Unmarshal(res.Body(), &erron)
 	if erron.IsError() {
+		// review_panel 表示需要短信验证码进行验证
+		if erron.ErrorMsg == "review_panel" {
+			return nil, c.getReviewData(res)
+		}
+
 		return nil, &erron
 	}
 
 	return res.Body(), nil
+}
+
+// 获取验证所需内容
+func (c *Common) getReviewData(res *resty.Response) error {
+	var reviewResp LoginReviewResp
+	var reviewData ReviewData
+
+	if err := utils.Json.Unmarshal(res.Body(), &reviewResp); err != nil {
+		return err
+	}
+
+	deviceSign := generateDeviceSign(c.DeviceID, c.PackageName)
+
+	reviewData = ReviewData{
+		Creditkey:  reviewResp.Creditkey,
+		Reviewurl:  reviewResp.Reviewurl + "&deviceid=" + deviceSign,
+		Deviceid:   deviceSign,
+		Devicesign: deviceSign,
+	}
+
+	// 将reviewData转为JSON字符串
+	reviewDataJSON, _ := json.MarshalIndent(reviewData, "", "  ")
+	//reviewDataJSON, _ := json.Marshal(reviewData)
+
+	return fmt.Errorf(`
+<div style="font-family: Arial, sans-serif; padding: 15px; border-radius: 5px; border: 1px solid #e0e0e0;>
+    <h3 style="color: #d9534f; margin-top: 0;">
+        <span style="font-size: 16px;">🔒 本次登录需要验证</span><br>
+        <span style="font-size: 14px; font-weight: normal; color: #666;">This login requires verification</span>
+    </h3>
+    <p style="font-size: 14px; margin-bottom: 15px;">下面是验证所需要的数据，具体使用方法请参照对应的驱动文档<br>
+    <span style="color: #666; font-size: 13px;">Below are the relevant verification data. For specific usage methods, please refer to the corresponding driver documentation.</span></p>
+    <div style="border: 1px solid #ddd; border-radius: 4px; padding: 10px; overflow-x: auto; font-family: 'Courier New', monospace; font-size: 13px;">
+        <pre style="margin: 0; white-space: pre-wrap;"><code>%s</code></pre>
+    </div>
+</div>`, string(reviewDataJSON))
 }
 
 // 计算文件Gcid
@@ -274,7 +336,7 @@ func EncryptPassword(password string) string {
 
 func generateDeviceSign(deviceID, packageName string) string {
 
-	signatureBase := fmt.Sprintf("%s%s%s%s", deviceID, packageName, "22062", "a5d7416858147a4ab99573872ffccef8")
+	signatureBase := fmt.Sprintf("%s%s%s%s", deviceID, packageName, APPID, APPKey)
 
 	sha1Hash := sha1.New()
 	sha1Hash.Write([]byte(signatureBase))
@@ -299,7 +361,7 @@ func BuildCustomUserAgent(deviceID, appName, sdkVersion, clientVersion, packageN
 
 	sb.WriteString(fmt.Sprintf("ANDROID-%s/%s ", appName, clientVersion))
 	sb.WriteString("networkType/WIFI ")
-	sb.WriteString(fmt.Sprintf("appid/%s ", "22062"))
+	sb.WriteString(fmt.Sprintf("appid/%s ", APPID))
 	sb.WriteString(fmt.Sprintf("deviceName/Xiaomi_M2004j7ac "))
 	sb.WriteString(fmt.Sprintf("deviceModel/M2004J7AC "))
 	sb.WriteString(fmt.Sprintf("OSVersion/13 "))

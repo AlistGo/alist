@@ -58,7 +58,7 @@ func (x *Thunder) Init(ctx context.Context) (err error) {
 				},
 				DeviceID: func() string {
 					if len(x.DeviceID) != 32 {
-						return utils.GetMD5EncodeStr(x.DeviceID)
+						return utils.GetMD5EncodeStr(x.Username + x.Password)
 					}
 					return x.DeviceID
 				}(),
@@ -156,7 +156,7 @@ func (x *ThunderExpert) Init(ctx context.Context) (err error) {
 
 				DeviceID: func() string {
 					if len(x.DeviceID) != 32 {
-						return utils.GetMD5EncodeStr(x.DeviceID)
+						return utils.GetMD5EncodeStr(x.Username + x.Password)
 					}
 					return x.DeviceID
 				}(),
@@ -637,7 +637,7 @@ func (xc *XunLeiCommon) CoreLogin(username string, password string) (sessionID s
 			PlatformVersion: "10",
 			IsCompressed:    "0",
 			Appid:           APPID,
-			ClientVersion:   "8.31.0.9726",
+			ClientVersion:   xc.Common.ClientVersion,
 			PeerID:          "00000000000000000000000000000000",
 			AppName:         "ANDROID-com.xunlei.downloadprovider",
 			SdkVersion:      "512000",

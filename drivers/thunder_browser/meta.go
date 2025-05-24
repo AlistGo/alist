@@ -25,19 +25,21 @@ type ExpertAddition struct {
 	SafePassword string `json:"safe_password" required:"true" help:"super safe password"` // 超级保险箱密码
 
 	// 签名方法1
-	Algorithms string `json:"algorithms" required:"true" help:"sign type is algorithms,this is required" default:"uWRwO7gPfdPB/0NfPtfQO+71,F93x+qPluYy6jdgNpq+lwdH1ap6WOM+nfz8/V,0HbpxvpXFsBK5CoTKam,dQhzbhzFRcawnsZqRETT9AuPAJ+wTQso82mRv,SAH98AmLZLRa6DB2u68sGhyiDh15guJpXhBzI,unqfo7Z64Rie9RNHMOB,7yxUdFADp3DOBvXdz0DPuKNVT35wqa5z0DEyEvf,RBG,ThTWPG5eC0UBqlbQ+04nZAptqGCdpv9o55A"`
+	Algorithms string `json:"algorithms" required:"true" help:"sign type is algorithms,this is required" default:"Cw4kArmKJ/aOiFTxnQ0ES+D4mbbrIUsFn,HIGg0Qfbpm5ThZ/RJfjoao4YwgT9/M,u/PUD,OlAm8tPkOF1qO5bXxRN2iFttuDldrg,FFIiM6sFhWhU7tIMVUKOF7CUv/KzgwwV8FE,yN,4m5mglrIHksI6wYdq,LXEfS7,T+p+C+F2yjgsUtiXWU/cMNYEtJI4pq7GofW,14BrGIEMXkbvFvZ49nDUfVCRcHYFOJ1BP1Y,kWIH3Row,RAmRTKNCjucPWC"`
 	// 签名方法2
 	CaptchaSign string `json:"captcha_sign" required:"true" help:"sign type is captcha_sign,this is required"`
 	Timestamp   string `json:"timestamp" required:"true" help:"sign type is captcha_sign,this is required"`
 
 	// 验证码
 	CaptchaToken string `json:"captcha_token"`
+	// 信任密钥
+	CreditKey string `json:"credit_key" help:"credit key,used for login"`
 
 	// 必要且影响登录,由签名决定
 	DeviceID      string `json:"device_id"  required:"false" default:""`
 	ClientID      string `json:"client_id"  required:"true" default:"ZUBzD9J_XPXfn7f7"`
 	ClientSecret  string `json:"client_secret"  required:"true" default:"yESVmHecEe6F0aou69vl-g"`
-	ClientVersion string `json:"client_version"  required:"true" default:"1.10.0.2633"`
+	ClientVersion string `json:"client_version"  required:"true" default:"1.40.0.7208"`
 	PackageName   string `json:"package_name"  required:"true" default:"com.xunlei.browser"`
 
 	// 不影响登录,影响下载速度
@@ -79,6 +81,8 @@ type Addition struct {
 	Password     string `json:"password" required:"true"`
 	SafePassword string `json:"safe_password" required:"true"` // 超级保险箱密码
 	CaptchaToken string `json:"captcha_token"`
+	CreditKey    string `json:"credit_key" help:"credit key,used for login"` // 信任密钥
+	DeviceID     string `json:"device_id" default:""`                        // 登录设备ID
 	UseVideoUrl  bool   `json:"use_video_url" default:"false"`
 	RemoveWay    string `json:"remove_way" required:"true" type:"select" options:"trash,delete"`
 }

@@ -9,6 +9,7 @@ import (
 	_115 "github.com/alist-org/alist/v3/drivers/115"
 	"github.com/alist-org/alist/v3/drivers/pikpak"
 	"github.com/alist-org/alist/v3/drivers/thunder"
+	"github.com/alist-org/alist/v3/drivers/thunder_browser"
 	"github.com/alist-org/alist/v3/internal/conf"
 	"github.com/alist-org/alist/v3/internal/errs"
 	"github.com/alist-org/alist/v3/internal/fs"
@@ -102,6 +103,13 @@ func AddURL(ctx context.Context, args *AddURLArgs) (task.TaskExtensionInfo, erro
 			tempDir = args.DstDirPath
 		} else {
 			tempDir = filepath.Join(setting.GetStr(conf.ThunderTempDir), uid)
+		}
+	case "ThunderBrowser":
+		switch storage.(type) {
+		case *thunder_browser.ThunderBrowser, *thunder_browser.ThunderBrowserExpert:
+			tempDir = args.DstDirPath
+		default:
+			tempDir = filepath.Join(setting.GetStr(conf.ThunderBrowserTempDir), uid)
 		}
 	}
 
