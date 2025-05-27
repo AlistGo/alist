@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	stdpath "path"
+	"time"
 
 	"github.com/alist-org/alist/v3/drivers/base"
 	"github.com/alist-org/alist/v3/internal/driver"
@@ -17,7 +18,6 @@ import (
 	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/go-resty/resty/v2"
 	jsoniter "github.com/json-iterator/go"
-	log "github.com/sirupsen/logrus"
 )
 
 var onedriveHostMap = map[string]Host{
@@ -154,19 +154,18 @@ func (d *OnedriveAPP) upBig(ctx context.Context, dstDir model.Obj, stream model.
 	uploadUrl := jsoniter.Get(res, "uploadUrl").ToString()
 	var finish int64 = 0
 	DEFAULT := d.ChunkSize * 1024 * 1024
+	retryCount := 0
+	maxRetries := 3
 	for finish < stream.GetSize() {
 		if utils.IsCanceled(ctx) {
 			return ctx.Err()
 		}
-		log.Debugf("upload: %d", finish)
-		var byteSize int64 = DEFAULT
 		left := stream.GetSize() - finish
-		if left < DEFAULT {
-			byteSize = left
-		}
+		byteSize := min(left, DEFAULT)
+		utils.Log.Debugf("[OnedriveAPP] upload range: %d-%d/%d", finish, finish+byteSize-1, stream.GetSize())
 		byteData := make([]byte, byteSize)
 		n, err := io.ReadFull(stream, byteData)
-		log.Debug(err, n)
+		utils.Log.Debug(err, n)
 		if err != nil {
 			return err
 		}
@@ -178,19 +177,31 @@ func (d *OnedriveAPP) upBig(ctx context.Context, dstDir model.Obj, stream model.
 		req.ContentLength = byteSize
 		// req.Header.Set("Content-Length", strconv.Itoa(int(byteSize)))
 		req.Header.Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", finish, finish+byteSize-1, stream.GetSize()))
-		finish += byteSize
 		res, err := base.HttpClient.Do(req)
 		if err != nil {
 			return err
 		}
 		// https://learn.microsoft.com/zh-cn/onedrive/developer/rest-api/api/driveitem_createuploadsession
-		if res.StatusCode != 201 && res.StatusCode != 202 && res.StatusCode != 200 {
+		switch {
+		case res.StatusCode >= 500 && res.StatusCode <= 504:
+			retryCount++
+			if retryCount > maxRetries {
+				res.Body.Close()
+				return fmt.Errorf("upload failed after %d retries due to server errors, error %d", maxRetries, res.StatusCode)
+			}
+			backoff := time.Duration(1<<retryCount) * time.Second
+			utils.Log.Warnf("[OnedriveAPP] server errors %d while uploading, retrying after %v...", res.StatusCode, backoff)
+			time.Sleep(backoff)
+		case res.StatusCode != 201 && res.StatusCode != 202 && res.StatusCode != 200:
 			data, _ := io.ReadAll(res.Body)
 			res.Body.Close()
 			return errors.New(string(data))
+		default:
+			res.Body.Close()
+			retryCount = 0
+			finish += byteSize
+			up(float64(finish) * 100 / float64(stream.GetSize()))
 		}
-		res.Body.Close()
-		up(float64(finish) * 100 / float64(stream.GetSize()))
 	}
 	return nil
 }
