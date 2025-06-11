@@ -109,17 +109,6 @@ English | [中文](./README_cn.md) | [日本語](./README_ja.md) | [Contributing
 
 Please go to our [discussion forum](https://github.com/alist-org/alist/discussions) for general questions, **issues are for bug reports and feature requests only.**
 
-## Sponsor
-
-AList is an open-source software, if you happen to like this project and want me to keep going, please consider sponsoring me or providing a single donation! Thanks for all the love and support:
-https://alist.nn.ci/guide/sponsor.html
-
-### Special sponsors
-
-- [VidHub](https://apps.apple.com/app/apple-store/id1659622164?pt=118612019&ct=alist&mt=8) - An elegant cloud video player within the Apple ecosystem. Support for iPhone, iPad, Mac, and Apple TV.
-- [亚洲云](https://www.asiayun.com/aff/QQCOOQKZ) - 高防服务器|服务器租用|福州高防|广东电信|香港服务器|美国服务器|海外服务器 - 国内靠谱的企业级云计算服务提供商 (sponsored Chinese API server)
-- [找资源](http://zhaoziyuan2.cc/) - 阿里云盘资源搜索引擎
-
 ## Contributors
 
 Thanks goes to these wonderful people:
