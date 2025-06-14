@@ -531,7 +531,8 @@ func (y *Cloud189PC) StreamUpload(ctx context.Context, dstDir model.Obj, file mo
 		// 读取块
 		silceMd5.Reset()
 		if _, err := io.ReadFull(teeReader, byteData); err != io.EOF && err != nil {
-			sem.Release(1)
+			// 这里不需要释放信号量，因为threadG会负责创建和释放
+			// 此处释放信号量会导致panic
 			return nil, err
 		}
 
