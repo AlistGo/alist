@@ -55,7 +55,9 @@ func (d *Vtencent) Init(ctx context.Context) error {
 }
 
 func (d *Vtencent) Drop(ctx context.Context) error {
-	d.cron.Stop()
+	if d.cron != nil {
+		d.cron.Stop()
+	}
 	return nil
 }
 

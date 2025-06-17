@@ -207,6 +207,10 @@ func DeleteAuthnLogin(c *gin.Context) {
 		return
 	}
 	err = db.RemoveAuthn(user, req.ID)
+	if err != nil {
+		common.ErrorResp(c, err, 400)
+		return
+	}
 	err = op.DelUserCache(user.Username)
 	if err != nil {
 		common.ErrorResp(c, err, 400)

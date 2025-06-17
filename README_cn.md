@@ -58,7 +58,7 @@
     - [x] WebDav(支持无API的OneDrive/SharePoint)
     - [x] Teambition（[中国](https://www.teambition.com/ )，[国际](https://us.teambition.com/ )）
     - [x] [分秒帧](https://www.mediatrack.cn/)
-    - [x] [和彩云](https://yun.139.com/) (个人云, 家庭云)
+    - [x] [和彩云](https://yun.139.com/) (个人云, 家庭云，共享群组)
     - [x] [Yandex.Disk](https://disk.yandex.com/)
     - [x] [百度网盘](http://pan.baidu.com/)
     - [x] [UC网盘](https://drive.uc.cn)

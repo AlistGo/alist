@@ -11,10 +11,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/alist-org/alist/v3/pkg/http_range"
-
 	"github.com/alist-org/alist/v3/drivers/base"
+	"github.com/alist-org/alist/v3/internal/driver"
 	"github.com/alist-org/alist/v3/internal/model"
+	"github.com/alist-org/alist/v3/pkg/http_range"
 	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/go-resty/resty/v2"
 	"github.com/golang-jwt/jwt/v4"
@@ -126,8 +126,7 @@ func (d *GoogleDrive) refreshToken() error {
 		}
 		d.AccessToken = resp.AccessToken
 		return nil
-	}
-	if gdsaFileErr != nil && os.IsExist(gdsaFileErr) {
+	} else if os.IsExist(gdsaFileErr) {
 		return gdsaFileErr
 	}
 	url := "https://www.googleapis.com/oauth2/v4/token"
@@ -229,6 +228,7 @@ func (d *GoogleDrive) chunkUpload(ctx context.Context, stream model.FileStreamer
 		if err != nil {
 			return err
 		}
+		reader = driver.NewLimitedUploadStream(ctx, reader)
 		_, err = d.request(url, http.MethodPut, func(req *resty.Request) {
 			req.SetHeaders(map[string]string{
 				"Content-Length": strconv.FormatInt(chunkSize, 10),

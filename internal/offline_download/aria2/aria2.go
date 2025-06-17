@@ -82,7 +82,7 @@ func (a *Aria2) Status(task *tool.DownloadTask) (*tool.Status, error) {
 	if err != nil {
 		return nil, err
 	}
-	total, err := strconv.ParseUint(info.TotalLength, 10, 64)
+	total, err := strconv.ParseInt(info.TotalLength, 10, 64)
 	if err != nil {
 		total = 0
 	}
@@ -91,8 +91,9 @@ func (a *Aria2) Status(task *tool.DownloadTask) (*tool.Status, error) {
 		downloaded = 0
 	}
 	s := &tool.Status{
-		Completed: info.Status == "complete",
-		Err:       err,
+		Completed:  info.Status == "complete",
+		Err:        err,
+		TotalBytes: total,
 	}
 	s.Progress = float64(downloaded) / float64(total) * 100
 	if len(info.FollowedBy) != 0 {

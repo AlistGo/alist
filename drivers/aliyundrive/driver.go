@@ -14,13 +14,12 @@ import (
 	"os"
 	"time"
 
-	"github.com/alist-org/alist/v3/internal/stream"
-
 	"github.com/alist-org/alist/v3/drivers/base"
 	"github.com/alist-org/alist/v3/internal/conf"
 	"github.com/alist-org/alist/v3/internal/driver"
 	"github.com/alist-org/alist/v3/internal/errs"
 	"github.com/alist-org/alist/v3/internal/model"
+	"github.com/alist-org/alist/v3/internal/stream"
 	"github.com/alist-org/alist/v3/pkg/cron"
 	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/go-resty/resty/v2"
@@ -194,7 +193,10 @@ func (d *AliDrive) Put(ctx context.Context, dstDir model.Obj, streamer model.Fil
 	}
 	if d.RapidUpload {
 		buf := bytes.NewBuffer(make([]byte, 0, 1024))
-		utils.CopyWithBufferN(buf, file, 1024)
+		_, err := utils.CopyWithBufferN(buf, file, 1024)
+		if err != nil {
+			return err
+		}
 		reqBody["pre_hash"] = utils.HashData(utils.SHA1, buf.Bytes())
 		if localFile != nil {
 			if _, err := localFile.Seek(0, io.SeekStart); err != nil {
@@ -286,6 +288,7 @@ func (d *AliDrive) Put(ctx context.Context, dstDir model.Obj, streamer model.Fil
 		file.Reader = localFile
 	}
 
+	rateLimited := driver.NewLimitedUploadStream(ctx, file)
 	for i, partInfo := range resp.PartInfoList {
 		if utils.IsCanceled(ctx) {
 			return ctx.Err()
@@ -294,7 +297,7 @@ func (d *AliDrive) Put(ctx context.Context, dstDir model.Obj, streamer model.Fil
 		if d.InternalUpload {
 			url = partInfo.InternalUploadUrl
 		}
-		req, err := http.NewRequest("PUT", url, io.LimitReader(file, DEFAULT))
+		req, err := http.NewRequest("PUT", url, io.LimitReader(rateLimited, DEFAULT))
 		if err != nil {
 			return err
 		}
@@ -303,7 +306,7 @@ func (d *AliDrive) Put(ctx context.Context, dstDir model.Obj, streamer model.Fil
 		if err != nil {
 			return err
 		}
-		res.Body.Close()
+		_ = res.Body.Close()
 		if count > 0 {
 			up(float64(i) * 100 / float64(count))
 		}

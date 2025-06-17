@@ -39,7 +39,7 @@
 
 ---
 
-English | [中文](./README_cn.md)| [日本語](./README_ja.md) | [Contributing](./CONTRIBUTING.md) | [CODE_OF_CONDUCT](./CODE_OF_CONDUCT.md)
+English | [中文](./README_cn.md) | [日本語](./README_ja.md) | [Contributing](./CONTRIBUTING.md) | [CODE_OF_CONDUCT](./CODE_OF_CONDUCT.md)
 
 ## Features
 
@@ -58,7 +58,7 @@ English | [中文](./README_cn.md)| [日本語](./README_ja.md) | [Contributing]
     - [x] WebDav(Support OneDrive/SharePoint without API)
     - [x] Teambition([China](https://www.teambition.com/ ),[International](https://us.teambition.com/ ))
     - [x] [Mediatrack](https://www.mediatrack.cn/)
-    - [x] [139yun](https://yun.139.com/) (Personal, Family)
+    - [x] [139yun](https://yun.139.com/) (Personal, Family, Group)
     - [x] [YandexDisk](https://disk.yandex.com/)
     - [x] [BaiduNetdisk](http://pan.baidu.com/)
     - [x] [Terabox](https://www.terabox.com/main)
@@ -77,6 +77,7 @@ English | [中文](./README_cn.md)| [日本語](./README_ja.md) | [Contributing]
     - [x] [Dropbox](https://www.dropbox.com/)
     - [x] [FeijiPan](https://www.feijipan.com/)
     - [x] [dogecloud](https://www.dogecloud.com/product/oss)
+    - [x] [Azure Blob Storage](https://azure.microsoft.com/products/storage/blobs)
 - [x] Easy to deploy and out-of-the-box
 - [x] File preview (PDF, markdown, code, plain text, ...)
 - [x] Image preview in gallery mode
@@ -98,7 +99,7 @@ English | [中文](./README_cn.md)| [日本語](./README_ja.md) | [Contributing]
 
 ## Document
 
-<https://alist.nn.ci/>
+<https://alistgo.com/>
 
 ## Demo
 
@@ -138,4 +139,4 @@ The `AList` is open-source software licensed under the AGPL-3.0 license.
 
 ---
 
-> [@Blog](https://nn.ci/) · [@GitHub](https://github.com/alist-org) · [@TelegramGroup](https://t.me/alist_chat) · [@Discord](https://discord.gg/F4ymsH4xv2)
+> [@GitHub](https://github.com/alist-org) · [@TelegramGroup](https://t.me/alist_chat) · [@Discord](https://discord.gg/F4ymsH4xv2)

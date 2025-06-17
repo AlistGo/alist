@@ -9,6 +9,7 @@ type Addition struct {
 	driver.RootID
 	Username string `json:"username" type:"string" required:"true"`
 	Password string `json:"password" type:"string" required:"true"`
+	Ip       string `json:"ip" type:"string"`
 
 	Token string
 	UUID  string

@@ -32,6 +32,8 @@ func initUser() {
 				Role:     model.ADMIN,
 				BasePath: "/",
 				Authn:    "[]",
+				// 0(can see hidden) - 7(can remove) & 12(can read archives) - 13(can decompress archives)
+				Permission: 0x30FF,
 			}
 			if err := op.CreateUser(admin); err != nil {
 				panic(err)
@@ -61,41 +63,6 @@ func initUser() {
 			}
 		} else {
 			utils.Log.Fatalf("[init user] Failed to get guest user: %v", err)
-		}
-	}
-	hashPwdForOldVersion()
-	updateAuthnForOldVersion()
-}
-
-func hashPwdForOldVersion() {
-	users, _, err := op.GetUsers(1, -1)
-	if err != nil {
-		utils.Log.Fatalf("[hash pwd for old version] failed get users: %v", err)
-	}
-	for i := range users {
-		user := users[i]
-		if user.PwdHash == "" {
-			user.SetPassword(user.Password)
-			user.Password = ""
-			if err := db.UpdateUser(&user); err != nil {
-				utils.Log.Fatalf("[hash pwd for old version] failed update user: %v", err)
-			}
-		}
-	}
-}
-
-func updateAuthnForOldVersion() {
-	users, _, err := op.GetUsers(1, -1)
-	if err != nil {
-		utils.Log.Fatalf("[update authn for old version] failed get users: %v", err)
-	}
-	for i := range users {
-		user := users[i]
-		if user.Authn == "" {
-			user.Authn = "[]"
-			if err := db.UpdateUser(&user); err != nil {
-				utils.Log.Fatalf("[update authn for old version] failed update user: %v", err)
-			}
 		}
 	}
 }

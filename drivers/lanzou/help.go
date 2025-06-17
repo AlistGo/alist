@@ -78,6 +78,42 @@ func RemoveNotes(html string) string {
 	})
 }
 
+// 清理JS注释
+func RemoveJSComment(data string) string {
+	var result strings.Builder
+	inComment := false
+	inSingleLineComment := false
+
+	for i := 0; i < len(data); i++ {
+		v := data[i]
+
+		if inSingleLineComment && (v == '\n' || v == '\r') {
+			inSingleLineComment = false
+			result.WriteByte(v)
+			continue
+		}
+		if inComment && v == '*' && i+1 < len(data) && data[i+1] == '/' {
+			inComment = false
+			continue
+		}
+		if v == '/' && i+1 < len(data) {
+			nextChar := data[i+1]
+			if nextChar == '*' {
+				inComment = true
+				i++
+				continue
+			} else if nextChar == '/' {
+				inSingleLineComment = true
+				i++
+				continue
+			}
+		}
+		result.WriteByte(v)
+	}
+
+	return result.String()
+}
+
 var findAcwScV2Reg = regexp.MustCompile(`arg1='([0-9A-Z]+)'`)
 
 // 在页面被过多访问或其他情况下，有时候会先返回一个加密的页面，其执行计算出一个acw_sc__v2后放入页面后再重新访问页面才能获得正常页面
@@ -120,9 +156,9 @@ var findKVReg = regexp.MustCompile(`'(.+?)':('?([^' },]*)'?)`) // 拆分kv
 func findJSVarFunc(key, data string) string {
 	var values []string
 	if key != "sasign" {
-		values = regexp.MustCompile(`var ` + key + ` = '(.+?)';`).FindStringSubmatch(data)
+		values = regexp.MustCompile(`var ` + key + `\s*=\s*['"]?(.+?)['"]?;`).FindStringSubmatch(data)
 	} else {
-		matches := regexp.MustCompile(`var `+key+` = '(.+?)';`).FindAllStringSubmatch(data, -1)
+		matches := regexp.MustCompile(`var `+key+`\s*=\s*['"]?(.+?)['"]?;`).FindAllStringSubmatch(data, -1)
 		if len(matches) == 3 {
 			values = matches[1]
 		} else {

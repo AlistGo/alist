@@ -1,6 +1,7 @@
 package teambition
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -120,11 +121,15 @@ func (d *Teambition) getFiles(parentId string) ([]model.Obj, error) {
 	return files, nil
 }
 
-func (d *Teambition) upload(ctx context.Context, file model.FileStreamer, token string) (*FileUpload, error) {
+func (d *Teambition) upload(ctx context.Context, file model.FileStreamer, token string, up driver.UpdateProgress) (*FileUpload, error) {
 	prefix := "tcs"
 	if d.isInternational() {
 		prefix = "us-tcs"
 	}
+	reader := driver.NewLimitedUploadStream(ctx, &driver.ReaderUpdatingProgress{
+		Reader:         file,
+		UpdateProgress: up,
+	})
 	var newFile FileUpload
 	res, err := base.RestyClient.R().
 		SetContext(ctx).
@@ -134,7 +139,8 @@ func (d *Teambition) upload(ctx context.Context, file model.FileStreamer, token 
 			"type":             file.GetMimetype(),
 			"size":             strconv.FormatInt(file.GetSize(), 10),
 			"lastModifiedDate": time.Now().Format("Mon Jan 02 2006 15:04:05 GMT+0800 (中国标准时间)"),
-		}).SetMultipartField("file", file.GetName(), file.GetMimetype(), file).
+		}).
+		SetMultipartField("file", file.GetName(), file.GetMimetype(), reader).
 		Post(fmt.Sprintf("https://%s.teambition.net/upload", prefix))
 	if err != nil {
 		return nil, err
@@ -183,10 +189,9 @@ func (d *Teambition) chunkUpload(ctx context.Context, file model.FileStreamer, t
 				"Authorization": token,
 				"Content-Type":  "application/octet-stream",
 				"Referer":       referer,
-			}).SetBody(chunkData).Post(u)
-		if err != nil {
-			return nil, err
-		}
+			}).
+			SetBody(driver.NewLimitedUploadStream(ctx, bytes.NewReader(chunkData))).
+			Post(u)
 		if err != nil {
 			return nil, err
 		}
@@ -252,7 +257,10 @@ func (d *Teambition) newUpload(ctx context.Context, dstDir model.Obj, stream mod
 		Key:                &uploadToken.Upload.Key,
 		ContentDisposition: &uploadToken.Upload.ContentDisposition,
 		ContentType:        &uploadToken.Upload.ContentType,
-		Body:               stream,
+		Body: driver.NewLimitedUploadStream(ctx, &driver.ReaderUpdatingProgress{
+			Reader:         stream,
+			UpdateProgress: up,
+		}),
 	}
 	_, err = uploader.UploadWithContext(ctx, input)
 	if err != nil {

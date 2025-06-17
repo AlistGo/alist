@@ -3,6 +3,7 @@ package LenovoNasShare
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/go-resty/resty/v2"
 
@@ -15,7 +16,8 @@ import (
 type LenovoNasShare struct {
 	model.Storage
 	Addition
-	stoken string
+	stoken   string
+	expireAt int64
 }
 
 func (d *LenovoNasShare) Config() driver.Config {
@@ -27,20 +29,9 @@ func (d *LenovoNasShare) GetAddition() driver.Additional {
 }
 
 func (d *LenovoNasShare) Init(ctx context.Context) error {
-	if d.Host == "" {
-		d.Host = "https://siot-share.lenovo.com.cn"
-	}
-	query := map[string]string{
-		"code":     d.ShareId,
-		"password": d.SharePwd,
-	}
-	resp, err := d.request(d.Host+"/oneproxy/api/share/v1/access", http.MethodGet, func(req *resty.Request) {
-		req.SetQueryParams(query)
-	}, nil)
-	if err != nil {
+	if err := d.getStoken(); err != nil {
 		return err
 	}
-	d.stoken = utils.Json.Get(resp, "data", "stoken").ToString()
 	return nil
 }
 
@@ -49,6 +40,7 @@ func (d *LenovoNasShare) Drop(ctx context.Context) error {
 }
 
 func (d *LenovoNasShare) List(ctx context.Context, dir model.Obj, args model.ListArgs) ([]model.Obj, error) {
+	d.checkStoken() // 检查stoken是否过期
 	files := make([]File, 0)
 
 	var resp Files
@@ -71,7 +63,33 @@ func (d *LenovoNasShare) List(ctx context.Context, dir model.Obj, args model.Lis
 	})
 }
 
+func (d *LenovoNasShare) checkStoken() { // 检查stoken是否过期
+	if d.expireAt < time.Now().Unix() {
+		d.getStoken()
+	}
+}
+
+func (d *LenovoNasShare) getStoken() error { // 获取stoken
+	if d.Host == "" {
+		d.Host = "https://siot-share.lenovo.com.cn"
+	}
+	query := map[string]string{
+		"code":     d.ShareId,
+		"password": d.SharePwd,
+	}
+	resp, err := d.request(d.Host+"/oneproxy/api/share/v1/access", http.MethodGet, func(req *resty.Request) {
+		req.SetQueryParams(query)
+	}, nil)
+	if err != nil {
+		return err
+	}
+	d.stoken = utils.Json.Get(resp, "data", "stoken").ToString()
+	d.expireAt = utils.Json.Get(resp, "data", "expires_in").ToInt64() + time.Now().Unix() - 60
+	return nil
+}
+
 func (d *LenovoNasShare) Link(ctx context.Context, file model.Obj, args model.LinkArgs) (*model.Link, error) {
+	d.checkStoken() // 检查stoken是否过期
 	query := map[string]string{
 		"code":   d.ShareId,
 		"stoken": d.stoken,

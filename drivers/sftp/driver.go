@@ -111,7 +111,7 @@ func (d *SFTP) Put(ctx context.Context, dstDir model.Obj, stream model.FileStrea
 	defer func() {
 		_ = dstFile.Close()
 	}()
-	err = utils.CopyWithCtx(ctx, dstFile, stream, stream.GetSize(), up)
+	err = utils.CopyWithCtx(ctx, dstFile, driver.NewLimitedUploadStream(ctx, stream), stream.GetSize(), up)
 	return err
 }
 

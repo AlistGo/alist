@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/http"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/alist-org/alist/v3/drivers/base"
@@ -69,7 +70,7 @@ func (d *WeiYun) Init(ctx context.Context) error {
 	if d.client.LoginType() == 1 {
 		d.cron = cron.NewCron(time.Minute * 5)
 		d.cron.Do(func() {
-			d.client.KeepAlive()
+			_ = d.client.KeepAlive()
 		})
 	}
 
@@ -311,77 +312,83 @@ func (d *WeiYun) Put(ctx context.Context, dstDir model.Obj, stream model.FileStr
 	// NOTE:
 	// 秒传需要sha1最后一个状态,但sha1无法逆运算需要读完整个文件(或许可以??)
 	// 服务器支持上传进度恢复,不需要额外实现
-	if folder, ok := dstDir.(*Folder); ok {
-		file, err := stream.CacheFullInTempFile()
-		if err != nil {
-			return nil, err
-		}
+	var folder *Folder
+	var ok bool
+	if folder, ok = dstDir.(*Folder); !ok {
+		return nil, errs.NotSupport
+	}
+	file, err := stream.CacheFullInTempFile()
+	if err != nil {
+		return nil, err
+	}
 
-		// step 1.
-		preData, err := d.client.PreUpload(ctx, weiyunsdkgo.UpdloadFileParam{
-			PdirKey: folder.GetPKey(),
-			DirKey:  folder.DirKey,
+	// step 1.
+	preData, err := d.client.PreUpload(ctx, weiyunsdkgo.UpdloadFileParam{
+		PdirKey: folder.GetPKey(),
+		DirKey:  folder.DirKey,
 
-			FileName: stream.GetName(),
-			FileSize: stream.GetSize(),
-			File:     file,
+		FileName: stream.GetName(),
+		FileSize: stream.GetSize(),
+		File:     file,
 
-			ChannelCount:    4,
-			FileExistOption: 1,
-		})
-		if err != nil {
-			return nil, err
-		}
+		ChannelCount:    4,
+		FileExistOption: 1,
+	})
+	if err != nil {
+		return nil, err
+	}
 
-		// not fast upload
-		if !preData.FileExist {
-			// step.2 增加上传通道
-			if len(preData.ChannelList) < d.uploadThread {
-				newCh, err := d.client.AddUploadChannel(len(preData.ChannelList), d.uploadThread, preData.UploadAuthData)
-				if err != nil {
-					return nil, err
-				}
-				preData.ChannelList = append(preData.ChannelList, newCh.AddChannels...)
-			}
-			// step.3 上传
-			threadG, upCtx := errgroup.NewGroupWithContext(ctx, len(preData.ChannelList),
-				retry.Attempts(3),
-				retry.Delay(time.Second),
-				retry.DelayType(retry.BackOffDelay))
-
-			for _, channel := range preData.ChannelList {
-				if utils.IsCanceled(upCtx) {
-					break
-				}
-
-				var channel = channel
-				threadG.Go(func(ctx context.Context) error {
-					for {
-						channel.Len = int(math.Min(float64(stream.GetSize()-channel.Offset), float64(channel.Len)))
-						upData, err := d.client.UploadFile(upCtx, channel, preData.UploadAuthData,
-							io.NewSectionReader(file, channel.Offset, int64(channel.Len)))
-						if err != nil {
-							return err
-						}
-						// 上传完成
-						if upData.UploadState != 1 {
-							return nil
-						}
-						channel = upData.Channel
-					}
-				})
-			}
-			if err = threadG.Wait(); err != nil {
+	// not fast upload
+	if !preData.FileExist {
+		// step.2 增加上传通道
+		if len(preData.ChannelList) < d.uploadThread {
+			newCh, err := d.client.AddUploadChannel(len(preData.ChannelList), d.uploadThread, preData.UploadAuthData)
+			if err != nil {
 				return nil, err
 			}
+			preData.ChannelList = append(preData.ChannelList, newCh.AddChannels...)
 		}
+		// step.3 上传
+		threadG, upCtx := errgroup.NewGroupWithContext(ctx, len(preData.ChannelList),
+			retry.Attempts(3),
+			retry.Delay(time.Second),
+			retry.DelayType(retry.BackOffDelay))
 
-		return &File{
-			PFolder: folder,
-			File:    preData.File,
-		}, nil
+		total := atomic.Int64{}
+		for _, channel := range preData.ChannelList {
+			if utils.IsCanceled(upCtx) {
+				break
+			}
+
+			var channel = channel
+			threadG.Go(func(ctx context.Context) error {
+				for {
+					channel.Len = int(math.Min(float64(stream.GetSize()-channel.Offset), float64(channel.Len)))
+					len64 := int64(channel.Len)
+					upData, err := d.client.UploadFile(upCtx, channel, preData.UploadAuthData,
+						driver.NewLimitedUploadStream(ctx, io.NewSectionReader(file, channel.Offset, len64)))
+					if err != nil {
+						return err
+					}
+					cur := total.Add(len64)
+					up(float64(cur) * 100.0 / float64(stream.GetSize()))
+					// 上传完成
+					if upData.UploadState != 1 {
+						return nil
+					}
+					channel = upData.Channel
+				}
+			})
+		}
+		if err = threadG.Wait(); err != nil {
+			return nil, err
+		}
 	}
-	return nil, errs.NotSupport
+
+	return &File{
+		PFolder: folder,
+		File:    preData.File,
+	}, nil
 }
 
 // func (d *WeiYun) Other(ctx context.Context, args model.OtherArgs) (interface{}, error) {

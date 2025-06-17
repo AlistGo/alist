@@ -47,7 +47,11 @@ func (f File) GetPath() string {
 }
 
 func (f File) GetSize() int64 {
-	return f.Size
+	if f.IsDir() {
+		return 0
+	} else {
+		return f.Size
+	}
 }
 
 func (f File) GetName() string {
@@ -68,10 +72,6 @@ func (f File) IsDir() bool {
 
 func (f File) GetID() string {
 	return f.GetPath()
-}
-
-func (f File) Thumb() string {
-	return ""
 }
 
 type Files struct {

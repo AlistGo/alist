@@ -4,18 +4,17 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/alist-org/alist/v3/server/common"
 	"io"
 	"net/url"
 	stdpath "path"
 	"strings"
 	"time"
 
-	"github.com/alist-org/alist/v3/internal/stream"
-	"github.com/alist-org/alist/v3/pkg/cron"
-
 	"github.com/alist-org/alist/v3/internal/driver"
 	"github.com/alist-org/alist/v3/internal/model"
+	"github.com/alist-org/alist/v3/internal/stream"
+	"github.com/alist-org/alist/v3/pkg/cron"
+	"github.com/alist-org/alist/v3/server/common"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
@@ -99,8 +98,12 @@ func (d *S3) Link(ctx context.Context, file model.Obj, args model.LinkArgs) (*mo
 	var link model.Link
 	var err error
 	if d.CustomHost != "" {
-		err = req.Build()
-		link.URL = req.HTTPRequest.URL.String()
+		if d.EnableCustomHostPresign {
+			link.URL, err = req.Presign(time.Hour * time.Duration(d.SignURLExpire))
+		} else {
+			err = req.Build()
+			link.URL = req.HTTPRequest.URL.String()
+		}
 		if d.RemoveBucket {
 			link.URL = strings.Replace(link.URL, "/"+d.Bucket, "", 1)
 		}
@@ -159,18 +162,21 @@ func (d *S3) Remove(ctx context.Context, obj model.Obj) error {
 	return d.removeFile(obj.GetPath())
 }
 
-func (d *S3) Put(ctx context.Context, dstDir model.Obj, stream model.FileStreamer, up driver.UpdateProgress) error {
+func (d *S3) Put(ctx context.Context, dstDir model.Obj, s model.FileStreamer, up driver.UpdateProgress) error {
 	uploader := s3manager.NewUploader(d.Session)
-	if stream.GetSize() > s3manager.MaxUploadParts*s3manager.DefaultUploadPartSize {
-		uploader.PartSize = stream.GetSize() / (s3manager.MaxUploadParts - 1)
+	if s.GetSize() > s3manager.MaxUploadParts*s3manager.DefaultUploadPartSize {
+		uploader.PartSize = s.GetSize() / (s3manager.MaxUploadParts - 1)
 	}
-	key := getKey(stdpath.Join(dstDir.GetPath(), stream.GetName()), false)
-	contentType := stream.GetMimetype()
+	key := getKey(stdpath.Join(dstDir.GetPath(), s.GetName()), false)
+	contentType := s.GetMimetype()
 	log.Debugln("key:", key)
 	input := &s3manager.UploadInput{
-		Bucket:      &d.Bucket,
-		Key:         &key,
-		Body:        stream,
+		Bucket: &d.Bucket,
+		Key:    &key,
+		Body: driver.NewLimitedUploadStream(ctx, &driver.ReaderUpdatingProgress{
+			Reader:         s,
+			UpdateProgress: up,
+		}),
 		ContentType: &contentType,
 	}
 	_, err := uploader.UploadWithContext(ctx, input)

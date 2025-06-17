@@ -1,8 +1,10 @@
 package netease_music
 
 import (
+	"context"
 	"crypto/md5"
 	"encoding/hex"
+	"github.com/alist-org/alist/v3/internal/driver"
 	"io"
 	"net/http"
 	"strconv"
@@ -47,9 +49,12 @@ func (u *uploader) init(stream model.FileStreamer) error {
 	}
 
 	h := md5.New()
-	io.Copy(h, stream)
+	_, err := utils.CopyWithBuffer(h, stream)
+	if err != nil {
+		return err
+	}
 	u.md5 = hex.EncodeToString(h.Sum(nil))
-	_, err := u.file.Seek(0, io.SeekStart)
+	_, err = u.file.Seek(0, io.SeekStart)
 	if err != nil {
 		return err
 	}
@@ -167,7 +172,7 @@ func (u *uploader) publishInfo(resourceId string) error {
 	return nil
 }
 
-func (u *uploader) upload(stream model.FileStreamer) error {
+func (u *uploader) upload(ctx context.Context, stream model.FileStreamer, up driver.UpdateProgress) error {
 	bucket := "jd-musicrep-privatecloud-audio-public"
 	token, err := u.allocToken(bucket)
 	if err != nil {
@@ -192,6 +197,8 @@ func (u *uploader) upload(stream model.FileStreamer) error {
 		http.MethodPost,
 		ReqOption{
 			stream: stream,
+			up:     up,
+			ctx:    ctx,
 			headers: map[string]string{
 				"x-nos-token":    token.token,
 				"Content-Type":   "audio/mpeg",

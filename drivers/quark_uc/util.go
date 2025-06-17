@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -119,7 +120,7 @@ func (d *QuarkOrUC) upHash(md5, sha1, taskId string) (bool, error) {
 	return resp.Data.Finish, err
 }
 
-func (d *QuarkOrUC) upPart(ctx context.Context, pre UpPreResp, mineType string, partNumber int, bytes []byte) (string, error) {
+func (d *QuarkOrUC) upPart(ctx context.Context, pre UpPreResp, mineType string, partNumber int, bytes io.Reader) (string, error) {
 	//func (driver QuarkOrUC) UpPart(pre UpPreResp, mineType string, partNumber int, bytes []byte, account *model.Account, md5Str, sha1Str string) (string, error) {
 	timeStr := time.Now().UTC().Format(http.TimeFormat)
 	data := base.Json{
@@ -163,10 +164,13 @@ x-oss-user-agent:aliyun-sdk-js/6.6.1 Chrome 98.0.4758.80 on Windows 10 64-bit
 			"partNumber": strconv.Itoa(partNumber),
 			"uploadId":   pre.Data.UploadId,
 		}).SetBody(bytes).Put(u)
+	if err != nil {
+		return "", err
+	}
 	if res.StatusCode() != 200 {
 		return "", fmt.Errorf("up status: %d, error: %s", res.StatusCode(), res.String())
 	}
-	return res.Header().Get("ETag"), nil
+	return res.Header().Get("Etag"), nil
 }
 
 func (d *QuarkOrUC) upCommit(pre UpPreResp, md5s []string) error {
@@ -230,6 +234,9 @@ x-oss-user-agent:aliyun-sdk-js/6.6.1 Chrome 98.0.4758.80 on Windows 10 64-bit
 		SetQueryParams(map[string]string{
 			"uploadId": pre.Data.UploadId,
 		}).SetBody(body).Post(u)
+	if err != nil {
+		return err
+	}
 	if res.StatusCode() != 200 {
 		return fmt.Errorf("up status: %d, error: %s", res.StatusCode(), res.String())
 	}

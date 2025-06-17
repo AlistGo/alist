@@ -1,8 +1,8 @@
 package _189pc
 
 import (
-	"container/ring"
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,6 +14,7 @@ import (
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/go-resty/resty/v2"
+	"github.com/google/uuid"
 )
 
 type Cloud189PC struct {
@@ -29,10 +30,11 @@ type Cloud189PC struct {
 
 	uploadThread int
 
-	familyTransferFolder    *ring.Ring
+	familyTransferFolder    *Cloud189Folder
 	cleanFamilyTransferFile func()
 
 	storageConfig driver.Config
+	ref           *Cloud189PC
 }
 
 func (y *Cloud189PC) Config() driver.Config {
@@ -47,9 +49,18 @@ func (y *Cloud189PC) GetAddition() driver.Additional {
 }
 
 func (y *Cloud189PC) Init(ctx context.Context) (err error) {
-	// 兼容旧上传接口
-	y.storageConfig.NoOverwriteUpload = y.isFamily() && (y.Addition.RapidUpload || y.Addition.UploadMethod == "old")
-
+	y.storageConfig = config
+	if y.isFamily() {
+		// 兼容旧上传接口
+		if y.Addition.RapidUpload || y.Addition.UploadMethod == "old" {
+			y.storageConfig.NoOverwriteUpload = true
+		}
+	} else {
+		// 家庭云转存，不支持覆盖上传
+		if y.Addition.FamilyTransfer {
+			y.storageConfig.NoOverwriteUpload = true
+		}
+	}
 	// 处理个人云和家庭云参数
 	if y.isFamily() && y.RootFolderID == "-11" {
 		y.RootFolderID = ""
@@ -64,20 +75,22 @@ func (y *Cloud189PC) Init(ctx context.Context) (err error) {
 		y.uploadThread, y.UploadThread = 3, "3"
 	}
 
-	// 初始化请求客户端
-	if y.client == nil {
-		y.client = base.NewRestyClient().SetHeaders(map[string]string{
-			"Accept":  "application/json;charset=UTF-8",
-			"Referer": WEB_URL,
-		})
-	}
+	if y.ref == nil {
+		// 初始化请求客户端
+		if y.client == nil {
+			y.client = base.NewRestyClient().SetHeaders(map[string]string{
+				"Accept":  "application/json;charset=UTF-8",
+				"Referer": WEB_URL,
+			})
+		}
 
-	// 避免重复登陆
-	identity := utils.GetMD5EncodeStr(y.Username + y.Password)
-	if !y.isLogin() || y.identity != identity {
-		y.identity = identity
-		if err = y.login(); err != nil {
-			return
+		// 避免重复登陆
+		identity := utils.GetMD5EncodeStr(y.Username + y.Password)
+		if !y.isLogin() || y.identity != identity {
+			y.identity = identity
+			if err = y.login(); err != nil {
+				return
+			}
 		}
 	}
 
@@ -88,13 +101,14 @@ func (y *Cloud189PC) Init(ctx context.Context) (err error) {
 		}
 	}
 
-	// 创建中转文件夹,防止重名文件
+	// 创建中转文件夹
 	if y.FamilyTransfer {
-		if y.familyTransferFolder, err = y.createFamilyTransferFolder(32); err != nil {
+		if err := y.createFamilyTransferFolder(); err != nil {
 			return err
 		}
 	}
 
+	// 清理转存文件节流
 	y.cleanFamilyTransferFile = utils.NewThrottle2(time.Minute, func() {
 		if err := y.cleanFamilyTransfer(context.TODO()); err != nil {
 			utils.Log.Errorf("cleanFamilyTransferFolderError:%s", err)
@@ -103,7 +117,17 @@ func (y *Cloud189PC) Init(ctx context.Context) (err error) {
 	return
 }
 
+func (d *Cloud189PC) InitReference(storage driver.Driver) error {
+	refStorage, ok := storage.(*Cloud189PC)
+	if ok {
+		d.ref = refStorage
+		return nil
+	}
+	return errs.NotSupport
+}
+
 func (y *Cloud189PC) Drop(ctx context.Context) error {
+	y.ref = nil
 	return nil
 }
 
@@ -314,35 +338,49 @@ func (y *Cloud189PC) Put(ctx context.Context, dstDir model.Obj, stream model.Fil
 	if !isFamily && y.FamilyTransfer {
 		// 修改上传目标为家庭云文件夹
 		transferDstDir := dstDir
-		dstDir = (y.familyTransferFolder.Value).(*Cloud189Folder)
-		y.familyTransferFolder = y.familyTransferFolder.Next()
+		dstDir = y.familyTransferFolder
 
+		// 使用临时文件名
+		srcName := stream.GetName()
+		stream = &WrapFileStreamer{
+			FileStreamer: stream,
+			Name:         fmt.Sprintf("0%s.transfer", uuid.NewString()),
+		}
+
+		// 使用家庭云上传
 		isFamily = true
 		overwrite = false
 
 		defer func() {
 			if newObj != nil {
-				// 批量任务有概率删不掉
-				y.cleanFamilyTransferFile()
-
 				// 转存家庭云文件到个人云
 				err = y.SaveFamilyFileToPersonCloud(context.TODO(), y.FamilyID, newObj, transferDstDir, true)
-
-				task := BatchTaskInfo{
-					FileId:   newObj.GetID(),
-					FileName: newObj.GetName(),
-					IsFolder: BoolToNumber(newObj.IsDir()),
+				// 删除家庭云源文件
+				go y.Delete(context.TODO(), y.FamilyID, newObj)
+				// 批量任务有概率删不掉
+				go y.cleanFamilyTransferFile()
+				// 转存失败返回错误
+				if err != nil {
+					return
 				}
 
-				// 删除源文件
-				if resp, err := y.CreateBatchTask("DELETE", y.FamilyID, "", nil, task); err == nil {
-					y.WaitBatchTask("DELETE", resp.TaskID, time.Second)
-					// 永久删除
-					if resp, err := y.CreateBatchTask("CLEAR_RECYCLE", y.FamilyID, "", nil, task); err == nil {
-						y.WaitBatchTask("CLEAR_RECYCLE", resp.TaskID, time.Second)
+				// 查找转存文件
+				var file *Cloud189File
+				file, err = y.findFileByName(context.TODO(), newObj.GetName(), transferDstDir.GetID(), false)
+				if err != nil {
+					if err == errs.ObjectNotFound {
+						err = fmt.Errorf("unknown error: No transfer file obtained %s", newObj.GetName())
 					}
+					return
 				}
-				newObj = nil
+
+				// 重命名转存文件
+				newObj, err = y.Rename(context.TODO(), file, srcName)
+				if err != nil {
+					// 重命名失败删除源文件
+					_ = y.Delete(context.TODO(), "", file)
+				}
+				return
 			}
 		}()
 	}

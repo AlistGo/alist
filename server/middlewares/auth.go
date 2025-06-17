@@ -127,6 +127,16 @@ func Authn(c *gin.Context) {
 	c.Next()
 }
 
+func AuthNotGuest(c *gin.Context) {
+	user := c.MustGet("user").(*model.User)
+	if user.IsGuest() {
+		common.ErrorStrResp(c, "You are a guest", 403)
+		c.Abort()
+	} else {
+		c.Next()
+	}
+}
+
 func AuthAdmin(c *gin.Context) {
 	user := c.MustGet("user").(*model.User)
 	if !user.IsAdmin() {

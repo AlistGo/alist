@@ -53,6 +53,9 @@ func GetApi(rawUrl string) string {
 }
 
 func (d *Pan123Share) request(url string, method string, callback base.ReqCallback, resp interface{}) ([]byte, error) {
+	if d.ref != nil {
+		return d.ref.Request(url, method, callback, resp)
+	}
 	req := base.RestyClient.R()
 	req.SetHeaders(map[string]string{
 		"origin":        "https://www.123pan.com",

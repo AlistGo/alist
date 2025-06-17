@@ -161,7 +161,7 @@ func (d *MediaTrack) Remove(ctx context.Context, obj model.Obj) error {
 	return err
 }
 
-func (d *MediaTrack) Put(ctx context.Context, dstDir model.Obj, stream model.FileStreamer, up driver.UpdateProgress) error {
+func (d *MediaTrack) Put(ctx context.Context, dstDir model.Obj, file model.FileStreamer, up driver.UpdateProgress) error {
 	src := "assets/" + uuid.New().String()
 	var resp UploadResp
 	_, err := d.request("https://jayce.api.mediatrack.cn/v3/storage/tokens/asset", http.MethodGet, func(req *resty.Request) {
@@ -180,7 +180,7 @@ func (d *MediaTrack) Put(ctx context.Context, dstDir model.Obj, stream model.Fil
 	if err != nil {
 		return err
 	}
-	tempFile, err := stream.CacheFullInTempFile()
+	tempFile, err := file.CacheFullInTempFile()
 	if err != nil {
 		return err
 	}
@@ -188,13 +188,19 @@ func (d *MediaTrack) Put(ctx context.Context, dstDir model.Obj, stream model.Fil
 		_ = tempFile.Close()
 	}()
 	uploader := s3manager.NewUploader(s)
-	if stream.GetSize() > s3manager.MaxUploadParts*s3manager.DefaultUploadPartSize {
-		uploader.PartSize = stream.GetSize() / (s3manager.MaxUploadParts - 1)
+	if file.GetSize() > s3manager.MaxUploadParts*s3manager.DefaultUploadPartSize {
+		uploader.PartSize = file.GetSize() / (s3manager.MaxUploadParts - 1)
 	}
 	input := &s3manager.UploadInput{
 		Bucket: &resp.Data.Bucket,
 		Key:    &resp.Data.Object,
-		Body:   tempFile,
+		Body: driver.NewLimitedUploadStream(ctx, &driver.ReaderUpdatingProgress{
+			Reader: &driver.SimpleReaderWithSize{
+				Reader: tempFile,
+				Size:   file.GetSize(),
+			},
+			UpdateProgress: up,
+		}),
 	}
 	_, err = uploader.UploadWithContext(ctx, input)
 	if err != nil {
@@ -213,12 +219,12 @@ func (d *MediaTrack) Put(ctx context.Context, dstDir model.Obj, stream model.Fil
 	hash := hex.EncodeToString(h.Sum(nil))
 	data := base.Json{
 		"category":    0,
-		"description": stream.GetName(),
+		"description": file.GetName(),
 		"hash":        hash,
-		"mime":        stream.GetMimetype(),
-		"size":        stream.GetSize(),
+		"mime":        file.GetMimetype(),
+		"size":        file.GetSize(),
 		"src":         src,
-		"title":       stream.GetName(),
+		"title":       file.GetName(),
 		"type":        0,
 	}
 	_, err = d.request(url, http.MethodPost, func(req *resty.Request) {

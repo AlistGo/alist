@@ -102,6 +102,10 @@ func Static(r *gin.RouterGroup, noRoute func(handlers ...gin.HandlerFunc)) {
 	}
 
 	noRoute(func(c *gin.Context) {
+		if c.Request.Method != "GET" && c.Request.Method != "POST" {
+			c.Status(405)
+			return
+		}
 		c.Header("Content-Type", "text/html")
 		c.Status(200)
 		if strings.HasPrefix(c.Request.URL.Path, "/@manage") {

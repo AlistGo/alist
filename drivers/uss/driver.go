@@ -3,6 +3,7 @@ package uss
 import (
 	"context"
 	"fmt"
+	"github.com/alist-org/alist/v3/internal/stream"
 	"net/url"
 	"path"
 	"strings"
@@ -122,11 +123,13 @@ func (d *USS) Remove(ctx context.Context, obj model.Obj) error {
 	})
 }
 
-func (d *USS) Put(ctx context.Context, dstDir model.Obj, stream model.FileStreamer, up driver.UpdateProgress) error {
-	// TODO not support cancel??
+func (d *USS) Put(ctx context.Context, dstDir model.Obj, s model.FileStreamer, up driver.UpdateProgress) error {
 	return d.client.Put(&upyun.PutObjectConfig{
-		Path:   getKey(path.Join(dstDir.GetPath(), stream.GetName()), false),
-		Reader: stream,
+		Path: getKey(path.Join(dstDir.GetPath(), s.GetName()), false),
+		Reader: driver.NewLimitedUploadStream(ctx, &stream.ReaderUpdatingProgress{
+			Reader:         s,
+			UpdateProgress: up,
+		}),
 	})
 }
 

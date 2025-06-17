@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	stdpath "path"
 	"strings"
 	"time"
 
@@ -113,16 +112,6 @@ func (d *Quqi) checkLogin() bool {
 		return false
 	}
 	return true
-}
-
-// rawExt 保留扩展名大小写
-func rawExt(name string) string {
-	ext := stdpath.Ext(name)
-	if strings.HasPrefix(ext, ".") {
-		ext = ext[1:]
-	}
-
-	return ext
 }
 
 // decryptKey 获取密码
@@ -300,16 +289,10 @@ func (d *Quqi) linkFromCDN(id string) (*model.Link, error) {
 		bufferReader := bufio.NewReader(decryptReader)
 		bufferReader.Discard(int(decryptedOffset))
 
-		return utils.NewReadCloser(bufferReader, func() error {
-			return nil
-		}), nil
+		return io.NopCloser(bufferReader), nil
 	}
 
 	return &model.Link{
-		Header: http.Header{
-			"Origin": []string{"https://quqi.com"},
-			"Cookie": []string{d.Cookie},
-		},
 		RangeReadCloser: &model.RangeReadCloser{RangeReader: resultRangeReader, Closers: remoteClosers},
 		Expiration:      &expiration,
 	}, nil

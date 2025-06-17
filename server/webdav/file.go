@@ -33,6 +33,13 @@ func moveFiles(ctx context.Context, src, dst string, overwrite bool) (status int
 	dstDir := path.Dir(dst)
 	srcName := path.Base(src)
 	dstName := path.Base(dst)
+	user := ctx.Value("user").(*model.User)
+	if srcDir != dstDir && !user.CanMove() {
+		return http.StatusForbidden, nil
+	}
+	if srcName != dstName && !user.CanRename() {
+		return http.StatusForbidden, nil
+	}
 	if srcDir == dstDir {
 		err = fs.Rename(ctx, src, dstName)
 	} else {

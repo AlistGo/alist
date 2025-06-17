@@ -148,7 +148,7 @@ func (d *Teambition) Put(ctx context.Context, dstDir model.Obj, stream model.Fil
 	var newFile *FileUpload
 	if stream.GetSize() <= 20971520 {
 		// post upload
-		newFile, err = d.upload(ctx, stream, token)
+		newFile, err = d.upload(ctx, stream, token, up)
 	} else {
 		// chunk upload
 		//err = base.ErrNotImplement

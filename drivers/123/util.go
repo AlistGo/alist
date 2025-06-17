@@ -26,8 +26,9 @@ const (
 	Api              = "https://www.123pan.com/api"
 	AApi             = "https://www.123pan.com/a/api"
 	BApi             = "https://www.123pan.com/b/api"
+	LoginApi         = "https://login.123pan.com/api"
 	MainApi          = BApi
-	SignIn           = MainApi + "/user/sign_in"
+	SignIn           = LoginApi + "/user/sign_in"
 	Logout           = MainApi + "/user/logout"
 	UserInfo         = MainApi + "/user/info"
 	FileList         = MainApi + "/file/list/new"
@@ -193,7 +194,9 @@ func (d *Pan123) login() error {
 //	return &authKey, nil
 //}
 
-func (d *Pan123) request(url string, method string, callback base.ReqCallback, resp interface{}) ([]byte, error) {
+func (d *Pan123) Request(url string, method string, callback base.ReqCallback, resp interface{}) ([]byte, error) {
+	isRetry := false
+do:
 	req := base.RestyClient.R()
 	req.SetHeaders(map[string]string{
 		"origin":        "https://www.123pan.com",
@@ -222,12 +225,13 @@ func (d *Pan123) request(url string, method string, callback base.ReqCallback, r
 	body := res.Body()
 	code := utils.Json.Get(body, "code").ToInt()
 	if code != 0 {
-		if code == 401 {
+		if !isRetry && code == 401 {
 			err := d.login()
 			if err != nil {
 				return nil, err
 			}
-			return d.request(url, method, callback, resp)
+			isRetry = true
+			goto do
 		}
 		return nil, errors.New(jsoniter.Get(body, "message").ToString())
 	}
@@ -259,7 +263,7 @@ func (d *Pan123) getFiles(ctx context.Context, parentId string, name string) ([]
 			"operateType":          "4",
 			"inDirectSpace":        "false",
 		}
-		_res, err := d.request(FileList, http.MethodGet, func(req *resty.Request) {
+		_res, err := d.Request(FileList, http.MethodGet, func(req *resty.Request) {
 			req.SetQueryParams(query)
 		}, &resp)
 		if err != nil {

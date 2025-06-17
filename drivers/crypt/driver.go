@@ -13,6 +13,7 @@ import (
 	"github.com/alist-org/alist/v3/internal/fs"
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/internal/op"
+	"github.com/alist-org/alist/v3/internal/sign"
 	"github.com/alist-org/alist/v3/internal/stream"
 	"github.com/alist-org/alist/v3/pkg/http_range"
 	"github.com/alist-org/alist/v3/pkg/utils"
@@ -160,7 +161,11 @@ func (d *Crypt) List(ctx context.Context, dir model.Obj, args model.ListArgs) ([
 				// discarding hash as it's encrypted
 			}
 			if d.Thumbnail && thumb == "" {
-				thumb = utils.EncodePath(common.GetApiUrl(nil)+stdpath.Join("/d", args.ReqPath, ".thumbnails", name+".webp"), true)
+				thumbPath := stdpath.Join(args.ReqPath, ".thumbnails", name+".webp")
+				thumb = fmt.Sprintf("%s/d%s?sign=%s",
+					common.GetApiUrl(common.GetHttpReq(ctx)),
+					utils.EncodePath(thumbPath, true),
+					sign.Sign(thumbPath))
 			}
 			if !ok && !d.Thumbnail {
 				result = append(result, &objRes)
@@ -258,19 +263,13 @@ func (d *Crypt) Link(ctx context.Context, file model.Obj, args model.LinkArgs) (
 		}
 		rrc := remoteLink.RangeReadCloser
 		if len(remoteLink.URL) > 0 {
-
-			rangedRemoteLink := &model.Link{
-				URL:    remoteLink.URL,
-				Header: remoteLink.Header,
-			}
-			var converted, err = stream.GetRangeReadCloserFromLink(remoteFileSize, rangedRemoteLink)
+			var converted, err = stream.GetRangeReadCloserFromLink(remoteFileSize, remoteLink)
 			if err != nil {
 				return nil, err
 			}
 			rrc = converted
 		}
 		if rrc != nil {
-			//remoteRangeReader, err :=
 			remoteReader, err := rrc.RangeRead(ctx, http_range.Range{Start: underlyingOffset, Length: length})
 			remoteClosers.AddClosers(rrc.GetClosers())
 			if err != nil {
@@ -283,7 +282,6 @@ func (d *Crypt) Link(ctx context.Context, file model.Obj, args model.LinkArgs) (
 			if err != nil {
 				return nil, err
 			}
-			//remoteClosers.Add(remoteLink.MFile)
 			//keep reuse same MFile and close at last.
 			remoteClosers.Add(remoteLink.MFile)
 			return io.NopCloser(remoteLink.MFile), nil
@@ -302,7 +300,6 @@ func (d *Crypt) Link(ctx context.Context, file model.Obj, args model.LinkArgs) (
 
 	resultRangeReadCloser := &model.RangeReadCloser{RangeReader: resultRangeReader, Closers: remoteClosers}
 	resultLink := &model.Link{
-		Header:          remoteLink.Header,
 		RangeReadCloser: resultRangeReadCloser,
 		Expiration:      remoteLink.Expiration,
 	}

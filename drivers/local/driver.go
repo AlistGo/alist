@@ -22,6 +22,7 @@ import (
 	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/alist-org/alist/v3/server/common"
 	"github.com/alist-org/times"
+	cp "github.com/otiai10/copy"
 	log "github.com/sirupsen/logrus"
 	_ "golang.org/x/image/webp"
 )
@@ -34,6 +35,10 @@ type Local struct {
 	// zero means no limit
 	thumbConcurrency int
 	thumbTokenBucket TokenBucket
+
+	// video thumb position
+	videoThumbPos             float64
+	videoThumbPosIsPercentage bool
 }
 
 func (d *Local) Config() driver.Config {
@@ -76,7 +81,33 @@ func (d *Local) Init(ctx context.Context) error {
 	if d.thumbConcurrency == 0 {
 		d.thumbTokenBucket = NewNopTokenBucket()
 	} else {
-		d.thumbTokenBucket = NewStaticTokenBucket(d.thumbConcurrency)
+		d.thumbTokenBucket = NewStaticTokenBucketWithMigration(d.thumbTokenBucket, d.thumbConcurrency)
+	}
+	// Check the VideoThumbPos value
+	if d.VideoThumbPos == "" {
+		d.VideoThumbPos = "20%"
+	}
+	if strings.HasSuffix(d.VideoThumbPos, "%") {
+		percentage := strings.TrimSuffix(d.VideoThumbPos, "%")
+		val, err := strconv.ParseFloat(percentage, 64)
+		if err != nil {
+			return fmt.Errorf("invalid video_thumb_pos value: %s, err: %s", d.VideoThumbPos, err)
+		}
+		if val < 0 || val > 100 {
+			return fmt.Errorf("invalid video_thumb_pos value: %s, the precentage must be a number between 0 and 100", d.VideoThumbPos)
+		}
+		d.videoThumbPosIsPercentage = true
+		d.videoThumbPos = val / 100
+	} else {
+		val, err := strconv.ParseFloat(d.VideoThumbPos, 64)
+		if err != nil {
+			return fmt.Errorf("invalid video_thumb_pos value: %s, err: %s", d.VideoThumbPos, err)
+		}
+		if val < 0 {
+			return fmt.Errorf("invalid video_thumb_pos value: %s, the time must be a positive number", d.VideoThumbPos)
+		}
+		d.videoThumbPosIsPercentage = false
+		d.videoThumbPos = val
 	}
 	return nil
 }
@@ -100,17 +131,17 @@ func (d *Local) List(ctx context.Context, dir model.Obj, args model.ListArgs) ([
 		if !d.ShowHidden && strings.HasPrefix(f.Name(), ".") {
 			continue
 		}
-		file := d.FileInfoToObj(f, args.ReqPath, fullPath)
+		file := d.FileInfoToObj(ctx, f, args.ReqPath, fullPath)
 		files = append(files, file)
 	}
 	return files, nil
 }
-func (d *Local) FileInfoToObj(f fs.FileInfo, reqPath string, fullPath string) model.Obj {
+func (d *Local) FileInfoToObj(ctx context.Context, f fs.FileInfo, reqPath string, fullPath string) model.Obj {
 	thumb := ""
 	if d.Thumbnail {
 		typeName := utils.GetFileType(f.Name())
 		if typeName == conf.IMAGE || typeName == conf.VIDEO {
-			thumb = common.GetApiUrl(nil) + stdpath.Join("/d", reqPath, f.Name())
+			thumb = common.GetApiUrl(common.GetHttpReq(ctx)) + stdpath.Join("/d", reqPath, f.Name())
 			thumb = utils.EncodePath(thumb, true)
 			thumb += "?type=thumb&sign=" + sign.Sign(stdpath.Join(reqPath, f.Name()))
 		}
@@ -148,7 +179,7 @@ func (d *Local) GetMeta(ctx context.Context, path string) (model.Obj, error) {
 	if err != nil {
 		return nil, err
 	}
-	file := d.FileInfoToObj(f, path, path)
+	file := d.FileInfoToObj(ctx, f, path, path)
 	//h := "123123"
 	//if s, ok := f.(model.SetHash); ok && file.GetHash() == ("","")  {
 	//	s.SetHash(h,"SHA1")
@@ -241,11 +272,22 @@ func (d *Local) Move(ctx context.Context, srcObj, dstDir model.Obj) error {
 	if utils.IsSubPath(srcPath, dstPath) {
 		return fmt.Errorf("the destination folder is a subfolder of the source folder")
 	}
-	err := os.Rename(srcPath, dstPath)
-	if err != nil {
+	if err := os.Rename(srcPath, dstPath); err != nil && strings.Contains(err.Error(), "invalid cross-device link") {
+		// Handle cross-device file move in local driver
+		if err = d.Copy(ctx, srcObj, dstDir); err != nil {
+			return err
+		} else {
+			// Directly remove file without check recycle bin if successfully copied
+			if srcObj.IsDir() {
+				err = os.RemoveAll(srcObj.GetPath())
+			} else {
+				err = os.Remove(srcObj.GetPath())
+			}
+			return err
+		}
+	} else {
 		return err
 	}
-	return nil
 }
 
 func (d *Local) Rename(ctx context.Context, srcObj model.Obj, newName string) error {
@@ -258,22 +300,18 @@ func (d *Local) Rename(ctx context.Context, srcObj model.Obj, newName string) er
 	return nil
 }
 
-func (d *Local) Copy(ctx context.Context, srcObj, dstDir model.Obj) error {
+func (d *Local) Copy(_ context.Context, srcObj, dstDir model.Obj) error {
 	srcPath := srcObj.GetPath()
 	dstPath := filepath.Join(dstDir.GetPath(), srcObj.GetName())
 	if utils.IsSubPath(srcPath, dstPath) {
 		return fmt.Errorf("the destination folder is a subfolder of the source folder")
 	}
-	var err error
-	if srcObj.IsDir() {
-		err = utils.CopyDir(srcPath, dstPath)
-	} else {
-		err = utils.CopyFile(srcPath, dstPath)
-	}
-	if err != nil {
-		return err
-	}
-	return nil
+	// Copy using otiai10/copy to perform more secure & efficient copy
+	return cp.Copy(srcPath, dstPath, cp.Options{
+		Sync:          true, // Sync file to disk after copy, may have performance penalty in filesystem such as ZFS
+		PreserveTimes: true,
+		PreserveOwner: true,
+	})
 }
 
 func (d *Local) Remove(ctx context.Context, obj model.Obj) error {

@@ -8,6 +8,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+
 jobs:
   changelog:
     strategy:
@@ -54,7 +57,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - target: '!(*musl*|*windows-arm64*|*android*)' # xgo
+          - target: '!(*musl*|*windows-arm64*|*android*|*freebsd*)' # xgo
             hash: "md5"
           - target: 'linux-!(arm*)-musl*' #musl-not-arm
             hash: "md5-linux-musl"
@@ -64,6 +67,9 @@ jobs:
             hash: "md5-windows-arm64"
           - target: 'android-*' #android
             hash: "md5-android"
+          - target: 'freebsd-*' #freebsd
+            hash: "md5-freebsd"
+
     name: Beta Release
     runs-on: ubuntu-latest
     steps:
@@ -81,12 +87,17 @@ jobs:
         run: bash build.sh dev web
 
       - name: Build
-        id: test-action
         uses: go-cross/cgo-actions@v1
         with:
           targets: ${{ matrix.target }}
           musl-target-format: $os-$musl-$arch
           out-dir: build
+          x-flags: |
+            github.com/alist-org/alist/v3/internal/conf.BuiltAt=$built_at
+            github.com/alist-org/alist/v3/internal/conf.GitAuthor=Xhofe
+            github.com/alist-org/alist/v3/internal/conf.GitCommit=$git_commit
+            github.com/alist-org/alist/v3/internal/conf.Version=$tag
+            github.com/alist-org/alist/v3/internal/conf.WebVersion=dev
 
       - name: Compress
         run: |
@@ -105,14 +116,23 @@ jobs:
     name: Beta Release Desktop
     runs-on: ubuntu-latest
     steps:
-      - uses: peter-evans/create-or-update-comment@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
         with:
-          issue-number: 69
-          body: |
-            /release-beta
-            - triggered by @${{ github.actor }}
-            - commit sha: ${{ github.sha }}
-            - view files: https://github.com/alist-org/alist/tree/${{ github.sha }}
-          reactions: 'rocket'
-          token: ${{ secrets.MY_TOKEN }}
+          repository: alist-org/desktop-release
+          ref: main
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Commit
+        run: |
+          git config --local user.email "bot@nn.ci"
+          git config --local user.name "IlaBot"
+          git commit --allow-empty -m "Trigger build for ${{ github.sha }}"
+
+      - name: Push commit
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.MY_TOKEN }}
+          branch: main
           repository: alist-org/desktop-release

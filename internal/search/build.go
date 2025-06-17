@@ -157,6 +157,11 @@ func BuildIndex(ctx context.Context, indexPaths, ignorePaths []string, maxDepth 
 					return filepath.SkipDir
 				}
 			}
+			if storage, _, err := op.GetStorageAndActualPath(indexPath); err == nil {
+				if storage.GetStorage().DisableIndex {
+					return filepath.SkipDir
+				}
+			}
 			// ignore root
 			if indexPath == "/" {
 				return nil

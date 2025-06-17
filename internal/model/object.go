@@ -16,9 +16,6 @@ func (o *ObjWrapName) Unwrap() Obj {
 }
 
 func (o *ObjWrapName) GetName() string {
-	if o.Name == "" {
-		o.Name = utils.MappingName(o.Obj.GetName())
-	}
 	return o.Name
 }
 

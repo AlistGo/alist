@@ -1,5 +1,7 @@
 package url_tree
 
+import "github.com/alist-org/alist/v3/pkg/utils"
+
 // Node is a node in the folder tree
 type Node struct {
 	Url      string
@@ -43,4 +45,20 @@ func (node *Node) calSize() int64 {
 	}
 	node.Size = size
 	return size
+}
+
+func (node *Node) setLevel(level int) {
+	node.Level = level
+	for _, child := range node.Children {
+		child.setLevel(level + 1)
+	}
+}
+
+func (node *Node) deepCopy(level int) *Node {
+	ret := *node
+	ret.Level = level
+	ret.Children, _ = utils.SliceConvert(ret.Children, func(child *Node) (*Node, error) {
+		return child.deepCopy(level + 1), nil
+	})
+	return &ret
 }

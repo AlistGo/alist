@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/alist-org/alist/v3/internal/op"
 	"net/http"
-	"regexp"
 	"time"
 
 	"github.com/alist-org/alist/v3/internal/driver"
@@ -37,7 +36,6 @@ func (d *PikPakShare) Init(ctx context.Context) error {
 				d.Common.CaptchaToken = token
 				op.MustSaveDriverStorage(d)
 			},
-			LowLatencyAddr: "",
 		}
 	}
 
@@ -68,19 +66,11 @@ func (d *PikPakShare) Init(ctx context.Context) error {
 		d.ClientVersion = PCClientVersion
 		d.PackageName = PCPackageName
 		d.Algorithms = PCAlgorithms
-		d.UserAgent = "MainWindow Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) PikPak/2.5.6.4831 Chrome/100.0.4896.160 Electron/18.3.15 Safari/537.36"
-	}
-
-	if d.UseLowLatencyAddress && d.Addition.CustomLowLatencyAddress != "" {
-		d.Common.LowLatencyAddr = d.Addition.CustomLowLatencyAddress
-	} else if d.UseLowLatencyAddress {
-		d.Common.LowLatencyAddr = findLowestLatencyAddress(DlAddr)
-		d.Addition.CustomLowLatencyAddress = d.Common.LowLatencyAddr
-		op.MustSaveDriverStorage(d)
+		d.UserAgent = "MainWindow Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) PikPak/2.6.11.4955 Chrome/100.0.4896.160 Electron/18.3.15 Safari/537.36"
 	}
 
 	// 获取CaptchaToken
-	err := d.RefreshCaptchaToken(GetAction(http.MethodGet, "https://api-drive.mypikpak.com/drive/v1/share:batch_file_info"), "")
+	err := d.RefreshCaptchaToken(GetAction(http.MethodGet, "https://api-drive.mypikpak.net/drive/v1/share:batch_file_info"), "")
 	if err != nil {
 		return err
 	}
@@ -113,7 +103,7 @@ func (d *PikPakShare) Link(ctx context.Context, file model.Obj, args model.LinkA
 		"file_id":         file.GetID(),
 		"pass_code_token": d.PassCodeToken,
 	}
-	_, err := d.request("https://api-drive.mypikpak.com/drive/v1/share/file_info", http.MethodGet, func(req *resty.Request) {
+	_, err := d.request("https://api-drive.mypikpak.net/drive/v1/share/file_info", http.MethodGet, func(req *resty.Request) {
 		req.SetQueryParams(query)
 	}, &resp)
 	if err != nil {
@@ -129,12 +119,6 @@ func (d *PikPakShare) Link(ctx context.Context, file model.Obj, args model.LinkA
 			downloadUrl = resp.FileInfo.Medias[0].Link.Url
 		}
 
-	}
-
-	if d.UseLowLatencyAddress && d.Common.LowLatencyAddr != "" {
-		// 替换为加速链接
-		re := regexp.MustCompile(`https://[^/]+/download/`)
-		downloadUrl = re.ReplaceAllString(downloadUrl, "https://"+d.Common.LowLatencyAddr+"/download/")
 	}
 
 	return &model.Link{

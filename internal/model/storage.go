@@ -1,6 +1,8 @@
 package model
 
-import "time"
+import (
+	"time"
+)
 
 type Storage struct {
 	ID              uint      `json:"id" gorm:"primaryKey"`                        // unique key
@@ -13,6 +15,7 @@ type Storage struct {
 	Remark          string    `json:"remark"`
 	Modified        time.Time `json:"modified"`
 	Disabled        bool      `json:"disabled"` // if disabled
+	DisableIndex    bool      `json:"disable_index"`
 	EnableSign      bool      `json:"enable_sign"`
 	Sort
 	Proxy

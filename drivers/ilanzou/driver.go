@@ -2,7 +2,6 @@ package template
 
 import (
 	"context"
-	"crypto/md5"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -17,6 +16,7 @@ import (
 	"github.com/alist-org/alist/v3/internal/driver"
 	"github.com/alist-org/alist/v3/internal/errs"
 	"github.com/alist-org/alist/v3/internal/model"
+	"github.com/alist-org/alist/v3/internal/stream"
 	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/foxxorcat/mopan-sdk-go"
 	"github.com/go-resty/resty/v2"
@@ -66,12 +66,13 @@ func (d *ILanZou) Drop(ctx context.Context) error {
 }
 
 func (d *ILanZou) List(ctx context.Context, dir model.Obj, args model.ListArgs) ([]model.Obj, error) {
+	offset := 1
 	var res []ListItem
 	for {
 		var resp ListResp
 		_, err := d.proved("/record/file/list", http.MethodGet, func(req *resty.Request) {
 			params := []string{
-				"offset=1",
+				"offset=" + strconv.Itoa(offset),
 				"limit=60",
 				"folderId=" + dir.GetID(),
 				"type=0",
@@ -83,7 +84,9 @@ func (d *ILanZou) List(ctx context.Context, dir model.Obj, args model.ListArgs) 
 			return nil, err
 		}
 		res = append(res, resp.List...)
-		if resp.TotalPage <= resp.Offset {
+		if resp.Offset < resp.TotalPage {
+			offset++
+		} else {
 			break
 		}
 	}
@@ -117,7 +120,7 @@ func (d *ILanZou) Link(ctx context.Context, file model.Obj, args model.LinkArgs)
 	if err != nil {
 		return nil, err
 	}
-	ts, ts_str, err := getTimestamp(d.conf.secret)
+	ts, ts_str, _ := getTimestamp(d.conf.secret)
 
 	params := []string{
 		"uuid=" + url.QueryEscape(d.UUID),
@@ -146,11 +149,17 @@ func (d *ILanZou) Link(ctx context.Context, file model.Obj, args model.LinkArgs)
 	u.RawQuery = strings.Join(params, "&")
 	realURL := u.String()
 	// get the url after redirect
-	res, err := base.NoRedirectClient.R().SetHeaders(map[string]string{
-		//"Origin":  d.conf.site,
+	req := base.NoRedirectClient.R()
+
+	req.SetHeaders(map[string]string{
 		"Referer":    d.conf.site + "/",
 		"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
-	}).Get(realURL)
+	})
+	if d.Addition.Ip != "" {
+		req.SetHeader("X-Forwarded-For", d.Addition.Ip)
+	}
+
+	res, err := req.Get(realURL)
 	if err != nil {
 		return nil, err
 	}
@@ -263,30 +272,21 @@ func (d *ILanZou) Remove(ctx context.Context, obj model.Obj) error {
 
 const DefaultPartSize = 1024 * 1024 * 8
 
-func (d *ILanZou) Put(ctx context.Context, dstDir model.Obj, stream model.FileStreamer, up driver.UpdateProgress) (model.Obj, error) {
-	h := md5.New()
-	// need to calculate md5 of the full content
-	tempFile, err := stream.CacheFullInTempFile()
-	if err != nil {
-		return nil, err
+func (d *ILanZou) Put(ctx context.Context, dstDir model.Obj, s model.FileStreamer, up driver.UpdateProgress) (model.Obj, error) {
+	etag := s.GetHash().GetHash(utils.MD5)
+	var err error
+	if len(etag) != utils.MD5.Width {
+		_, etag, err = stream.CacheFullInTempFileAndHash(s, utils.MD5)
+		if err != nil {
+			return nil, err
+		}
 	}
-	defer func() {
-		_ = tempFile.Close()
-	}()
-	if _, err = utils.CopyWithBuffer(h, tempFile); err != nil {
-		return nil, err
-	}
-	_, err = tempFile.Seek(0, io.SeekStart)
-	if err != nil {
-		return nil, err
-	}
-	etag := hex.EncodeToString(h.Sum(nil))
 	// get upToken
 	res, err := d.proved("/7n/getUpToken", http.MethodPost, func(req *resty.Request) {
 		req.SetBody(base.Json{
 			"fileId":   "",
-			"fileName": stream.GetName(),
-			"fileSize": stream.GetSize() / 1024,
+			"fileName": s.GetName(),
+			"fileSize": s.GetSize()/1024 + 1,
 			"folderId": dstDir.GetID(),
 			"md5":      etag,
 			"type":     1,
@@ -298,13 +298,20 @@ func (d *ILanZou) Put(ctx context.Context, dstDir model.Obj, stream model.FileSt
 	upToken := utils.Json.Get(res, "upToken").ToString()
 	now := time.Now()
 	key := fmt.Sprintf("disk/%d/%d/%d/%s/%016d", now.Year(), now.Month(), now.Day(), d.account, now.UnixMilli())
+	reader := driver.NewLimitedUploadStream(ctx, &driver.ReaderUpdatingProgress{
+		Reader: &driver.SimpleReaderWithSize{
+			Reader: s,
+			Size:   s.GetSize(),
+		},
+		UpdateProgress: up,
+	})
 	var token string
-	if stream.GetSize() <= DefaultPartSize {
-		res, err := d.upClient.R().SetMultipartFormData(map[string]string{
+	if s.GetSize() <= DefaultPartSize {
+		res, err := d.upClient.R().SetContext(ctx).SetMultipartFormData(map[string]string{
 			"token": upToken,
 			"key":   key,
-			"fname": stream.GetName(),
-		}).SetMultipartField("file", stream.GetName(), stream.GetMimetype(), tempFile).
+			"fname": s.GetName(),
+		}).SetMultipartField("file", s.GetName(), s.GetMimetype(), reader).
 			Post("https://upload.qiniup.com/")
 		if err != nil {
 			return nil, err
@@ -318,10 +325,10 @@ func (d *ILanZou) Put(ctx context.Context, dstDir model.Obj, stream model.FileSt
 		}
 		uploadId := utils.Json.Get(res.Body(), "uploadId").ToString()
 		parts := make([]Part, 0)
-		partNum := (stream.GetSize() + DefaultPartSize - 1) / DefaultPartSize
+		partNum := (s.GetSize() + DefaultPartSize - 1) / DefaultPartSize
 		for i := 1; i <= int(partNum); i++ {
 			u := fmt.Sprintf("https://upload.qiniup.com/buckets/%s/objects/%s/uploads/%s/%d", d.conf.bucket, keyBase64, uploadId, i)
-			res, err = d.upClient.R().SetHeader("Authorization", "UpToken "+upToken).SetBody(io.LimitReader(tempFile, DefaultPartSize)).Put(u)
+			res, err = d.upClient.R().SetContext(ctx).SetHeader("Authorization", "UpToken "+upToken).SetBody(io.LimitReader(reader, DefaultPartSize)).Put(u)
 			if err != nil {
 				return nil, err
 			}
@@ -332,7 +339,7 @@ func (d *ILanZou) Put(ctx context.Context, dstDir model.Obj, stream model.FileSt
 			})
 		}
 		res, err = d.upClient.R().SetHeader("Authorization", "UpToken "+upToken).SetBody(base.Json{
-			"fnmae": stream.GetName(),
+			"fnmae": s.GetName(),
 			"parts": parts,
 		}).Post(fmt.Sprintf("https://upload.qiniup.com/buckets/%s/objects/%s/uploads/%s", d.conf.bucket, keyBase64, uploadId))
 		if err != nil {
@@ -370,9 +377,9 @@ func (d *ILanZou) Put(ctx context.Context, dstDir model.Obj, stream model.FileSt
 		ID: strconv.FormatInt(file.FileId, 10),
 		//Path:     ,
 		Name:     file.FileName,
-		Size:     stream.GetSize(),
-		Modified: stream.ModTime(),
-		Ctime:    stream.CreateTime(),
+		Size:     s.GetSize(),
+		Modified: s.ModTime(),
+		Ctime:    s.CreateTime(),
 		IsFolder: false,
 		HashInfo: utils.NewHashInfo(utils.MD5, etag),
 	}, nil

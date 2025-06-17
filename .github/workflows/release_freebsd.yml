@@ -1,0 +1,34 @@
+name: release_freebsd
+
+on:
+  release:
+    types: [ published ]
+
+jobs:
+  release_freebsd:
+    strategy:
+      matrix:
+        platform: [ ubuntu-latest ]
+        go-version: [ '1.21' ]
+    name: Release
+    runs-on: ${{ matrix.platform }}
+    steps:
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build
+        run: |
+          bash build.sh release freebsd
+
+      - name: Upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/compress/*

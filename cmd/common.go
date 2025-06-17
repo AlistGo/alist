@@ -17,7 +17,9 @@ func Init() {
 	bootstrap.Log()
 	bootstrap.InitDB()
 	data.InitData()
+	bootstrap.InitStreamLimit()
 	bootstrap.InitIndex()
+	bootstrap.InitUpgradePatch()
 }
 
 func Release() {

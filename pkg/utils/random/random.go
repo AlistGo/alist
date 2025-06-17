@@ -1,20 +1,27 @@
 package random
 
 import (
-	"math/rand"
+	"crypto/rand"
+	"math/big"
+	mathRand "math/rand"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-var Rand *rand.Rand
+var Rand *mathRand.Rand
 
 const letterBytes = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 
 func String(n int) string {
 	b := make([]byte, n)
+	letterLen := big.NewInt(int64(len(letterBytes)))
 	for i := range b {
-		b[i] = letterBytes[Rand.Intn(len(letterBytes))]
+		idx, err := rand.Int(rand.Reader, letterLen)
+		if err != nil {
+			panic(err)
+		}
+		b[i] = letterBytes[idx.Int64()]
 	}
 	return string(b)
 }
@@ -24,10 +31,10 @@ func Token() string {
 }
 
 func RangeInt64(left, right int64) int64 {
-	return rand.Int63n(left+right) - left
+	return mathRand.Int63n(left+right) - left
 }
 
 func init() {
-	s := rand.NewSource(time.Now().UnixNano())
-	Rand = rand.New(s)
+	s := mathRand.NewSource(time.Now().UnixNano())
+	Rand = mathRand.New(s)
 }

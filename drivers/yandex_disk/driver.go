@@ -106,25 +106,31 @@ func (d *YandexDisk) Remove(ctx context.Context, obj model.Obj) error {
 	return err
 }
 
-func (d *YandexDisk) Put(ctx context.Context, dstDir model.Obj, stream model.FileStreamer, up driver.UpdateProgress) error {
+func (d *YandexDisk) Put(ctx context.Context, dstDir model.Obj, s model.FileStreamer, up driver.UpdateProgress) error {
 	var resp UploadResp
 	_, err := d.request("/upload", http.MethodGet, func(req *resty.Request) {
 		req.SetQueryParams(map[string]string{
-			"path":      path.Join(dstDir.GetPath(), stream.GetName()),
+			"path":      path.Join(dstDir.GetPath(), s.GetName()),
 			"overwrite": "true",
 		})
 	}, &resp)
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequest(resp.Method, resp.Href, stream)
+	reader := driver.NewLimitedUploadStream(ctx, &driver.ReaderUpdatingProgress{
+		Reader:         s,
+		UpdateProgress: up,
+	})
+	req, err := http.NewRequestWithContext(ctx, resp.Method, resp.Href, reader)
 	if err != nil {
 		return err
 	}
-	req = req.WithContext(ctx)
-	req.Header.Set("Content-Length", strconv.FormatInt(stream.GetSize(), 10))
+	req.Header.Set("Content-Length", strconv.FormatInt(s.GetSize(), 10))
 	req.Header.Set("Content-Type", "application/octet-stream")
 	res, err := base.HttpClient.Do(req)
+	if err != nil {
+		return err
+	}
 	_ = res.Body.Close()
 	return err
 }

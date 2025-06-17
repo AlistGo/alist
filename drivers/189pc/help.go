@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/pkg/utils/random"
 )
 
@@ -207,4 +208,13 @@ func IF[V any](o bool, t V, f V) V {
 		return t
 	}
 	return f
+}
+
+type WrapFileStreamer struct {
+	model.FileStreamer
+	Name string
+}
+
+func (w *WrapFileStreamer) GetName() string {
+	return w.Name
 }

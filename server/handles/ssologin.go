@@ -1,7 +1,6 @@
 package handles
 
 import (
-	"encoding/base32"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -10,6 +9,8 @@ import (
 	"path"
 	"strings"
 	"time"
+
+	"github.com/Xhofe/go-cache"
 
 	"github.com/alist-org/alist/v3/internal/conf"
 	"github.com/alist-org/alist/v3/internal/db"
@@ -21,29 +22,45 @@ import (
 	"github.com/coreos/go-oidc"
 	"github.com/gin-gonic/gin"
 	"github.com/go-resty/resty/v2"
-	"github.com/pquerna/otp"
-	"github.com/pquerna/otp/totp"
 	"golang.org/x/oauth2"
 	"gorm.io/gorm"
 )
 
-var opts = totp.ValidateOpts{
-	// state verify won't expire in 30 secs, which is quite enough for the callback
-	Period: 30,
-	Skew:   1,
-	// in some OIDC providers(such as Authelia), state parameter must be at least 8 characters
-	Digits:    otp.DigitsEight,
-	Algorithm: otp.AlgorithmSHA1,
+const stateLength = 16
+const stateExpire = time.Minute * 5
+
+var stateCache = cache.NewMemCache[string](cache.WithShards[string](stateLength))
+
+func _keyState(clientID, state string) string {
+	return fmt.Sprintf("%s_%s", clientID, state)
+}
+
+func generateState(clientID, ip string) string {
+	state := random.String(stateLength)
+	stateCache.Set(_keyState(clientID, state), ip, cache.WithEx[string](stateExpire))
+	return state
+}
+
+func verifyState(clientID, ip, state string) bool {
+	value, ok := stateCache.Get(_keyState(clientID, state))
+	return ok && value == ip
+}
+
+func ssoRedirectUri(c *gin.Context, useCompatibility bool, method string) string {
+	if useCompatibility {
+		return common.GetApiUrl(c.Request) + "/api/auth/" + method
+	} else {
+		return common.GetApiUrl(c.Request) + "/api/auth/sso_callback" + "?method=" + method
+	}
 }
 
 func SSOLoginRedirect(c *gin.Context) {
 	method := c.Query("method")
-	usecompatibility := setting.GetBool(conf.SSOCompatibilityMode)
+	useCompatibility := setting.GetBool(conf.SSOCompatibilityMode)
 	enabled := setting.GetBool(conf.SSOLoginEnabled)
 	clientId := setting.GetStr(conf.SSOClientId)
 	platform := setting.GetStr(conf.SSOLoginPlatform)
-	var r_url string
-	var redirect_uri string
+	var rUrl string
 	if !enabled {
 		common.ErrorStrResp(c, "Single sign-on is not enabled", 403)
 		return
@@ -53,69 +70,52 @@ func SSOLoginRedirect(c *gin.Context) {
 		common.ErrorStrResp(c, "no method provided", 400)
 		return
 	}
-	if usecompatibility {
-		redirect_uri = common.GetApiUrl(c.Request) + "/api/auth/" + method
-	} else {
-		redirect_uri = common.GetApiUrl(c.Request) + "/api/auth/sso_callback" + "?method=" + method
-	}
+	redirectUri := ssoRedirectUri(c, useCompatibility, method)
 	urlValues.Add("response_type", "code")
-	urlValues.Add("redirect_uri", redirect_uri)
+	urlValues.Add("redirect_uri", redirectUri)
 	urlValues.Add("client_id", clientId)
 	switch platform {
 	case "Github":
-		r_url = "https://github.com/login/oauth/authorize?"
+		rUrl = "https://github.com/login/oauth/authorize?"
 		urlValues.Add("scope", "read:user")
 	case "Microsoft":
-		r_url = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?"
+		rUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?"
 		urlValues.Add("scope", "user.read")
 		urlValues.Add("response_mode", "query")
 	case "Google":
-		r_url = "https://accounts.google.com/o/oauth2/v2/auth?"
+		rUrl = "https://accounts.google.com/o/oauth2/v2/auth?"
 		urlValues.Add("scope", "https://www.googleapis.com/auth/userinfo.profile")
 	case "Dingtalk":
-		r_url = "https://login.dingtalk.com/oauth2/auth?"
+		rUrl = "https://login.dingtalk.com/oauth2/auth?"
 		urlValues.Add("scope", "openid")
 		urlValues.Add("prompt", "consent")
 		urlValues.Add("response_type", "code")
 	case "Casdoor":
 		endpoint := strings.TrimSuffix(setting.GetStr(conf.SSOEndpointName), "/")
-		r_url = endpoint + "/login/oauth/authorize?"
+		rUrl = endpoint + "/login/oauth/authorize?"
 		urlValues.Add("scope", "profile")
 		urlValues.Add("state", endpoint)
 	case "OIDC":
-		oauth2Config, err := GetOIDCClient(c)
+		oauth2Config, err := GetOIDCClient(c, useCompatibility, redirectUri, method)
 		if err != nil {
 			common.ErrorStrResp(c, err.Error(), 400)
 			return
 		}
-		// generate state parameter
-		state, err := totp.GenerateCodeCustom(base32.StdEncoding.EncodeToString([]byte(oauth2Config.ClientSecret)), time.Now(), opts)
-		if err != nil {
-			common.ErrorStrResp(c, err.Error(), 400)
-			return
-		}
+		state := generateState(clientId, c.ClientIP())
 		c.Redirect(http.StatusFound, oauth2Config.AuthCodeURL(state))
 		return
 	default:
 		common.ErrorStrResp(c, "invalid platform", 400)
 		return
 	}
-	c.Redirect(302, r_url+urlValues.Encode())
+	c.Redirect(302, rUrl+urlValues.Encode())
 }
 
 var ssoClient = resty.New().SetRetryCount(3)
 
-func GetOIDCClient(c *gin.Context) (*oauth2.Config, error) {
-	var redirect_uri string
-	usecompatibility := setting.GetBool(conf.SSOCompatibilityMode)
-	argument := c.Query("method")
-	if usecompatibility {
-		argument = path.Base(c.Request.URL.Path)
-	}
-	if usecompatibility {
-		redirect_uri = common.GetApiUrl(c.Request) + "/api/auth/" + argument
-	} else {
-		redirect_uri = common.GetApiUrl(c.Request) + "/api/auth/sso_callback" + "?method=" + argument
+func GetOIDCClient(c *gin.Context, useCompatibility bool, redirectUri, method string) (*oauth2.Config, error) {
+	if redirectUri == "" {
+		redirectUri = ssoRedirectUri(c, useCompatibility, method)
 	}
 	endpoint := setting.GetStr(conf.SSOEndpointName)
 	provider, err := oidc.NewProvider(c, endpoint)
@@ -124,16 +124,20 @@ func GetOIDCClient(c *gin.Context) (*oauth2.Config, error) {
 	}
 	clientId := setting.GetStr(conf.SSOClientId)
 	clientSecret := setting.GetStr(conf.SSOClientSecret)
+	extraScopes := []string{}
+	if setting.GetStr(conf.SSOExtraScopes) != "" {
+		extraScopes = strings.Split(setting.GetStr(conf.SSOExtraScopes), " ")
+	}
 	return &oauth2.Config{
 		ClientID:     clientId,
 		ClientSecret: clientSecret,
-		RedirectURL:  redirect_uri,
+		RedirectURL:  redirectUri,
 
 		// Discovery returns the OAuth2 endpoints.
 		Endpoint: provider.Endpoint(),
 
 		// "openid" is a required scope for OpenID Connect flows.
-		Scopes: []string{oidc.ScopeOpenID, "profile"},
+		Scopes: append([]string{oidc.ScopeOpenID, "profile"}, extraScopes...),
 	}, nil
 }
 
@@ -181,9 +185,9 @@ func parseJWT(p string) ([]byte, error) {
 
 func OIDCLoginCallback(c *gin.Context) {
 	useCompatibility := setting.GetBool(conf.SSOCompatibilityMode)
-	argument := c.Query("method")
+	method := c.Query("method")
 	if useCompatibility {
-		argument = path.Base(c.Request.URL.Path)
+		method = path.Base(c.Request.URL.Path)
 	}
 	clientId := setting.GetStr(conf.SSOClientId)
 	endpoint := setting.GetStr(conf.SSOEndpointName)
@@ -192,18 +196,12 @@ func OIDCLoginCallback(c *gin.Context) {
 		common.ErrorResp(c, err, 400)
 		return
 	}
-	oauth2Config, err := GetOIDCClient(c)
+	oauth2Config, err := GetOIDCClient(c, useCompatibility, "", method)
 	if err != nil {
 		common.ErrorResp(c, err, 400)
 		return
 	}
-	// add state verify process
-	stateVerification, err := totp.ValidateCustom(c.Query("state"), base32.StdEncoding.EncodeToString([]byte(oauth2Config.ClientSecret)), time.Now(), opts)
-	if err != nil {
-		common.ErrorResp(c, err, 400)
-		return
-	}
-	if !stateVerification {
+	if !verifyState(clientId, c.ClientIP(), c.Query("state")) {
 		common.ErrorStrResp(c, "incorrect or expired state parameter", 400)
 		return
 	}
@@ -236,7 +234,7 @@ func OIDCLoginCallback(c *gin.Context) {
 		common.ErrorStrResp(c, "cannot get username from OIDC provider", 400)
 		return
 	}
-	if argument == "get_sso_id" {
+	if method == "get_sso_id" {
 		if useCompatibility {
 			c.Redirect(302, common.GetApiUrl(c.Request)+"/@manage?sso_id="+userID)
 			return
@@ -252,7 +250,7 @@ func OIDCLoginCallback(c *gin.Context) {
 		c.Data(200, "text/html; charset=utf-8", []byte(html))
 		return
 	}
-	if argument == "sso_get_token" {
+	if method == "sso_get_token" {
 		user, err := db.GetUserBySSOID(userID)
 		if err != nil {
 			user, err = autoRegister(userID, userID, err)

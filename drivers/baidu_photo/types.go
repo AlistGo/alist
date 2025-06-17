@@ -72,7 +72,7 @@ func (c *File) Thumb() string {
 }
 
 func (c *File) GetHash() utils.HashInfo {
-	return utils.NewHashInfo(utils.MD5, c.Md5)
+	return utils.NewHashInfo(utils.MD5, DecryptMd5(c.Md5))
 }
 
 /*相册部分*/

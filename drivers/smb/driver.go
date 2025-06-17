@@ -186,7 +186,7 @@ func (d *SMB) Put(ctx context.Context, dstDir model.Obj, stream model.FileStream
 			_ = d.fs.Remove(fullPath)
 		}
 	}()
-	err = utils.CopyWithCtx(ctx, out, stream, stream.GetSize(), up)
+	err = utils.CopyWithCtx(ctx, out, driver.NewLimitedUploadStream(ctx, stream), stream.GetSize(), up)
 	if err != nil {
 		return err
 	}

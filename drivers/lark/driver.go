@@ -320,7 +320,10 @@ func (c *Lark) Put(ctx context.Context, dstDir model.Obj, stream model.FileStrea
 		Build()
 
 	// 发起请求
-	uploadLimit.Wait(ctx)
+	err := uploadLimit.Wait(ctx)
+	if err != nil {
+		return nil, err
+	}
 	resp, err := c.client.Drive.File.UploadPrepare(ctx, req)
 	if err != nil {
 		return nil, err
@@ -341,7 +344,7 @@ func (c *Lark) Put(ctx context.Context, dstDir model.Obj, stream model.FileStrea
 			length = stream.GetSize() - int64(i*blockSize)
 		}
 
-		reader := io.LimitReader(stream, length)
+		reader := driver.NewLimitedUploadStream(ctx, io.LimitReader(stream, length))
 
 		req := larkdrive.NewUploadPartFileReqBuilder().
 			Body(larkdrive.NewUploadPartFileReqBodyBuilder().
@@ -353,7 +356,10 @@ func (c *Lark) Put(ctx context.Context, dstDir model.Obj, stream model.FileStrea
 			Build()
 
 		// 发起请求
-		uploadLimit.Wait(ctx)
+		err = uploadLimit.Wait(ctx)
+		if err != nil {
+			return nil, err
+		}
 		resp, err := c.client.Drive.File.UploadPart(ctx, req)
 
 		if err != nil {

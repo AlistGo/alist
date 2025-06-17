@@ -4,12 +4,17 @@ import (
 	"context"
 	"crypto/sha1"
 	"fmt"
+	"io"
+	"net/url"
+	"path"
+	"strconv"
+	"time"
+
 	"github.com/alist-org/alist/v3/drivers/base"
 	"github.com/alist-org/alist/v3/internal/driver"
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/internal/op"
 	"github.com/alist-org/alist/v3/pkg/http_range"
-	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -19,11 +24,6 @@ import (
 	pubUserFile "github.com/city404/v6-public-rpc-proto/go/v6/userfile"
 	"github.com/rclone/rclone/lib/readers"
 	"github.com/zzzhr1990/go-common-entity/userfile"
-	"io"
-	"net/url"
-	"path"
-	"strconv"
-	"time"
 )
 
 type HalalCloud struct {
@@ -251,7 +251,6 @@ func (d *HalalCloud) getLink(ctx context.Context, file model.Obj, args model.Lin
 
 	size := result.FileSize
 	chunks := getChunkSizes(result.Sizes)
-	var finalClosers utils.Closers
 	resultRangeReader := func(ctx context.Context, httpRange http_range.Range) (io.ReadCloser, error) {
 		length := httpRange.Length
 		if httpRange.Length >= 0 && httpRange.Start+httpRange.Length >= size {
@@ -269,7 +268,6 @@ func (d *HalalCloud) getLink(ctx context.Context, file model.Obj, args model.Lin
 			sha:     result.Sha1,
 			shaTemp: sha1.New(),
 		}
-		finalClosers.Add(oo)
 
 		return readers.NewLimitedReadCloser(oo, length), nil
 	}
@@ -281,7 +279,7 @@ func (d *HalalCloud) getLink(ctx context.Context, file model.Obj, args model.Lin
 		duration = time.Until(time.Now().Add(time.Hour))
 	}
 
-	resultRangeReadCloser := &model.RangeReadCloser{RangeReader: resultRangeReader, Closers: finalClosers}
+	resultRangeReadCloser := &model.RangeReadCloser{RangeReader: resultRangeReader}
 	return &model.Link{
 		RangeReadCloser: resultRangeReadCloser,
 		Expiration:      &duration,
@@ -394,10 +392,11 @@ func (d *HalalCloud) put(ctx context.Context, dstDir model.Obj, fileStream model
 	if fileStream.GetSize() > s3manager.MaxUploadParts*s3manager.DefaultUploadPartSize {
 		uploader.PartSize = fileStream.GetSize() / (s3manager.MaxUploadParts - 1)
 	}
+	reader := driver.NewLimitedUploadStream(ctx, fileStream)
 	_, err = uploader.UploadWithContext(ctx, &s3manager.UploadInput{
 		Bucket: aws.String(result.Bucket),
 		Key:    aws.String(result.Key),
-		Body:   io.TeeReader(fileStream, driver.NewProgress(fileStream.GetSize(), up)),
+		Body:   io.TeeReader(reader, driver.NewProgress(fileStream.GetSize(), up)),
 	})
 	return nil, err
 

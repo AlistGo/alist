@@ -17,7 +17,7 @@ func (d *AListV3) login() error {
 		return nil
 	}
 	var resp common.Resp[LoginResp]
-	_, err := d.request("/auth/login", http.MethodPost, func(req *resty.Request) {
+	_, _, err := d.request("/auth/login", http.MethodPost, func(req *resty.Request) {
 		req.SetResult(&resp).SetBody(base.Json{
 			"username": d.Username,
 			"password": d.Password,
@@ -31,7 +31,7 @@ func (d *AListV3) login() error {
 	return nil
 }
 
-func (d *AListV3) request(api, method string, callback base.ReqCallback, retry ...bool) ([]byte, error) {
+func (d *AListV3) request(api, method string, callback base.ReqCallback, retry ...bool) ([]byte, int, error) {
 	url := d.Address + "/api" + api
 	req := base.RestyClient.R()
 	req.SetHeader("Authorization", d.Token)
@@ -40,22 +40,26 @@ func (d *AListV3) request(api, method string, callback base.ReqCallback, retry .
 	}
 	res, err := req.Execute(method, url)
 	if err != nil {
-		return nil, err
+		code := 0
+		if res != nil {
+			code = res.StatusCode()
+		}
+		return nil, code, err
 	}
 	log.Debugf("[alist_v3] response body: %s", res.String())
 	if res.StatusCode() >= 400 {
-		return nil, fmt.Errorf("request failed, status: %s", res.Status())
+		return nil, res.StatusCode(), fmt.Errorf("request failed, status: %s", res.Status())
 	}
 	code := utils.Json.Get(res.Body(), "code").ToInt()
 	if code != 200 {
 		if (code == 401 || code == 403) && !utils.IsBool(retry...) {
 			err = d.login()
 			if err != nil {
-				return nil, err
+				return nil, code, err
 			}
 			return d.request(api, method, callback, true)
 		}
-		return nil, fmt.Errorf("request failed,code: %d, message: %s", code, utils.Json.Get(res.Body(), "message").ToString())
+		return nil, code, fmt.Errorf("request failed,code: %d, message: %s", code, utils.Json.Get(res.Body(), "message").ToString())
 	}
-	return res.Body(), nil
+	return res.Body(), 200, nil
 }

@@ -14,6 +14,7 @@ type Addition struct {
 	SecretAccessKey          string `json:"secret_access_key" required:"true"`
 	SessionToken             string `json:"session_token"`
 	CustomHost               string `json:"custom_host"`
+	EnableCustomHostPresign  bool   `json:"enable_custom_host_presign"`
 	SignURLExpire            int    `json:"sign_url_expire" type:"number" default:"4"`
 	Placeholder              string `json:"placeholder"`
 	ForcePathStyle           bool   `json:"force_path_style"`

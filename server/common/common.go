@@ -1,6 +1,8 @@
 package common
 
 import (
+	"context"
+	"net/http"
 	"strings"
 
 	"github.com/alist-org/alist/v3/cmd/flags"
@@ -66,17 +68,32 @@ func ErrorStrResp(c *gin.Context, str string, code int, l ...bool) {
 }
 
 func SuccessResp(c *gin.Context, data ...interface{}) {
-	if len(data) == 0 {
-		c.JSON(200, Resp[interface{}]{
-			Code:    200,
-			Message: "success",
-			Data:    nil,
-		})
-		return
+	SuccessWithMsgResp(c, "success", data...)
+}
+
+func SuccessWithMsgResp(c *gin.Context, msg string, data ...interface{}) {
+	var respData interface{}
+	if len(data) > 0 {
+		respData = data[0]
 	}
+
 	c.JSON(200, Resp[interface{}]{
 		Code:    200,
-		Message: "success",
-		Data:    data[0],
+		Message: msg,
+		Data:    respData,
 	})
+}
+
+func Pluralize(count int, singular, plural string) string {
+	if count == 1 {
+		return singular
+	}
+	return plural
+}
+
+func GetHttpReq(ctx context.Context) *http.Request {
+	if c, ok := ctx.(*gin.Context); ok {
+		return c.Request
+	}
+	return nil
 }

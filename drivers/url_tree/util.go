@@ -153,6 +153,9 @@ func splitPath(path string) []string {
 	if path == "/" {
 		return []string{"root"}
 	}
+	if strings.HasSuffix(path, "/") {
+		path = path[:len(path)-1]
+	}
 	parts := strings.Split(path, "/")
 	parts[0] = "root"
 	return parts
@@ -189,4 +192,47 @@ func getSizeFromUrl(url string) (int64, error) {
 		return 0, err
 	}
 	return size, nil
+}
+
+func StringifyTree(node *Node) string {
+	sb := strings.Builder{}
+	if node.Level == -1 {
+		for i, child := range node.Children {
+			sb.WriteString(StringifyTree(child))
+			if i < len(node.Children)-1 {
+				sb.WriteString("\n")
+			}
+		}
+		return sb.String()
+	}
+	for i := 0; i < node.Level; i++ {
+		sb.WriteString("  ")
+	}
+	if node.Url == "" {
+		sb.WriteString(node.Name)
+		sb.WriteString(":")
+		for _, child := range node.Children {
+			sb.WriteString("\n")
+			sb.WriteString(StringifyTree(child))
+		}
+	} else if node.Size == 0 && node.Modified == 0 {
+		if stdpath.Base(node.Url) == node.Name {
+			sb.WriteString(node.Url)
+		} else {
+			sb.WriteString(fmt.Sprintf("%s:%s", node.Name, node.Url))
+		}
+	} else {
+		sb.WriteString(node.Name)
+		sb.WriteString(":")
+		if node.Size != 0 || node.Modified != 0 {
+			sb.WriteString(strconv.FormatInt(node.Size, 10))
+			sb.WriteString(":")
+		}
+		if node.Modified != 0 {
+			sb.WriteString(strconv.FormatInt(node.Modified, 10))
+			sb.WriteString(":")
+		}
+		sb.WriteString(node.Url)
+	}
+	return sb.String()
 }

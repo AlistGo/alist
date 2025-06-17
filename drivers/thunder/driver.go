@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/alist-org/alist/v3/drivers/base"
@@ -11,6 +12,7 @@ import (
 	"github.com/alist-org/alist/v3/internal/errs"
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/internal/op"
+	"github.com/alist-org/alist/v3/internal/stream"
 	"github.com/alist-org/alist/v3/pkg/utils"
 	hash_extend "github.com/alist-org/alist/v3/pkg/utils/hash"
 	"github.com/aws/aws-sdk-go/aws"
@@ -43,26 +45,29 @@ func (x *Thunder) Init(ctx context.Context) (err error) {
 			Common: &Common{
 				client: base.NewRestyClient(),
 				Algorithms: []string{
-					"HPxr4BVygTQVtQkIMwQH33ywbgYG5l4JoR",
-					"GzhNkZ8pOBsCY+7",
-					"v+l0ImTpG7c7/",
-					"e5ztohgVXNP",
-					"t",
-					"EbXUWyVVqQbQX39Mbjn2geok3/0WEkAVxeqhtx857++kjJiRheP8l77gO",
-					"o7dvYgbRMOpHXxCs",
-					"6MW8TD8DphmakaxCqVrfv7NReRRN7ck3KLnXBculD58MvxjFRqT+",
-					"kmo0HxCKVfmxoZswLB4bVA/dwqbVAYghSb",
-					"j",
-					"4scKJNdd7F27Hv7tbt",
+					"9uJNVj/wLmdwKrJaVj/omlQ",
+					"Oz64Lp0GigmChHMf/6TNfxx7O9PyopcczMsnf",
+					"Eb+L7Ce+Ej48u",
+					"jKY0",
+					"ASr0zCl6v8W4aidjPK5KHd1Lq3t+vBFf41dqv5+fnOd",
+					"wQlozdg6r1qxh0eRmt3QgNXOvSZO6q/GXK",
+					"gmirk+ciAvIgA/cxUUCema47jr/YToixTT+Q6O",
+					"5IiCoM9B1/788ntB",
+					"P07JH0h6qoM6TSUAK2aL9T5s2QBVeY9JWvalf",
+					"+oK0AN",
 				},
-				DeviceID:          utils.GetMD5EncodeStr(x.Username + x.Password),
+				DeviceID: func() string {
+					if len(x.DeviceID) != 32 {
+						return utils.GetMD5EncodeStr(x.DeviceID)
+					}
+					return x.DeviceID
+				}(),
 				ClientID:          "Xp6vsxz_7IYVw2BB",
 				ClientSecret:      "Xp6vsy4tN9toTVdMSpomVdXpRmES",
-				ClientVersion:     "7.51.0.8196",
+				ClientVersion:     "8.31.0.9726",
 				PackageName:       "com.xunlei.downloadprovider",
-				UserAgent:         "ANDROID-com.xunlei.downloadprovider/7.51.0.8196 netWorkType/5G appid/40 deviceName/Xiaomi_M2004j7ac deviceModel/M2004J7AC OSVersion/12 protocolVersion/301 platformVersion/10 sdkVersion/220200 Oauth2Client/0.9 (Linux 4_14_186-perf-gddfs8vbb238b) (JAVA 0)",
+				UserAgent:         "ANDROID-com.xunlei.downloadprovider/8.31.0.9726 netWorkType/5G appid/40 deviceName/Xiaomi_M2004j7ac deviceModel/M2004J7AC OSVersion/12 protocolVersion/301 platformVersion/10 sdkVersion/512000 Oauth2Client/0.9 (Linux 4_14_186-perf-gddfs8vbb238b) (JAVA 0)",
 				DownloadUserAgent: "Dalvik/2.1.0 (Linux; U; Android 12; M2004J7AC Build/SP1A.210812.016)",
-
 				refreshCTokenCk: func(token string) {
 					x.CaptchaToken = token
 					op.MustSaveDriverStorage(x)
@@ -78,6 +83,8 @@ func (x *Thunder) Init(ctx context.Context) (err error) {
 						x.GetStorage().SetStatus(fmt.Sprintf("%+v", err.Error()))
 						op.MustSaveDriverStorage(x)
 					}
+					// 清空 信任密钥
+					x.Addition.CreditKey = ""
 				}
 				x.SetTokenResp(token)
 				return err
@@ -91,6 +98,17 @@ func (x *Thunder) Init(ctx context.Context) (err error) {
 		x.SetCaptchaToken(ctoekn)
 	}
 
+	if x.Addition.CreditKey != "" {
+		x.SetCreditKey(x.Addition.CreditKey)
+	}
+
+	if x.Addition.DeviceID != "" {
+		x.Common.DeviceID = x.Addition.DeviceID
+	} else {
+		x.Addition.DeviceID = x.Common.DeviceID
+		op.MustSaveDriverStorage(x)
+	}
+
 	// 防止重复登录
 	identity := x.GetIdentity()
 	if x.identity != identity || !x.IsLogin() {
@@ -100,6 +118,8 @@ func (x *Thunder) Init(ctx context.Context) (err error) {
 		if err != nil {
 			return err
 		}
+		// 清空 信任密钥
+		x.Addition.CreditKey = ""
 		x.SetTokenResp(token)
 	}
 	return nil
@@ -159,6 +179,17 @@ func (x *ThunderExpert) Init(ctx context.Context) (err error) {
 			x.SetCaptchaToken(x.CaptchaToken)
 		}
 
+		if x.ExpertAddition.CreditKey != "" {
+			x.SetCreditKey(x.ExpertAddition.CreditKey)
+		}
+
+		if x.ExpertAddition.DeviceID != "" {
+			x.Common.DeviceID = x.ExpertAddition.DeviceID
+		} else {
+			x.ExpertAddition.DeviceID = x.Common.DeviceID
+			op.MustSaveDriverStorage(x)
+		}
+
 		// 签名方法
 		if x.SignType == "captcha_sign" {
 			x.Common.Timestamp = x.Timestamp
@@ -192,6 +223,8 @@ func (x *ThunderExpert) Init(ctx context.Context) (err error) {
 			if err != nil {
 				return err
 			}
+			// 清空 信任密钥
+			x.ExpertAddition.CreditKey = ""
 			x.SetTokenResp(token)
 			x.SetRefreshTokenFunc(func() error {
 				token, err := x.XunLeiCommon.RefreshToken(x.TokenResp.RefreshToken)
@@ -200,6 +233,8 @@ func (x *ThunderExpert) Init(ctx context.Context) (err error) {
 					if err != nil {
 						x.GetStorage().SetStatus(fmt.Sprintf("%+v", err.Error()))
 					}
+					// 清空 信任密钥
+					x.ExpertAddition.CreditKey = ""
 				}
 				x.SetTokenResp(token)
 				op.MustSaveDriverStorage(x)
@@ -231,7 +266,8 @@ func (x *ThunderExpert) SetTokenResp(token *TokenResp) {
 
 type XunLeiCommon struct {
 	*Common
-	*TokenResp // 登录信息
+	*TokenResp     // 登录信息
+	*CoreLoginResp // core登录信息
 
 	refreshTokenFunc func() error
 }
@@ -331,29 +367,24 @@ func (xc *XunLeiCommon) Remove(ctx context.Context, obj model.Obj) error {
 	return err
 }
 
-func (xc *XunLeiCommon) Put(ctx context.Context, dstDir model.Obj, stream model.FileStreamer, up driver.UpdateProgress) error {
-	hi := stream.GetHash()
-	gcid := hi.GetHash(hash_extend.GCID)
+func (xc *XunLeiCommon) Put(ctx context.Context, dstDir model.Obj, file model.FileStreamer, up driver.UpdateProgress) error {
+	gcid := file.GetHash().GetHash(hash_extend.GCID)
+	var err error
 	if len(gcid) < hash_extend.GCID.Width {
-		tFile, err := stream.CacheFullInTempFile()
-		if err != nil {
-			return err
-		}
-
-		gcid, err = utils.HashFile(hash_extend.GCID, tFile, stream.GetSize())
+		_, gcid, err = stream.CacheFullInTempFileAndHash(file, hash_extend.GCID, file.GetSize())
 		if err != nil {
 			return err
 		}
 	}
 
 	var resp UploadTaskResponse
-	_, err := xc.Request(FILE_API_URL, http.MethodPost, func(r *resty.Request) {
+	_, err = xc.Request(FILE_API_URL, http.MethodPost, func(r *resty.Request) {
 		r.SetContext(ctx)
 		r.SetBody(&base.Json{
 			"kind":        FILE,
 			"parent_id":   dstDir.GetID(),
-			"name":        stream.GetName(),
-			"size":        stream.GetSize(),
+			"name":        file.GetName(),
+			"size":        file.GetSize(),
 			"hash":        gcid,
 			"upload_type": UPLOAD_TYPE_RESUMABLE,
 		})
@@ -374,14 +405,17 @@ func (xc *XunLeiCommon) Put(ctx context.Context, dstDir model.Obj, stream model.
 			return err
 		}
 		uploader := s3manager.NewUploader(s)
-		if stream.GetSize() > s3manager.MaxUploadParts*s3manager.DefaultUploadPartSize {
-			uploader.PartSize = stream.GetSize() / (s3manager.MaxUploadParts - 1)
+		if file.GetSize() > s3manager.MaxUploadParts*s3manager.DefaultUploadPartSize {
+			uploader.PartSize = file.GetSize() / (s3manager.MaxUploadParts - 1)
 		}
 		_, err = uploader.UploadWithContext(ctx, &s3manager.UploadInput{
 			Bucket:  aws.String(param.Bucket),
 			Key:     aws.String(param.Key),
 			Expires: aws.Time(param.Expiration),
-			Body:    stream,
+			Body: driver.NewLimitedUploadStream(ctx, &driver.ReaderUpdatingProgress{
+				Reader:         file,
+				UpdateProgress: up,
+			}),
 		})
 		return err
 	}
@@ -433,6 +467,10 @@ func (xc *XunLeiCommon) SetTokenResp(tr *TokenResp) {
 	xc.TokenResp = tr
 }
 
+func (xc *XunLeiCommon) SetCoreTokenResp(tr *CoreLoginResp) {
+	xc.CoreLoginResp = tr
+}
+
 // 携带Authorization和CaptchaToken的请求
 func (xc *XunLeiCommon) Request(url string, method string, callback base.ReqCallback, resp interface{}) ([]byte, error) {
 	data, err := xc.Common.Request(url, method, func(req *resty.Request) {
@@ -461,7 +499,7 @@ func (xc *XunLeiCommon) Request(url string, method string, callback base.ReqCall
 		}
 		return nil, err
 	case 9: // 验证码token过期
-		if err = xc.RefreshCaptchaTokenAtLogin(GetAction(method, url), xc.UserID); err != nil {
+		if err = xc.RefreshCaptchaTokenAtLogin(GetAction(method, url), xc.TokenResp.UserID); err != nil {
 			return nil, err
 		}
 	default:
@@ -493,20 +531,25 @@ func (xc *XunLeiCommon) RefreshToken(refreshToken string) (*TokenResp, error) {
 
 // 登录
 func (xc *XunLeiCommon) Login(username, password string) (*TokenResp, error) {
-	url := XLUSER_API_URL + "/auth/signin"
-	err := xc.RefreshCaptchaTokenInLogin(GetAction(http.MethodPost, url), username)
+	//v3 login拿到 sessionID
+	sessionID, err := xc.CoreLogin(username, password)
 	if err != nil {
+		return nil, err
+	}
+	//v1 login拿到令牌
+	url := XLUSER_API_URL + "/auth/signin/token"
+	if err = xc.RefreshCaptchaTokenInLogin(GetAction(http.MethodPost, url), username); err != nil {
 		return nil, err
 	}
 
 	var resp TokenResp
 	_, err = xc.Common.Request(url, http.MethodPost, func(req *resty.Request) {
+		req.SetPathParam("client_id", xc.ClientID)
 		req.SetBody(&SignInRequest{
-			CaptchaToken: xc.GetCaptchaToken(),
 			ClientID:     xc.ClientID,
 			ClientSecret: xc.ClientSecret,
-			Username:     username,
-			Password:     password,
+			Provider:     SignProvider,
+			SigninToken:  sessionID,
 		})
 	}, &resp)
 	if err != nil {
@@ -521,4 +564,109 @@ func (xc *XunLeiCommon) IsLogin() bool {
 	}
 	_, err := xc.Request(XLUSER_API_URL+"/user/me", http.MethodGet, nil, nil)
 	return err == nil
+}
+
+// 离线下载文件
+func (xc *XunLeiCommon) OfflineDownload(ctx context.Context, fileUrl string, parentDir model.Obj, fileName string) (*OfflineTask, error) {
+	var resp OfflineDownloadResp
+	_, err := xc.Request(FILE_API_URL, http.MethodPost, func(r *resty.Request) {
+		r.SetContext(ctx)
+		r.SetBody(&base.Json{
+			"kind":        FILE,
+			"name":        fileName,
+			"parent_id":   parentDir.GetID(),
+			"upload_type": UPLOAD_TYPE_URL,
+			"url": base.Json{
+				"url": fileUrl,
+			},
+		})
+	}, &resp)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &resp.Task, err
+}
+
+/*
+获取离线下载任务列表
+*/
+func (xc *XunLeiCommon) OfflineList(ctx context.Context, nextPageToken string) ([]OfflineTask, error) {
+	res := make([]OfflineTask, 0)
+
+	var resp OfflineListResp
+	_, err := xc.Request(TASK_API_URL, http.MethodGet, func(req *resty.Request) {
+		req.SetContext(ctx).
+			SetQueryParams(map[string]string{
+				"type":       "offline",
+				"limit":      "10000",
+				"page_token": nextPageToken,
+			})
+	}, &resp)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get offline list: %w", err)
+	}
+	res = append(res, resp.Tasks...)
+	return res, nil
+}
+
+func (xc *XunLeiCommon) DeleteOfflineTasks(ctx context.Context, taskIDs []string, deleteFiles bool) error {
+	_, err := xc.Request(TASK_API_URL, http.MethodDelete, func(req *resty.Request) {
+		req.SetContext(ctx).
+			SetQueryParams(map[string]string{
+				"task_ids":     strings.Join(taskIDs, ","),
+				"delete_files": strconv.FormatBool(deleteFiles),
+			})
+	}, nil)
+	if err != nil {
+		return fmt.Errorf("failed to delete tasks %v: %w", taskIDs, err)
+	}
+	return nil
+}
+
+func (xc *XunLeiCommon) CoreLogin(username string, password string) (sessionID string, err error) {
+	url := XLUSER_API_BASE_URL + "/xluser.core.login/v3/login"
+	var resp CoreLoginResp
+	res, err := xc.Common.Request(url, http.MethodPost, func(req *resty.Request) {
+		req.SetHeader("User-Agent", "android-ok-http-client/xl-acc-sdk/version-5.0.12.512000")
+		req.SetBody(&CoreLoginRequest{
+			ProtocolVersion: "301",
+			SequenceNo:      "1000012",
+			PlatformVersion: "10",
+			IsCompressed:    "0",
+			Appid:           APPID,
+			ClientVersion:   "8.31.0.9726",
+			PeerID:          "00000000000000000000000000000000",
+			AppName:         "ANDROID-com.xunlei.downloadprovider",
+			SdkVersion:      "512000",
+			Devicesign:      generateDeviceSign(xc.DeviceID, xc.PackageName),
+			NetWorkType:     "WIFI",
+			ProviderName:    "NONE",
+			DeviceModel:     "M2004J7AC",
+			DeviceName:      "Xiaomi_M2004j7ac",
+			OSVersion:       "12",
+			Creditkey:       xc.GetCreditKey(),
+			Hl:              "zh-CN",
+			UserName:        username,
+			PassWord:        password,
+			VerifyKey:       "",
+			VerifyCode:      "",
+			IsMd5Pwd:        "0",
+		})
+	}, nil)
+	if err != nil {
+		return "", err
+	}
+
+	if err = utils.Json.Unmarshal(res, &resp); err != nil {
+		return "", err
+	}
+
+	xc.SetCoreTokenResp(&resp)
+
+	sessionID = resp.SessionID
+
+	return sessionID, nil
 }

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/alist-org/alist/v3/internal/model"
+	"github.com/alist-org/alist/v3/pkg/utils"
 )
 
 type ListReq struct {
@@ -80,4 +81,90 @@ type MeResp struct {
 	Permission int    `json:"permission"`
 	SsoId      string `json:"sso_id"`
 	Otp        bool   `json:"otp"`
+}
+
+type ArchiveMetaReq struct {
+	ArchivePass string `json:"archive_pass"`
+	Password    string `json:"password"`
+	Path        string `json:"path"`
+	Refresh     bool   `json:"refresh"`
+}
+
+type TreeResp struct {
+	ObjResp
+	Children  []TreeResp `json:"children"`
+	hashCache *utils.HashInfo
+}
+
+func (t *TreeResp) GetSize() int64 {
+	return t.Size
+}
+
+func (t *TreeResp) GetName() string {
+	return t.Name
+}
+
+func (t *TreeResp) ModTime() time.Time {
+	return t.Modified
+}
+
+func (t *TreeResp) CreateTime() time.Time {
+	return t.Created
+}
+
+func (t *TreeResp) IsDir() bool {
+	return t.ObjResp.IsDir
+}
+
+func (t *TreeResp) GetHash() utils.HashInfo {
+	return utils.FromString(t.HashInfo)
+}
+
+func (t *TreeResp) GetID() string {
+	return ""
+}
+
+func (t *TreeResp) GetPath() string {
+	return ""
+}
+
+func (t *TreeResp) GetChildren() []model.ObjTree {
+	ret := make([]model.ObjTree, 0, len(t.Children))
+	for _, child := range t.Children {
+		ret = append(ret, &child)
+	}
+	return ret
+}
+
+func (t *TreeResp) Thumb() string {
+	return t.ObjResp.Thumb
+}
+
+type ArchiveMetaResp struct {
+	Comment   string     `json:"comment"`
+	Encrypted bool       `json:"encrypted"`
+	Content   []TreeResp `json:"content"`
+	RawURL    string     `json:"raw_url"`
+	Sign      string     `json:"sign"`
+}
+
+type ArchiveListReq struct {
+	model.PageReq
+	ArchiveMetaReq
+	InnerPath string `json:"inner_path"`
+}
+
+type ArchiveListResp struct {
+	Content []ObjResp `json:"content"`
+	Total   int64     `json:"total"`
+}
+
+type DecompressReq struct {
+	ArchivePass   string   `json:"archive_pass"`
+	CacheFull     bool     `json:"cache_full"`
+	DstDir        string   `json:"dst_dir"`
+	InnerPath     string   `json:"inner_path"`
+	Name          []string `json:"name"`
+	PutIntoNewDir bool     `json:"put_into_new_dir"`
+	SrcDir        string   `json:"src_dir"`
 }

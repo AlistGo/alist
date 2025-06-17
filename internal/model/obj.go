@@ -2,6 +2,7 @@ package model
 
 import (
 	"io"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -48,7 +49,11 @@ type FileStreamer interface {
 	RangeRead(http_range.Range) (io.Reader, error)
 	//for a non-seekable Stream, if Read is called, this function won't work
 	CacheFullInTempFile() (File, error)
+	SetTmpFile(r *os.File)
+	GetFile() File
 }
+
+type UpdateProgress func(percentage float64)
 
 type URL interface {
 	URL() string
@@ -112,12 +117,12 @@ func ExtractFolder(objs []Obj, extractFolder string) {
 }
 
 func WrapObjName(objs Obj) Obj {
-	return &ObjWrapName{Obj: objs}
+	return &ObjWrapName{Name: utils.MappingName(objs.GetName()), Obj: objs}
 }
 
 func WrapObjsName(objs []Obj) {
 	for i := 0; i < len(objs); i++ {
-		objs[i] = &ObjWrapName{Obj: objs[i]}
+		objs[i] = &ObjWrapName{Name: utils.MappingName(objs[i].GetName()), Obj: objs[i]}
 	}
 }
 

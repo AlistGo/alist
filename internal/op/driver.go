@@ -134,6 +134,12 @@ func getMainItems(config driver.Config) []driver.Item {
 		Options: "front,back",
 	})
 	items = append(items, driver.Item{
+		Name:     "disable_index",
+		Type:     conf.TypeBool,
+		Default:  "false",
+		Required: true,
+	})
+	items = append(items, driver.Item{
 		Name:     "enable_sign",
 		Type:     conf.TypeBool,
 		Default:  "false",

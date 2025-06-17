@@ -64,6 +64,7 @@ func (a *QBittorrent) Status(task *tool.DownloadTask) (*tool.Status, error) {
 		return nil, err
 	}
 	s := &tool.Status{}
+	s.TotalBytes = info.Size
 	s.Progress = float64(info.Completed) / float64(info.Size) * 100
 	switch info.State {
 	case qbittorrent.UPLOADING, qbittorrent.PAUSEDUP, qbittorrent.QUEUEDUP, qbittorrent.STALLEDUP, qbittorrent.FORCEDUP, qbittorrent.CHECKINGUP:

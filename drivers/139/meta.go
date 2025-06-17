@@ -9,8 +9,11 @@ type Addition struct {
 	//Account       string `json:"account" required:"true"`
 	Authorization string `json:"authorization" type:"text" required:"true"`
 	driver.RootID
-	Type    string `json:"type" type:"select" options:"personal,family,personal_new" default:"personal"`
-	CloudID string `json:"cloud_id"`
+	Type                 string `json:"type" type:"select" options:"personal_new,family,group,personal" default:"personal_new"`
+	CloudID              string `json:"cloud_id"`
+	CustomUploadPartSize int64  `json:"custom_upload_part_size" type:"number" default:"0" help:"0 for auto"`
+	ReportRealSize       bool   `json:"report_real_size" type:"bool" default:"true" help:"Enable to report the real file size during upload"`
+	UseLargeThumbnail    bool   `json:"use_large_thumbnail" type:"bool" default:"false" help:"Enable to use large thumbnail for images"`
 }
 
 var config = driver.Config{

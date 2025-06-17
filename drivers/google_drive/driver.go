@@ -158,7 +158,8 @@ func (d *GoogleDrive) Put(ctx context.Context, dstDir model.Obj, stream model.Fi
 	putUrl := res.Header().Get("location")
 	if stream.GetSize() < d.ChunkSize*1024*1024 {
 		_, err = d.request(putUrl, http.MethodPut, func(req *resty.Request) {
-			req.SetHeader("Content-Length", strconv.FormatInt(stream.GetSize(), 10)).SetBody(stream)
+			req.SetHeader("Content-Length", strconv.FormatInt(stream.GetSize(), 10)).
+				SetBody(driver.NewLimitedUploadStream(ctx, stream))
 		}, nil)
 	} else {
 		err = d.chunkUpload(ctx, stream, putUrl)

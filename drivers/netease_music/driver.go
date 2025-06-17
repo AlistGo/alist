@@ -88,7 +88,7 @@ func (d *NeteaseMusic) Remove(ctx context.Context, obj model.Obj) error {
 }
 
 func (d *NeteaseMusic) Put(ctx context.Context, dstDir model.Obj, stream model.FileStreamer, up driver.UpdateProgress) error {
-	return d.putSongStream(stream)
+	return d.putSongStream(ctx, stream, up)
 }
 
 func (d *NeteaseMusic) Copy(ctx context.Context, srcObj, dstDir model.Obj) error {

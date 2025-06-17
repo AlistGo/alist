@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"golang.org/x/time/rate"
 	"net/http"
 	"net/url"
 	"sync"
 	"time"
 
+	"golang.org/x/time/rate"
+
+	_123 "github.com/alist-org/alist/v3/drivers/123"
 	"github.com/alist-org/alist/v3/drivers/base"
 	"github.com/alist-org/alist/v3/internal/driver"
 	"github.com/alist-org/alist/v3/internal/errs"
@@ -23,6 +25,7 @@ type Pan123Share struct {
 	model.Storage
 	Addition
 	apiRateLimit sync.Map
+	ref          *_123.Pan123
 }
 
 func (d *Pan123Share) Config() driver.Config {
@@ -39,7 +42,17 @@ func (d *Pan123Share) Init(ctx context.Context) error {
 	return nil
 }
 
+func (d *Pan123Share) InitReference(storage driver.Driver) error {
+	refStorage, ok := storage.(*_123.Pan123)
+	if ok {
+		d.ref = refStorage
+		return nil
+	}
+	return fmt.Errorf("ref: storage is not 123Pan")
+}
+
 func (d *Pan123Share) Drop(ctx context.Context) error {
+	d.ref = nil
 	return nil
 }
 

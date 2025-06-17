@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"time"
 
 	"github.com/Xhofe/rateg"
@@ -14,17 +15,18 @@ import (
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/go-resty/resty/v2"
+	log "github.com/sirupsen/logrus"
 )
 
 type AliyundriveOpen struct {
 	model.Storage
 	Addition
-	base string
 
 	DriveId string
 
 	limitList func(ctx context.Context, data base.Json) (*Files, error)
 	limitLink func(ctx context.Context, file model.Obj) (*model.Link, error)
+	ref       *AliyundriveOpen
 }
 
 func (d *AliyundriveOpen) Config() driver.Config {
@@ -58,8 +60,30 @@ func (d *AliyundriveOpen) Init(ctx context.Context) error {
 	return nil
 }
 
+func (d *AliyundriveOpen) InitReference(storage driver.Driver) error {
+	refStorage, ok := storage.(*AliyundriveOpen)
+	if ok {
+		d.ref = refStorage
+		return nil
+	}
+	return errs.NotSupport
+}
+
 func (d *AliyundriveOpen) Drop(ctx context.Context) error {
+	d.ref = nil
 	return nil
+}
+
+// GetRoot implements the driver.GetRooter interface to properly set up the root object
+func (d *AliyundriveOpen) GetRoot(ctx context.Context) (model.Obj, error) {
+	return &model.Object{
+		ID:       d.RootFolderID,
+		Path:     "/",
+		Name:     "root",
+		Size:     0,
+		Modified: d.Modified,
+		IsFolder: true,
+	}, nil
 }
 
 func (d *AliyundriveOpen) List(ctx context.Context, dir model.Obj, args model.ListArgs) ([]model.Obj, error) {
@@ -70,9 +94,17 @@ func (d *AliyundriveOpen) List(ctx context.Context, dir model.Obj, args model.Li
 	if err != nil {
 		return nil, err
 	}
-	return utils.SliceConvert(files, func(src File) (model.Obj, error) {
-		return fileToObj(src), nil
+
+	objs, err := utils.SliceConvert(files, func(src File) (model.Obj, error) {
+		obj := fileToObj(src)
+		// Set the correct path for the object
+		if dir.GetPath() != "" {
+			obj.Path = filepath.Join(dir.GetPath(), obj.GetName())
+		}
+		return obj, nil
 	})
+
+	return objs, err
 }
 
 func (d *AliyundriveOpen) link(ctx context.Context, file model.Obj) (*model.Link, error) {
@@ -122,7 +154,16 @@ func (d *AliyundriveOpen) MakeDir(ctx context.Context, parentDir model.Obj, dirN
 	if err != nil {
 		return nil, err
 	}
-	return fileToObj(newDir), nil
+	obj := fileToObj(newDir)
+
+	// Set the correct Path for the returned directory object
+	if parentDir.GetPath() != "" {
+		obj.Path = filepath.Join(parentDir.GetPath(), dirName)
+	} else {
+		obj.Path = "/" + dirName
+	}
+
+	return obj, nil
 }
 
 func (d *AliyundriveOpen) Move(ctx context.Context, srcObj, dstDir model.Obj) (model.Obj, error) {
@@ -132,20 +173,24 @@ func (d *AliyundriveOpen) Move(ctx context.Context, srcObj, dstDir model.Obj) (m
 			"drive_id":          d.DriveId,
 			"file_id":           srcObj.GetID(),
 			"to_parent_file_id": dstDir.GetID(),
-			"check_name_mode":   "refuse", // optional:ignore,auto_rename,refuse
+			"check_name_mode":   "ignore", // optional:ignore,auto_rename,refuse
 			//"new_name":          "newName", // The new name to use when a file of the same name exists
 		}).SetResult(&resp)
 	})
 	if err != nil {
 		return nil, err
 	}
-	if resp.Exist {
-		return nil, errors.New("existence of files with the same name")
-	}
 
 	if srcObj, ok := srcObj.(*model.ObjThumb); ok {
 		srcObj.ID = resp.FileID
 		srcObj.Modified = time.Now()
+		srcObj.Path = filepath.Join(dstDir.GetPath(), srcObj.GetName())
+
+		// Check for duplicate files in the destination directory
+		if err := d.removeDuplicateFiles(ctx, dstDir.GetPath(), srcObj.GetName(), srcObj.GetID()); err != nil {
+			// Only log a warning instead of returning an error since the move operation has already completed successfully
+			log.Warnf("Failed to remove duplicate files after move: %v", err)
+		}
 		return srcObj, nil
 	}
 	return nil, nil
@@ -163,19 +208,47 @@ func (d *AliyundriveOpen) Rename(ctx context.Context, srcObj model.Obj, newName 
 	if err != nil {
 		return nil, err
 	}
-	return fileToObj(newFile), nil
+
+	// Check for duplicate files in the parent directory
+	parentPath := filepath.Dir(srcObj.GetPath())
+	if err := d.removeDuplicateFiles(ctx, parentPath, newName, newFile.FileId); err != nil {
+		// Only log a warning instead of returning an error since the rename operation has already completed successfully
+		log.Warnf("Failed to remove duplicate files after rename: %v", err)
+	}
+
+	obj := fileToObj(newFile)
+
+	// Set the correct Path for the renamed object
+	if parentPath != "" && parentPath != "." {
+		obj.Path = filepath.Join(parentPath, newName)
+	} else {
+		obj.Path = "/" + newName
+	}
+
+	return obj, nil
 }
 
 func (d *AliyundriveOpen) Copy(ctx context.Context, srcObj, dstDir model.Obj) error {
+	var resp MoveOrCopyResp
 	_, err := d.request("/adrive/v1.0/openFile/copy", http.MethodPost, func(req *resty.Request) {
 		req.SetBody(base.Json{
 			"drive_id":          d.DriveId,
 			"file_id":           srcObj.GetID(),
 			"to_parent_file_id": dstDir.GetID(),
-			"auto_rename":       true,
-		})
+			"auto_rename":       false,
+		}).SetResult(&resp)
 	})
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Check for duplicate files in the destination directory
+	if err := d.removeDuplicateFiles(ctx, dstDir.GetPath(), srcObj.GetName(), resp.FileID); err != nil {
+		// Only log a warning instead of returning an error since the copy operation has already completed successfully
+		log.Warnf("Failed to remove duplicate files after copy: %v", err)
+	}
+
+	return nil
 }
 
 func (d *AliyundriveOpen) Remove(ctx context.Context, obj model.Obj) error {
@@ -193,7 +266,18 @@ func (d *AliyundriveOpen) Remove(ctx context.Context, obj model.Obj) error {
 }
 
 func (d *AliyundriveOpen) Put(ctx context.Context, dstDir model.Obj, stream model.FileStreamer, up driver.UpdateProgress) (model.Obj, error) {
-	return d.upload(ctx, dstDir, stream, up)
+	obj, err := d.upload(ctx, dstDir, stream, up)
+
+	// Set the correct Path for the returned file object
+	if obj != nil && obj.GetPath() == "" {
+		if dstDir.GetPath() != "" {
+			if objWithPath, ok := obj.(model.SetPath); ok {
+				objWithPath.SetPath(filepath.Join(dstDir.GetPath(), obj.GetName()))
+			}
+		}
+	}
+
+	return obj, err
 }
 
 func (d *AliyundriveOpen) Other(ctx context.Context, args model.OtherArgs) (interface{}, error) {
@@ -225,3 +309,4 @@ var _ driver.MkdirResult = (*AliyundriveOpen)(nil)
 var _ driver.MoveResult = (*AliyundriveOpen)(nil)
 var _ driver.RenameResult = (*AliyundriveOpen)(nil)
 var _ driver.PutResult = (*AliyundriveOpen)(nil)
+var _ driver.GetRooter = (*AliyundriveOpen)(nil)

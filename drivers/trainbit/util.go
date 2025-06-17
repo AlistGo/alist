@@ -13,17 +13,6 @@ import (
 	"github.com/alist-org/alist/v3/internal/model"
 )
 
-type ProgressReader struct {
-	io.Reader
-	reporter func(byteNum int)
-}
-
-func (progressReader *ProgressReader) Read(data []byte) (int, error) {
-	byteNum, err := progressReader.Reader.Read(data)
-	progressReader.reporter(byteNum)
-	return byteNum, err
-}
-
 func get(url string, apiKey string, AUSHELLPORTAL string) (*http.Response, error) {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {

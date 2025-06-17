@@ -1,25 +1,21 @@
-/*
-Copyright © 2022 NAME HERE <EMAIL ADDRESS>
-*/
 package cmd
 
 import (
-	"os"
-
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"os"
 )
 
-// StopCmd represents the stop command
-var StopCmd = &cobra.Command{
-	Use:   "stop",
-	Short: "Stop alist server by daemon/pid file",
+// KillCmd represents the kill command
+var KillCmd = &cobra.Command{
+	Use:   "kill",
+	Short: "Force kill alist server process by daemon/pid file",
 	Run: func(cmd *cobra.Command, args []string) {
-		stop()
+		kill()
 	},
 }
 
-func stop() {
+func kill() {
 	initDaemon()
 	if pid == -1 {
 		log.Info("Seems not have been started. Try use `alist start` to start server.")
@@ -44,7 +40,7 @@ func stop() {
 }
 
 func init() {
-	RootCmd.AddCommand(StopCmd)
+	RootCmd.AddCommand(KillCmd)
 
 	// Here you will define your flags and configuration settings.
 

@@ -67,7 +67,9 @@ func (d *ChaoXing) Init(ctx context.Context) error {
 }
 
 func (d *ChaoXing) Drop(ctx context.Context) error {
-	d.cron.Stop()
+	if d.cron != nil {
+		d.cron.Stop()
+	}
 	return nil
 }
 
@@ -213,7 +215,7 @@ func (d *ChaoXing) Remove(ctx context.Context, obj model.Obj) error {
 	return nil
 }
 
-func (d *ChaoXing) Put(ctx context.Context, dstDir model.Obj, stream model.FileStreamer, up driver.UpdateProgress) error {
+func (d *ChaoXing) Put(ctx context.Context, dstDir model.Obj, file model.FileStreamer, up driver.UpdateProgress) error {
 	var resp UploadDataRsp
 	_, err := d.request("https://noteyd.chaoxing.com/pc/files/getUploadConfig", http.MethodGet, func(req *resty.Request) {
 	}, &resp)
@@ -225,11 +227,11 @@ func (d *ChaoXing) Put(ctx context.Context, dstDir model.Obj, stream model.FileS
 	}
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
-	filePart, err := writer.CreateFormFile("file", stream.GetName())
+	filePart, err := writer.CreateFormFile("file", file.GetName())
 	if err != nil {
 		return err
 	}
-	_, err = utils.CopyWithBuffer(filePart, stream)
+	_, err = utils.CopyWithBuffer(filePart, file)
 	if err != nil {
 		return err
 	}
@@ -246,7 +248,14 @@ func (d *ChaoXing) Put(ctx context.Context, dstDir model.Obj, stream model.FileS
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequest("POST", "https://pan-yz.chaoxing.com/upload", body)
+	r := driver.NewLimitedUploadStream(ctx, &driver.ReaderUpdatingProgress{
+		Reader: &driver.SimpleReaderWithSize{
+			Reader: body,
+			Size:   int64(body.Len()),
+		},
+		UpdateProgress: up,
+	})
+	req, err := http.NewRequestWithContext(ctx, "POST", "https://pan-yz.chaoxing.com/upload", r)
 	if err != nil {
 		return err
 	}

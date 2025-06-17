@@ -5,6 +5,7 @@ import (
 	_ "net/http/pprof"
 	"runtime"
 
+	"github.com/alist-org/alist/v3/internal/sign"
 	"github.com/alist-org/alist/v3/server/common"
 	"github.com/alist-org/alist/v3/server/middlewares"
 	"github.com/gin-gonic/gin"
@@ -15,7 +16,7 @@ func _pprof(g *gin.RouterGroup) {
 }
 
 func debug(g *gin.RouterGroup) {
-	g.GET("/path/*path", middlewares.Down, func(ctx *gin.Context) {
+	g.GET("/path/*path", middlewares.Down(sign.Verify), func(ctx *gin.Context) {
 		rawPath := ctx.MustGet("path").(string)
 		ctx.JSON(200, gin.H{
 			"path": rawPath,

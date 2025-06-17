@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	_ "github.com/alist-org/alist/v3/drivers"
+	"github.com/alist-org/alist/v3/internal/bootstrap"
 	"github.com/alist-org/alist/v3/internal/bootstrap/data"
 	"github.com/alist-org/alist/v3/internal/conf"
 	"github.com/alist-org/alist/v3/internal/op"
@@ -137,6 +138,7 @@ var LangCmd = &cobra.Command{
 	Use:   "lang",
 	Short: "Generate language json file",
 	Run: func(cmd *cobra.Command, args []string) {
+		bootstrap.InitConfig()
 		err := os.MkdirAll("lang", 0777)
 		if err != nil {
 			utils.Log.Fatalf("failed create folder: %s", err.Error())

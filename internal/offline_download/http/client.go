@@ -83,6 +83,7 @@ func (s SimpleHttp) Run(task *tool.DownloadTask) error {
 	}
 	defer file.Close()
 	fileSize := resp.ContentLength
+	task.SetTotalBytes(fileSize)
 	err = utils.CopyWithCtx(task.Ctx(), file, resp.Body, fileSize, task.SetProgress)
 	return err
 }

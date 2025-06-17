@@ -2,7 +2,6 @@ package net
 
 import (
 	"fmt"
-	"github.com/alist-org/alist/v3/pkg/utils"
 	"io"
 	"math"
 	"mime/multipart"
@@ -10,6 +9,8 @@ import (
 	"net/textproto"
 	"strings"
 	"time"
+
+	"github.com/alist-org/alist/v3/pkg/utils"
 
 	"github.com/alist-org/alist/v3/pkg/http_range"
 	log "github.com/sirupsen/logrus"
@@ -70,6 +71,7 @@ func checkIfMatch(w http.ResponseWriter, r *http.Request) condResult {
 	if im == "" {
 		return condNone
 	}
+	r.Header.Del("If-Match")
 	for {
 		im = textproto.TrimString(im)
 		if len(im) == 0 {
@@ -97,7 +99,11 @@ func checkIfMatch(w http.ResponseWriter, r *http.Request) condResult {
 
 func checkIfUnmodifiedSince(r *http.Request, modtime time.Time) condResult {
 	ius := r.Header.Get("If-Unmodified-Since")
-	if ius == "" || isZeroTime(modtime) {
+	if ius == "" {
+		return condNone
+	}
+	r.Header.Del("If-Unmodified-Since")
+	if isZeroTime(modtime) {
 		return condNone
 	}
 	t, err := http.ParseTime(ius)
@@ -119,6 +125,7 @@ func checkIfNoneMatch(w http.ResponseWriter, r *http.Request) condResult {
 	if inm == "" {
 		return condNone
 	}
+	r.Header.Del("If-None-Match")
 	buf := inm
 	for {
 		buf = textproto.TrimString(buf)
@@ -149,7 +156,11 @@ func checkIfModifiedSince(r *http.Request, modtime time.Time) condResult {
 		return condNone
 	}
 	ims := r.Header.Get("If-Modified-Since")
-	if ims == "" || isZeroTime(modtime) {
+	if ims == "" {
+		return condNone
+	}
+	r.Header.Del("If-Modified-Since")
+	if isZeroTime(modtime) {
 		return condNone
 	}
 	t, err := http.ParseTime(ims)
@@ -173,6 +184,7 @@ func checkIfRange(w http.ResponseWriter, r *http.Request, modtime time.Time) con
 	if ir == "" {
 		return condNone
 	}
+	r.Header.Del("If-Range")
 	etag, _ := scanETag(ir)
 	if etag != "" {
 		if etagStrongMatch(etag, w.Header().Get("Etag")) {

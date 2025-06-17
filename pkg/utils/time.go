@@ -34,31 +34,36 @@ func NewDebounce2(interval time.Duration, f func()) func() {
 		if timer == nil {
 			timer = time.AfterFunc(interval, f)
 		}
-		(*time.Timer)(timer).Reset(interval)
+		timer.Reset(interval)
 	}
 }
 
 func NewThrottle(interval time.Duration) func(func()) {
 	var lastCall time.Time
-
+	var lock sync.Mutex
 	return func(fn func()) {
+		lock.Lock()
+		defer lock.Unlock()
+
 		now := time.Now()
-		if now.Sub(lastCall) < interval {
-			return
+		if now.Sub(lastCall) >= interval {
+			lastCall = now
+			go fn()
 		}
-		time.AfterFunc(interval, fn)
-		lastCall = now
 	}
 }
 
 func NewThrottle2(interval time.Duration, fn func()) func() {
 	var lastCall time.Time
+	var lock sync.Mutex
 	return func() {
+		lock.Lock()
+		defer lock.Unlock()
+
 		now := time.Now()
-		if now.Sub(lastCall) < interval {
-			return
+		if now.Sub(lastCall) >= interval {
+			lastCall = now
+			go fn()
 		}
-		time.AfterFunc(interval, fn)
-		lastCall = now
 	}
 }

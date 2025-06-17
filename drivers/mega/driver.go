@@ -56,12 +56,21 @@ func (d *Mega) List(ctx context.Context, dir model.Obj, args model.ListArgs) ([]
 		if err != nil {
 			return nil, err
 		}
-		res := make([]model.Obj, 0)
+		fn := make(map[string]model.Obj)
 		for i := range nodes {
 			n := nodes[i]
-			if n.GetType() == mega.FILE || n.GetType() == mega.FOLDER {
-				res = append(res, &MegaNode{n})
+			if n.GetType() != mega.FILE && n.GetType() != mega.FOLDER {
+				continue
 			}
+			if _, ok := fn[n.GetName()]; !ok {
+				fn[n.GetName()] = &MegaNode{n}
+			} else if sameNameObj := fn[n.GetName()]; (&MegaNode{n}).ModTime().After(sameNameObj.ModTime()) {
+				fn[n.GetName()] = &MegaNode{n}
+			}
+		}
+		res := make([]model.Obj, 0)
+		for _, v := range fn {
+			res = append(res, v)
 		}
 		return res, nil
 	}
@@ -84,7 +93,6 @@ func (d *Mega) Link(ctx context.Context, file model.Obj, args model.LinkArgs) (*
 		//}
 
 		size := file.GetSize()
-		var finalClosers utils.Closers
 		resultRangeReader := func(ctx context.Context, httpRange http_range.Range) (io.ReadCloser, error) {
 			length := httpRange.Length
 			if httpRange.Length >= 0 && httpRange.Start+httpRange.Length >= size {
@@ -103,11 +111,10 @@ func (d *Mega) Link(ctx context.Context, file model.Obj, args model.LinkArgs) (*
 				d:    down,
 				skip: httpRange.Start,
 			}
-			finalClosers.Add(oo)
 
 			return readers.NewLimitedReadCloser(oo, length), nil
 		}
-		resultRangeReadCloser := &model.RangeReadCloser{RangeReader: resultRangeReader, Closers: finalClosers}
+		resultRangeReadCloser := &model.RangeReadCloser{RangeReader: resultRangeReader}
 		resultLink := &model.Link{
 			RangeReadCloser: resultRangeReadCloser,
 		}
@@ -158,6 +165,7 @@ func (d *Mega) Put(ctx context.Context, dstDir model.Obj, stream model.FileStrea
 			return err
 		}
 
+		reader := driver.NewLimitedUploadStream(ctx, stream)
 		for id := 0; id < u.Chunks(); id++ {
 			if utils.IsCanceled(ctx) {
 				return ctx.Err()
@@ -167,7 +175,7 @@ func (d *Mega) Put(ctx context.Context, dstDir model.Obj, stream model.FileStrea
 				return err
 			}
 			chunk := make([]byte, chkSize)
-			n, err := io.ReadFull(stream, chunk)
+			n, err := io.ReadFull(reader, chunk)
 			if err != nil && err != io.EOF {
 				return err
 			}

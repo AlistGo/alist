@@ -26,9 +26,18 @@ var settingGroupCacheF = func(key string, item []model.SettingItem) {
 	settingGroupCache.Set(key, item, cache.WithEx[[]model.SettingItem](time.Hour))
 }
 
-func settingCacheUpdate() {
+var settingChangingCallbacks = make([]func(), 0)
+
+func RegisterSettingChangingCallback(f func()) {
+	settingChangingCallbacks = append(settingChangingCallbacks, f)
+}
+
+func SettingCacheUpdate() {
 	settingCache.Clear()
 	settingGroupCache.Clear()
+	for _, cb := range settingChangingCallbacks {
+		cb()
+	}
 }
 
 func GetPublicSettingsMap() map[string]string {
@@ -167,7 +176,7 @@ func SaveSettingItems(items []model.SettingItem) error {
 		}
 	}
 	if len(errs) < len(items)-len(noHookItems)+1 {
-		settingCacheUpdate()
+		SettingCacheUpdate()
 	}
 	return utils.MergeErrors(errs...)
 }
@@ -181,7 +190,7 @@ func SaveSettingItem(item *model.SettingItem) (err error) {
 	if err = db.SaveSettingItem(item); err != nil {
 		return err
 	}
-	settingCacheUpdate()
+	SettingCacheUpdate()
 	return nil
 }
 
@@ -193,6 +202,6 @@ func DeleteSettingItemByKey(key string) error {
 	if !old.IsDeprecated() {
 		return errors.Errorf("setting [%s] is not deprecated", key)
 	}
-	settingCacheUpdate()
+	SettingCacheUpdate()
 	return db.DeleteSettingItemByKey(key)
 }

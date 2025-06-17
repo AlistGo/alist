@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/alist-org/alist/v3/drivers/base"
@@ -18,14 +17,14 @@ import (
 )
 
 var AndroidAlgorithms = []string{
-	"aDhgaSE3MsjROCmpmsWqP1sJdFJ",
-	"+oaVkqdd8MJuKT+uMr2AYKcd9tdWge3XPEPR2hcePUknd",
-	"u/sd2GgT2fTytRcKzGicHodhvIltMntA3xKw2SRv7S48OdnaQIS5mn",
-	"2WZiae2QuqTOxBKaaqCNHCW3olu2UImelkDzBn",
-	"/vJ3upic39lgmrkX855Qx",
-	"yNc9ruCVMV7pGV7XvFeuLMOcy1",
-	"4FPq8mT3JQ1jzcVxMVfwFftLQm33M7i",
-	"xozoy5e3Ea",
+	"SOP04dGzk0TNO7t7t9ekDbAmx+eq0OI1ovEx",
+	"nVBjhYiND4hZ2NCGyV5beamIr7k6ifAsAbl",
+	"Ddjpt5B/Cit6EDq2a6cXgxY9lkEIOw4yC1GDF28KrA",
+	"VVCogcmSNIVvgV6U+AochorydiSymi68YVNGiz",
+	"u5ujk5sM62gpJOsB/1Gu/zsfgfZO",
+	"dXYIiBOAHZgzSruaQ2Nhrqc2im",
+	"z5jUTBSIpBN9g4qSJGlidNAutX6",
+	"KJE2oveZ34du/g1tiimm",
 }
 
 var WebAlgorithms = []string{
@@ -62,9 +61,9 @@ var PCAlgorithms = []string{
 const (
 	AndroidClientID      = "YNxT9w7GMdWvEOKa"
 	AndroidClientSecret  = "dbw2OtmVEeuUvIptb1Coyg"
-	AndroidClientVersion = "1.48.3"
+	AndroidClientVersion = "1.53.2"
 	AndroidPackageName   = "com.pikcloud.pikpak"
-	AndroidSdkVersion    = "2.0.4.204101"
+	AndroidSdkVersion    = "2.0.6.206003"
 	WebClientID          = "YUMx5nI8ZU8Ap8pm"
 	WebClientSecret      = "dbw2OtmVEeuUvIptb1Coyg"
 	WebClientVersion     = "2.0.0"
@@ -72,48 +71,10 @@ const (
 	WebSdkVersion        = "8.0.3"
 	PCClientID           = "YvtoWO6GNHiuCl7x"
 	PCClientSecret       = "1NIH5R1IEe2pAxZE3hv3uA"
-	PCClientVersion      = "undefined" // 2.5.6.4831
+	PCClientVersion      = "undefined" // 2.6.11.4955
 	PCPackageName        = "mypikpak.com"
 	PCSdkVersion         = "8.0.3"
 )
-
-var DlAddr = []string{
-	"dl-a10b-0621.mypikpak.com",
-	"dl-a10b-0622.mypikpak.com",
-	"dl-a10b-0623.mypikpak.com",
-	"dl-a10b-0624.mypikpak.com",
-	"dl-a10b-0625.mypikpak.com",
-	"dl-a10b-0858.mypikpak.com",
-	"dl-a10b-0859.mypikpak.com",
-	"dl-a10b-0860.mypikpak.com",
-	"dl-a10b-0861.mypikpak.com",
-	"dl-a10b-0862.mypikpak.com",
-	"dl-a10b-0863.mypikpak.com",
-	"dl-a10b-0864.mypikpak.com",
-	"dl-a10b-0865.mypikpak.com",
-	"dl-a10b-0866.mypikpak.com",
-	"dl-a10b-0867.mypikpak.com",
-	"dl-a10b-0868.mypikpak.com",
-	"dl-a10b-0869.mypikpak.com",
-	"dl-a10b-0870.mypikpak.com",
-	"dl-a10b-0871.mypikpak.com",
-	"dl-a10b-0872.mypikpak.com",
-	"dl-a10b-0873.mypikpak.com",
-	"dl-a10b-0874.mypikpak.com",
-	"dl-a10b-0875.mypikpak.com",
-	"dl-a10b-0876.mypikpak.com",
-	"dl-a10b-0877.mypikpak.com",
-	"dl-a10b-0878.mypikpak.com",
-	"dl-a10b-0879.mypikpak.com",
-	"dl-a10b-0880.mypikpak.com",
-	"dl-a10b-0881.mypikpak.com",
-	"dl-a10b-0882.mypikpak.com",
-	"dl-a10b-0883.mypikpak.com",
-	"dl-a10b-0884.mypikpak.com",
-	"dl-a10b-0885.mypikpak.com",
-	"dl-a10b-0886.mypikpak.com",
-	"dl-a10b-0887.mypikpak.com",
-}
 
 func (d *PikPakShare) request(url string, method string, callback base.ReqCallback, resp interface{}) ([]byte, error) {
 	req := base.RestyClient.R()
@@ -159,7 +120,7 @@ func (d *PikPakShare) getSharePassToken() error {
 		"limit":          "100",
 	}
 	var resp ShareResp
-	_, err := d.request("https://api-drive.mypikpak.com/drive/v1/share", http.MethodGet, func(req *resty.Request) {
+	_, err := d.request("https://api-drive.mypikpak.net/drive/v1/share", http.MethodGet, func(req *resty.Request) {
 		req.SetQueryParams(query)
 	}, &resp)
 	if err != nil {
@@ -187,7 +148,7 @@ func (d *PikPakShare) getFiles(id string) ([]File, error) {
 			"pass_code_token": d.PassCodeToken,
 		}
 		var resp ShareResp
-		_, err := d.request("https://api-drive.mypikpak.com/drive/v1/share/detail", http.MethodGet, func(req *resty.Request) {
+		_, err := d.request("https://api-drive.mypikpak.net/drive/v1/share/detail", http.MethodGet, func(req *resty.Request) {
 			req.SetQueryParams(query)
 		}, &resp)
 		if err != nil {
@@ -227,7 +188,6 @@ type Common struct {
 	UserAgent     string
 	// 验证码token刷新成功回调
 	RefreshCTokenCk func(token string)
-	LowLatencyAddr  string
 }
 
 func (c *Common) SetUserAgent(userAgent string) {
@@ -345,7 +305,7 @@ func (d *PikPakShare) refreshCaptchaToken(action string, metas map[string]string
 	}
 	var e ErrResp
 	var resp CaptchaTokenResponse
-	_, err := d.request("https://user.mypikpak.com/v1/shield/captcha/init", http.MethodPost, func(req *resty.Request) {
+	_, err := d.request("https://user.mypikpak.net/v1/shield/captcha/init", http.MethodPost, func(req *resty.Request) {
 		req.SetError(&e).SetBody(param)
 	}, &resp)
 
@@ -366,47 +326,4 @@ func (d *PikPakShare) refreshCaptchaToken(action string, metas map[string]string
 	}
 	d.Common.SetCaptchaToken(resp.CaptchaToken)
 	return nil
-}
-
-type AddressLatency struct {
-	Address string
-	Latency time.Duration
-}
-
-func checkLatency(address string, wg *sync.WaitGroup, ch chan<- AddressLatency) {
-	defer wg.Done()
-	start := time.Now()
-	resp, err := http.Get("https://" + address + "/generate_204")
-	if err != nil {
-		ch <- AddressLatency{Address: address, Latency: time.Hour} // Set high latency on error
-		return
-	}
-	defer resp.Body.Close()
-	latency := time.Since(start)
-	ch <- AddressLatency{Address: address, Latency: latency}
-}
-
-func findLowestLatencyAddress(addresses []string) string {
-	var wg sync.WaitGroup
-	ch := make(chan AddressLatency, len(addresses))
-
-	for _, address := range addresses {
-		wg.Add(1)
-		go checkLatency(address, &wg, ch)
-	}
-
-	wg.Wait()
-	close(ch)
-
-	var lowestLatencyAddress string
-	lowestLatency := time.Hour
-
-	for result := range ch {
-		if result.Latency < lowestLatency {
-			lowestLatency = result.Latency
-			lowestLatencyAddress = result.Address
-		}
-	}
-
-	return lowestLatencyAddress
 }
