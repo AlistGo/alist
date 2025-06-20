@@ -6,7 +6,6 @@ import (
 	stdpath "path"
 	"path/filepath"
 
-	_115 "github.com/alist-org/alist/v3/drivers/115"
 	"github.com/alist-org/alist/v3/drivers/pikpak"
 	"github.com/alist-org/alist/v3/drivers/thunder"
 	"github.com/alist-org/alist/v3/internal/conf"
@@ -85,12 +84,6 @@ func AddURL(ctx context.Context, args *AddURLArgs) (task.TaskExtensionInfo, erro
 
 	// 如果当前 storage 是对应网盘，则直接下载到目标路径，无需转存
 	switch args.Tool {
-	case "115 Cloud":
-		if _, ok := storage.(*_115.Pan115); ok {
-			tempDir = args.DstDirPath
-		} else {
-			tempDir = filepath.Join(setting.GetStr(conf.Pan115TempDir), uid)
-		}
 	case "PikPak":
 		if _, ok := storage.(*pikpak.PikPak); ok {
 			tempDir = args.DstDirPath
