@@ -16,12 +16,14 @@ import (
 type UploadTask struct {
 	task.TaskExtension
 	storage          driver.Driver
-	dstDirActualPath string
+	FileName         string `json:"file_name"`
+	DstStorageMp     string `json:"dst_storage_mp"`
+	DstDirActualPath string `json:"dst_dir_actual_path"`
 	file             model.FileStreamer
 }
 
 func (t *UploadTask) GetName() string {
-	return fmt.Sprintf("upload %s to [%s](%s)", t.file.GetName(), t.storage.GetStorage().MountPath, t.dstDirActualPath)
+	return fmt.Sprintf("upload %s to [%s](%s)", t.FileName, t.DstStorageMp, t.DstDirActualPath)
 }
 
 func (t *UploadTask) GetStatus() string {
@@ -32,7 +34,7 @@ func (t *UploadTask) Run() error {
 	t.ClearEndTime()
 	t.SetStartTime(time.Now())
 	defer func() { t.SetEndTime(time.Now()) }()
-	return op.Put(t.Ctx(), t.storage, t.dstDirActualPath, t.file, t.SetProgress, true)
+	return op.Put(t.Ctx(), t.storage, t.DstDirActualPath, t.file, t.SetProgress, true)
 }
 
 var UploadTaskManager *tache.Manager[*UploadTask]
@@ -60,7 +62,9 @@ func putAsTask(ctx context.Context, dstDirPath string, file model.FileStreamer) 
 			Creator: taskCreator,
 		},
 		storage:          storage,
-		dstDirActualPath: dstDirActualPath,
+		DstStorageMp:     storage.GetStorage().MountPath,
+		DstDirActualPath: dstDirActualPath,
+		FileName:         file.GetName(),
 		file:             file,
 	}
 	t.SetTotalBytes(file.GetSize())
