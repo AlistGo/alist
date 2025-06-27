@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: {{ template "alist.name" . }}
+    chart: {{ template "alist.chart" . }}
+    release: {{ .Release.Name }}
+  name: {{ template "alist.fullname" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ template "alist.name" . }}
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "alist.name" . }}
+        release: {{ .Release.Name }}
+    spec:
+      containers:
+      - env:
+        - name: PGID
+          value: "0"
+        - name: PUID
+          value: "0"
+        - name: TZ
+          value: UTC
+        - name: UMASK
+          value: "022"
+        name: {{ .Chart.Name }}
+        image: "{{ .Values.image.registry}}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.service.http.port }}
+          protocol: TCP
+        - containerPort: {{ .Values.service.https.port }}
+          protocol: TCP
+        volumeMounts:
+        - mountPath: /opt/alist/data
+          name: alist-data
+      restartPolicy: Always
+      enableServiceLinks: false
+      volumes:
+      - name: alist-data
+        persistentVolumeClaim:
+          claimName: {{ template "alist.fullname" . }}
