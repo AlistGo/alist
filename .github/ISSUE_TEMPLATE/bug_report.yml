@@ -16,14 +16,14 @@ body:
         您必须勾选以下所有内容，否则您的issue可能会被直接关闭。或者您可以去[讨论区](https://github.com/alist-org/alist/discussions)
       options:
         - label: |
-            I have read the [documentation](https://alist.nn.ci).
-            我已经阅读了[文档](https://alist.nn.ci)。
+            I have read the [documentation](https://alistgo.com).
+            我已经阅读了[文档](https://alistgo.com)。
         - label: |
             I'm sure there are no duplicate issues or discussions.
             我确定没有重复的issue或讨论。
         - label: |
-            I'm sure it's due to `AList` and not something else(such as [Network](https://alist.nn.ci/faq/howto.html#tls-handshake-timeout-read-connection-reset-by-peer-dns-lookup-failed-connect-connection-refused-client-timeout-exceeded-while-awaiting-headers-no-such-host) ,`Dependencies` or `Operational`).
-            我确定是`AList`的问题，而不是其他原因（例如[网络](https://alist.nn.ci/zh/faq/howto.html#tls-handshake-timeout-read-connection-reset-by-peer-dns-lookup-failed-connect-connection-refused-client-timeout-exceeded-while-awaiting-headers-no-such-host)，`依赖`或`操作`）。
+            I'm sure it's due to `AList` and not something else(such as [Network](https://alistgo.com/faq/howto.html#tls-handshake-timeout-read-connection-reset-by-peer-dns-lookup-failed-connect-connection-refused-client-timeout-exceeded-while-awaiting-headers-no-such-host) ,`Dependencies` or `Operational`).
+            我确定是`AList`的问题，而不是其他原因（例如[网络](https://alistgo.com/zh/faq/howto.html#tls-handshake-timeout-read-connection-reset-by-peer-dns-lookup-failed-connect-connection-refused-client-timeout-exceeded-while-awaiting-headers-no-such-host)，`依赖`或`操作`）。
         - label: |
             I'm sure this issue is not fixed in the latest version.
             我确定这个问题在最新版本中没有被修复。

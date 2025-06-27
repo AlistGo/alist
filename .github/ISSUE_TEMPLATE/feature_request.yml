@@ -7,7 +7,7 @@ body:
       label: Please make sure of the following things
       description: You may select more than one, even select all.
       options:
-        - label: I have read the [documentation](https://alist.nn.ci).
+        - label: I have read the [documentation](https://alistgo.com).
         - label: I'm sure there are no duplicate issues or discussions.
         - label: I'm sure this feature is not implemented.
         - label: I'm sure it's a reasonable and popular requirement.

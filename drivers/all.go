@@ -11,6 +11,7 @@ import (
 	_ "github.com/alist-org/alist/v3/drivers/189"
 	_ "github.com/alist-org/alist/v3/drivers/189pc"
 	_ "github.com/alist-org/alist/v3/drivers/alias"
+	_ "github.com/alist-org/alist/v3/drivers/alioss"
 	_ "github.com/alist-org/alist/v3/drivers/alist_v2"
 	_ "github.com/alist-org/alist/v3/drivers/alist_v3"
 	_ "github.com/alist-org/alist/v3/drivers/aliyundrive"
