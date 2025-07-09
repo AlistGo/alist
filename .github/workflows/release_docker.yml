@@ -44,7 +44,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: build/musl-libs
-          key: docker-musl-libs-v2
+          key: docker-musl-libs-v3
 
       - name: Download Musl Library
         if: steps.cache-musl.outputs.cache-hit != 'true'
