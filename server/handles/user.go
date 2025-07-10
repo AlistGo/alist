@@ -5,6 +5,7 @@ import (
 
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/internal/op"
+	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/alist-org/alist/v3/server/common"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
@@ -60,7 +61,7 @@ func UpdateUser(c *gin.Context) {
 		common.ErrorResp(c, err, 500)
 		return
 	}
-	if user.Role != req.Role {
+	if !utils.SliceEqual(user.Role, req.Role) {
 		common.ErrorStrResp(c, "role can not be changed", 400)
 		return
 	}

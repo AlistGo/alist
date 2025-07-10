@@ -29,7 +29,7 @@ type User struct {
 	Salt     string `json:"-"`                                         // unique salt
 	Password string `json:"password"`                                  // password
 	BasePath string `json:"base_path"`                                 // base path
-	Role     int    `json:"role"`                                      // user's role
+	Role     Roles  `json:"role" gorm:"type:text"`                     // user's roles
 	Disabled bool   `json:"disabled"`
 	// Determine permissions by bit
 	//   0:  can see hidden files
@@ -53,11 +53,11 @@ type User struct {
 }
 
 func (u *User) IsGuest() bool {
-	return u.Role == GUEST
+	return u.Role.Contains(GUEST)
 }
 
 func (u *User) IsAdmin() bool {
-	return u.Role == ADMIN
+	return u.Role.Contains(ADMIN)
 }
 
 func (u *User) ValidateRawPassword(password string) error {

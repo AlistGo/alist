@@ -26,7 +26,7 @@ func initDevData() {
 		Username:   "Noah",
 		Password:   "hsu",
 		BasePath:   "/data",
-		Role:       0,
+		Role:       model.Roles{0},
 		Permission: 512,
 	})
 	if err != nil {

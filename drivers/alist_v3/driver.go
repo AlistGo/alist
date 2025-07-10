@@ -56,7 +56,7 @@ func (d *AListV3) Init(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if resp.Data.Role == model.GUEST {
+	if utils.SliceContains(resp.Data.Role, model.GUEST) {
 		u := d.Address + "/api/public/settings"
 		res, err := base.RestyClient.R().Get(u)
 		if err != nil {

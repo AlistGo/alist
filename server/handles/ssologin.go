@@ -154,7 +154,7 @@ func autoRegister(username, userID string, err error) (*model.User, error) {
 		Password:   random.String(16),
 		Permission: int32(setting.GetInt(conf.SSODefaultPermission, 0)),
 		BasePath:   setting.GetStr(conf.SSODefaultDir),
-		Role:       0,
+		Role:       model.Roles{0},
 		Disabled:   false,
 		SsoID:      userID,
 	}

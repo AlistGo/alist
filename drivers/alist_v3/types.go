@@ -76,7 +76,7 @@ type MeResp struct {
 	Username   string `json:"username"`
 	Password   string `json:"password"`
 	BasePath   string `json:"base_path"`
-	Role       int    `json:"role"`
+	Role       []int  `json:"role"`
 	Disabled   bool   `json:"disabled"`
 	Permission int    `json:"permission"`
 	SsoId      string `json:"sso_id"`

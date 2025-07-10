@@ -7,14 +7,20 @@ import (
 	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/pkg/errors"
+	"gorm.io/gorm"
 )
 
 func GetUserByRole(role int) (*model.User, error) {
-	user := model.User{Role: role}
-	if err := db.Where(user).Take(&user).Error; err != nil {
+	var users []model.User
+	if err := db.Find(&users).Error; err != nil {
 		return nil, err
 	}
-	return &user, nil
+	for i := range users {
+		if users[i].Role.Contains(role) {
+			return &users[i], nil
+		}
+	}
+	return nil, gorm.ErrRecordNotFound
 }
 
 func GetUserByName(username string) (*model.User, error) {

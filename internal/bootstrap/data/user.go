@@ -29,7 +29,7 @@ func initUser() {
 				Username: "admin",
 				Salt:     salt,
 				PwdHash:  model.TwoHashPwd(adminPassword, salt),
-				Role:     model.ADMIN,
+				Role:     model.Roles{model.ADMIN},
 				BasePath: "/",
 				Authn:    "[]",
 				// 0(can see hidden) - 7(can remove) & 12(can read archives) - 13(can decompress archives)
@@ -52,7 +52,7 @@ func initUser() {
 				Username:   "guest",
 				PwdHash:    model.TwoHashPwd("guest", salt),
 				Salt:       salt,
-				Role:       model.GUEST,
+				Role:       model.Roles{model.GUEST},
 				BasePath:   "/",
 				Permission: 0,
 				Disabled:   true,

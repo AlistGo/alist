@@ -83,7 +83,7 @@ type Group struct {
 	Type            int    `json:"type"`
 	Name            string `json:"name"`
 	IsAdministrator int    `json:"is_administrator"`
-	Role            int    `json:"role"`
+	Role            []int  `json:"role"`
 	Avatar          string `json:"avatar_url"`
 	IsStick         int    `json:"is_stick"`
 	Nickname        string `json:"nickname"`
