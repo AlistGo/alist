@@ -29,10 +29,6 @@ func FsRecursiveMove(c *gin.Context) {
 	}
 
 	user := c.MustGet("user").(*model.User)
-	if !user.CanMove() {
-		common.ErrorResp(c, errs.PermissionDenied, 403)
-		return
-	}
 	srcDir, err := user.JoinPath(req.SrcDir)
 	if err != nil {
 		common.ErrorResp(c, err, 403)
@@ -41,6 +37,11 @@ func FsRecursiveMove(c *gin.Context) {
 	dstDir, err := user.JoinPath(req.DstDir)
 	if err != nil {
 		common.ErrorResp(c, err, 403)
+		return
+	}
+	perm := common.MergeRolePermissions(user, srcDir)
+	if !common.HasPermission(perm, common.PermMove) {
+		common.ErrorResp(c, errs.PermissionDenied, 403)
 		return
 	}
 
@@ -149,14 +150,14 @@ func FsBatchRename(c *gin.Context) {
 		return
 	}
 	user := c.MustGet("user").(*model.User)
-	if !user.CanRename() {
-		common.ErrorResp(c, errs.PermissionDenied, 403)
-		return
-	}
-
 	reqPath, err := user.JoinPath(req.SrcDir)
 	if err != nil {
 		common.ErrorResp(c, err, 403)
+		return
+	}
+	perm := common.MergeRolePermissions(user, reqPath)
+	if !common.HasPermission(perm, common.PermRename) {
+		common.ErrorResp(c, errs.PermissionDenied, 403)
 		return
 	}
 
@@ -194,14 +195,15 @@ func FsRegexRename(c *gin.Context) {
 		return
 	}
 	user := c.MustGet("user").(*model.User)
-	if !user.CanRename() {
-		common.ErrorResp(c, errs.PermissionDenied, 403)
-		return
-	}
-
 	reqPath, err := user.JoinPath(req.SrcDir)
 	if err != nil {
 		common.ErrorResp(c, err, 403)
+		return
+	}
+
+	perm := common.MergeRolePermissions(user, reqPath)
+	if !common.HasPermission(perm, common.PermRename) {
+		common.ErrorResp(c, errs.PermissionDenied, 403)
 		return
 	}
 

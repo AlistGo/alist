@@ -35,7 +35,9 @@ func FsUp(c *gin.Context) {
 			return
 		}
 	}
-	if !(common.CanAccess(user, meta, path, password) && (user.CanWrite() || common.CanWrite(meta, stdpath.Dir(path)))) {
+	perm := common.MergeRolePermissions(user, path)
+	if !(common.CanAccessWithRoles(user, meta, path, password) &&
+		(common.HasPermission(perm, common.PermWrite) || common.CanWrite(meta, stdpath.Dir(path)))) {
 		common.ErrorResp(c, errs.PermissionDenied, 403)
 		c.Abort()
 		return

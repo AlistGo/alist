@@ -77,11 +77,12 @@ func FsList(c *gin.Context) {
 		}
 	}
 	c.Set("meta", meta)
-	if !common.CanAccess(user, meta, reqPath, req.Password) {
+	if !common.CanAccessWithRoles(user, meta, reqPath, req.Password) {
 		common.ErrorStrResp(c, "password is incorrect or you have no permission", 403)
 		return
 	}
-	if !user.CanWrite() && !common.CanWrite(meta, reqPath) && req.Refresh {
+	perm := common.MergeRolePermissions(user, reqPath)
+	if !common.HasPermission(perm, common.PermWrite) && !common.CanWrite(meta, reqPath) && req.Refresh {
 		common.ErrorStrResp(c, "Refresh without permission", 403)
 		return
 	}
@@ -101,7 +102,7 @@ func FsList(c *gin.Context) {
 		Total:    int64(total),
 		Readme:   getReadme(meta, reqPath),
 		Header:   getHeader(meta, reqPath),
-		Write:    user.CanWrite() || common.CanWrite(meta, reqPath),
+		Write:    common.HasPermission(perm, common.PermWrite) || common.CanWrite(meta, reqPath),
 		Provider: provider,
 	})
 }
@@ -135,7 +136,7 @@ func FsDirs(c *gin.Context) {
 		}
 	}
 	c.Set("meta", meta)
-	if !common.CanAccess(user, meta, reqPath, req.Password) {
+	if !common.CanAccessWithRoles(user, meta, reqPath, req.Password) {
 		common.ErrorStrResp(c, "password is incorrect or you have no permission", 403)
 		return
 	}
@@ -391,7 +392,7 @@ func FsOther(c *gin.Context) {
 		}
 	}
 	c.Set("meta", meta)
-	if !common.CanAccess(user, meta, req.Path, req.Password) {
+	if !common.CanAccessWithRoles(user, meta, req.Path, req.Password) {
 		common.ErrorStrResp(c, "password is incorrect or you have no permission", 403)
 		return
 	}

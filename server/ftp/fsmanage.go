@@ -18,7 +18,8 @@ func Mkdir(ctx context.Context, path string) error {
 	if err != nil {
 		return err
 	}
-	if !user.CanWrite() || !user.CanFTPManage() {
+	perm := common.MergeRolePermissions(user, reqPath)
+	if !common.HasPermission(perm, common.PermWrite) || !common.HasPermission(perm, common.PermFTPManage) {
 		meta, err := op.GetNearestMeta(stdpath.Dir(reqPath))
 		if err != nil {
 			if !errors.Is(errors.Cause(err), errs.MetaNotFound) {
@@ -34,7 +35,8 @@ func Mkdir(ctx context.Context, path string) error {
 
 func Remove(ctx context.Context, path string) error {
 	user := ctx.Value("user").(*model.User)
-	if !user.CanRemove() || !user.CanFTPManage() {
+	perm := common.MergeRolePermissions(user, path)
+	if !common.HasPermission(perm, common.PermRemove) || !common.HasPermission(perm, common.PermFTPManage) {
 		return errs.PermissionDenied
 	}
 	reqPath, err := user.JoinPath(path)
@@ -56,13 +58,14 @@ func Rename(ctx context.Context, oldPath, newPath string) error {
 	}
 	srcDir, srcBase := stdpath.Split(srcPath)
 	dstDir, dstBase := stdpath.Split(dstPath)
+	permSrc := common.MergeRolePermissions(user, srcPath)
 	if srcDir == dstDir {
-		if !user.CanRename() || !user.CanFTPManage() {
+		if !common.HasPermission(permSrc, common.PermRename) || !common.HasPermission(permSrc, common.PermFTPManage) {
 			return errs.PermissionDenied
 		}
 		return fs.Rename(ctx, srcPath, dstBase)
 	} else {
-		if !user.CanFTPManage() || !user.CanMove() || (srcBase != dstBase && !user.CanRename()) {
+		if !common.HasPermission(permSrc, common.PermFTPManage) || !common.HasPermission(permSrc, common.PermMove) || (srcBase != dstBase && !common.HasPermission(permSrc, common.PermRename)) {
 			return errs.PermissionDenied
 		}
 		if err = fs.Move(ctx, srcPath, dstDir); err != nil {

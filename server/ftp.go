@@ -11,6 +11,7 @@ import (
 	"github.com/alist-org/alist/v3/internal/op"
 	"github.com/alist-org/alist/v3/internal/setting"
 	"github.com/alist-org/alist/v3/pkg/utils"
+	"github.com/alist-org/alist/v3/server/common"
 	"github.com/alist-org/alist/v3/server/ftp"
 	"math/rand"
 	"net"
@@ -130,7 +131,8 @@ func (d *FtpMainDriver) AuthUser(cc ftpserver.ClientContext, user, pass string) 
 			return nil, err
 		}
 	}
-	if userObj.Disabled || !userObj.CanFTPAccess() {
+	perm := common.MergeRolePermissions(userObj, userObj.BasePath)
+	if userObj.Disabled || !common.HasPermission(perm, common.PermFTPAccess) {
 		return nil, errors.New("user is not allowed to access via FTP")
 	}
 

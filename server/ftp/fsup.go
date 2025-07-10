@@ -35,8 +35,10 @@ func uploadAuth(ctx context.Context, path string) error {
 			return err
 		}
 	}
-	if !(common.CanAccess(user, meta, path, ctx.Value("meta_pass").(string)) &&
-		((user.CanFTPManage() && user.CanWrite()) || common.CanWrite(meta, stdpath.Dir(path)))) {
+	perm := common.MergeRolePermissions(user, path)
+	if !(common.CanAccessWithRoles(user, meta, path, ctx.Value("meta_pass").(string)) &&
+		((common.HasPermission(perm, common.PermFTPManage) && common.HasPermission(perm, common.PermWrite)) ||
+			common.CanWrite(meta, stdpath.Dir(path)))) {
 		return errs.PermissionDenied
 	}
 	return nil
