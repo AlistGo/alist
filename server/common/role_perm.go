@@ -43,8 +43,17 @@ func MergeRolePermissions(u *model.User, reqPath string) int32 {
 		if err != nil {
 			continue
 		}
-		if role.CheckPathLimit() && !utils.IsSubPath(role.BasePath, reqPath) {
-			continue
+		if role.CheckPathLimit() {
+			matched := false
+			for _, p := range role.BasePaths {
+				if utils.IsSubPath(p, reqPath) {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				continue
+			}
 		}
 		perm |= role.Permission
 	}

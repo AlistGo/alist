@@ -16,7 +16,7 @@ func initRoles() {
 				ID:          uint(model.GUEST),
 				Name:        "guest",
 				Description: "Guest",
-				BasePath:    "/",
+				BasePaths:   model.Paths{"/"},
 				Permission:  0,
 			}
 			if err := op.CreateRole(guestRole); err != nil {
@@ -34,7 +34,7 @@ func initRoles() {
 				ID:          uint(model.ADMIN),
 				Name:        "admin",
 				Description: "Administrator",
-				BasePath:    "/",
+				BasePaths:   model.Paths{"/"},
 				Permission:  0x30FF,
 			}
 			if err := op.CreateRole(adminRole); err != nil {

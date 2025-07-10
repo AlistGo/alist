@@ -5,7 +5,7 @@ type Role struct {
 	ID          uint   `json:"id" gorm:"primaryKey"`
 	Name        string `json:"name" gorm:"unique" binding:"required"`
 	Description string `json:"description"`
-	BasePath    string `json:"base_path"`
+	BasePaths   Paths  `json:"base_paths" gorm:"type:text"`
 	// Determine permissions by bit, see User for details
 	Permission int32 `json:"permission"`
 }

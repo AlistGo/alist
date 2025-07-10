@@ -50,14 +50,18 @@ func GetRoles(pageIndex, pageSize int) ([]model.Role, int64, error) {
 }
 
 func CreateRole(r *model.Role) error {
-	r.BasePath = utils.FixAndCleanPath(r.BasePath)
+	for i := range r.BasePaths {
+		r.BasePaths[i] = utils.FixAndCleanPath(r.BasePaths[i])
+	}
 	roleCache.Del(fmt.Sprint(r.ID))
 	roleCache.Del(r.Name)
 	return db.CreateRole(r)
 }
 
 func UpdateRole(r *model.Role) error {
-	r.BasePath = utils.FixAndCleanPath(r.BasePath)
+	for i := range r.BasePaths {
+		r.BasePaths[i] = utils.FixAndCleanPath(r.BasePaths[i])
+	}
 	roleCache.Del(fmt.Sprint(r.ID))
 	roleCache.Del(r.Name)
 	return db.UpdateRole(r)

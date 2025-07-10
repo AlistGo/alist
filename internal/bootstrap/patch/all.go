@@ -5,6 +5,7 @@ import (
 	"github.com/alist-org/alist/v3/internal/bootstrap/patch/v3_32_0"
 	"github.com/alist-org/alist/v3/internal/bootstrap/patch/v3_41_0"
 	"github.com/alist-org/alist/v3/internal/bootstrap/patch/v3_45_2"
+	"github.com/alist-org/alist/v3/internal/bootstrap/patch/v3_45_3"
 )
 
 type VersionPatches struct {
@@ -37,6 +38,12 @@ var UpgradePatches = []VersionPatches{
 		Version: "v3.45.2",
 		Patches: []func(){
 			v3_45_2.ConvertLegacyRoles,
+		},
+	},
+	{
+		Version: "v3.45.3",
+		Patches: []func(){
+			v3_45_3.ConvertRoleBasePath,
 		},
 	},
 }
