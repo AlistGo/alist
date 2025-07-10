@@ -37,25 +37,17 @@ func MergeRolePermissions(u *model.User, reqPath string) int32 {
 	if u == nil {
 		return 0
 	}
-	perm := u.Permission
+	var perm int32
 	for _, rid := range u.Role {
 		role, err := op.GetRole(uint(rid))
 		if err != nil {
 			continue
 		}
-		if role.CheckPathLimit() {
-			matched := false
-			for _, p := range role.BasePaths {
-				if utils.IsSubPath(p, reqPath) {
-					matched = true
-					break
-				}
-			}
-			if !matched {
-				continue
+		for _, entry := range role.PermissionScopes {
+			if utils.IsSubPath(entry.Path, reqPath) {
+				perm |= entry.Permission
 			}
 		}
-		perm |= role.Permission
 	}
 	return perm
 }

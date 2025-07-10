@@ -51,8 +51,8 @@ func GetRoles(pageIndex, pageSize int) ([]model.Role, int64, error) {
 }
 
 func CreateRole(r *model.Role) error {
-	for i := range r.BasePaths {
-		r.BasePaths[i] = utils.FixAndCleanPath(r.BasePaths[i])
+	for i := range r.PermissionScopes {
+		r.PermissionScopes[i].Path = utils.FixAndCleanPath(r.PermissionScopes[i].Path)
 	}
 	roleCache.Del(fmt.Sprint(r.ID))
 	roleCache.Del(r.Name)
@@ -67,8 +67,8 @@ func UpdateRole(r *model.Role) error {
 	if old.Name == "admin" || old.Name == "guest" {
 		return errs.ErrChangeDefaultRole
 	}
-	for i := range r.BasePaths {
-		r.BasePaths[i] = utils.FixAndCleanPath(r.BasePaths[i])
+	for i := range r.PermissionScopes {
+		r.PermissionScopes[i].Path = utils.FixAndCleanPath(r.PermissionScopes[i].Path)
 	}
 	roleCache.Del(fmt.Sprint(r.ID))
 	roleCache.Del(r.Name)

@@ -19,8 +19,9 @@ func initRoles() {
 				ID:          uint(model.GUEST),
 				Name:        "guest",
 				Description: "Guest",
-				BasePaths:   model.Paths{"/"},
-				Permission:  0,
+				PermissionScopes: []model.PermissionEntry{
+					{Path: "/", Permission: 0},
+				},
 			}
 			if err := op.CreateRole(guestRole); err != nil {
 				utils.Log.Fatalf("[init role] Failed to create guest role: %v", err)
@@ -37,8 +38,9 @@ func initRoles() {
 				ID:          uint(model.ADMIN),
 				Name:        "admin",
 				Description: "Administrator",
-				BasePaths:   model.Paths{"/"},
-				Permission:  0x30FF,
+				PermissionScopes: []model.PermissionEntry{
+					{Path: "/", Permission: 0x30FF},
+				},
 			}
 			if err := op.CreateRole(adminRole); err != nil {
 				utils.Log.Fatalf("[init role] Failed to create admin role: %v", err)
