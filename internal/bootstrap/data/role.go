@@ -9,10 +9,29 @@ import (
 )
 
 func initRoles() {
-	adminRole, err := op.GetRoleByName("admin")
+	guestRole, err := op.GetRoleByName("guest")
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			adminRole = &model.Role{
+			guestRole = &model.Role{
+				ID:          uint(model.GUEST),
+				Name:        "guest",
+				Description: "Guest",
+				BasePath:    "/",
+				Permission:  0,
+			}
+			if err := op.CreateRole(guestRole); err != nil {
+				utils.Log.Fatalf("[init role] Failed to create guest role: %v", err)
+			}
+		} else {
+			utils.Log.Fatalf("[init role] Failed to get guest role: %v", err)
+		}
+	}
+
+	_, err = op.GetRoleByName("admin")
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			adminRole := &model.Role{
+				ID:          uint(model.ADMIN),
 				Name:        "admin",
 				Description: "Administrator",
 				BasePath:    "/",
@@ -23,23 +42,6 @@ func initRoles() {
 			}
 		} else {
 			utils.Log.Fatalf("[init role] Failed to get admin role: %v", err)
-		}
-	}
-
-	_, err = op.GetRoleByName("guest")
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			guest := &model.Role{
-				Name:        "guest",
-				Description: "Guest",
-				BasePath:    "/",
-				Permission:  0,
-			}
-			if err := op.CreateRole(guest); err != nil {
-				utils.Log.Fatalf("[init role] Failed to create guest role: %v", err)
-			}
-		} else {
-			utils.Log.Fatalf("[init role] Failed to get guest role: %v", err)
 		}
 	}
 }

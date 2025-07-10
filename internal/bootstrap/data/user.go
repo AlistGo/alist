@@ -25,11 +25,12 @@ func initUser() {
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			salt := random.String(16)
+			adminRole, _ := op.GetRoleByName("admin")
 			admin = &model.User{
 				Username: "admin",
 				Salt:     salt,
 				PwdHash:  model.TwoHashPwd(adminPassword, salt),
-				Role:     model.Roles{model.ADMIN},
+				Role:     model.Roles{int(adminRole.ID)},
 				BasePath: "/",
 				Authn:    "[]",
 				// 0(can see hidden) - 7(can remove) & 12(can read archives) - 13(can decompress archives)
@@ -48,11 +49,12 @@ func initUser() {
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			salt := random.String(16)
+			guestRole, _ := op.GetRoleByName("guest")
 			guest = &model.User{
 				Username:   "guest",
 				PwdHash:    model.TwoHashPwd("guest", salt),
 				Salt:       salt,
-				Role:       model.Roles{model.GUEST},
+				Role:       model.Roles{int(guestRole.ID)},
 				BasePath:   "/",
 				Permission: 0,
 				Disabled:   true,
