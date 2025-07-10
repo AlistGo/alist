@@ -120,6 +120,13 @@ func admin(g *gin.RouterGroup) {
 	user.GET("/sshkey/list", handles.ListPublicKeys)
 	user.POST("/sshkey/delete", handles.DeletePublicKey)
 
+	role := g.Group("/role")
+	role.GET("/list", handles.ListRoles)
+	role.GET("/get", handles.GetRole)
+	role.POST("/create", handles.CreateRole)
+	role.POST("/update", handles.UpdateRole)
+	role.POST("/delete", handles.DeleteRole)
+
 	storage := g.Group("/storage")
 	storage.GET("/list", handles.ListStorages)
 	storage.GET("/get", handles.GetStorage)

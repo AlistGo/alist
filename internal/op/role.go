@@ -1,0 +1,74 @@
+package op
+
+import (
+	"fmt"
+	"time"
+
+	"github.com/Xhofe/go-cache"
+	"github.com/alist-org/alist/v3/internal/db"
+	"github.com/alist-org/alist/v3/internal/model"
+	"github.com/alist-org/alist/v3/pkg/singleflight"
+	"github.com/alist-org/alist/v3/pkg/utils"
+)
+
+var roleCache = cache.NewMemCache[*model.Role](cache.WithShards[*model.Role](2))
+var roleG singleflight.Group[*model.Role]
+
+func GetRole(id uint) (*model.Role, error) {
+	key := fmt.Sprint(id)
+	if r, ok := roleCache.Get(key); ok {
+		return r, nil
+	}
+	r, err, _ := roleG.Do(key, func() (*model.Role, error) {
+		_r, err := db.GetRole(id)
+		if err != nil {
+			return nil, err
+		}
+		roleCache.Set(key, _r, cache.WithEx[*model.Role](time.Hour))
+		return _r, nil
+	})
+	return r, err
+}
+
+func GetRoleByName(name string) (*model.Role, error) {
+	if r, ok := roleCache.Get(name); ok {
+		return r, nil
+	}
+	r, err, _ := roleG.Do(name, func() (*model.Role, error) {
+		_r, err := db.GetRoleByName(name)
+		if err != nil {
+			return nil, err
+		}
+		roleCache.Set(name, _r, cache.WithEx[*model.Role](time.Hour))
+		return _r, nil
+	})
+	return r, err
+}
+
+func GetRoles(pageIndex, pageSize int) ([]model.Role, int64, error) {
+	return db.GetRoles(pageIndex, pageSize)
+}
+
+func CreateRole(r *model.Role) error {
+	r.BasePath = utils.FixAndCleanPath(r.BasePath)
+	roleCache.Del(fmt.Sprint(r.ID))
+	roleCache.Del(r.Name)
+	return db.CreateRole(r)
+}
+
+func UpdateRole(r *model.Role) error {
+	r.BasePath = utils.FixAndCleanPath(r.BasePath)
+	roleCache.Del(fmt.Sprint(r.ID))
+	roleCache.Del(r.Name)
+	return db.UpdateRole(r)
+}
+
+func DeleteRole(id uint) error {
+	old, err := db.GetRole(id)
+	if err != nil {
+		return err
+	}
+	roleCache.Del(fmt.Sprint(id))
+	roleCache.Del(old.Name)
+	return db.DeleteRole(id)
+}
