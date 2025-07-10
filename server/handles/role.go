@@ -3,6 +3,7 @@ package handles
 import (
 	"strconv"
 
+	"github.com/alist-org/alist/v3/internal/errs"
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/internal/op"
 	"github.com/alist-org/alist/v3/server/common"
@@ -60,6 +61,15 @@ func UpdateRole(c *gin.Context) {
 		common.ErrorResp(c, err, 400)
 		return
 	}
+	role, err := op.GetRole(req.ID)
+	if err != nil {
+		common.ErrorResp(c, err, 500, true)
+		return
+	}
+	if role.Name == "admin" || role.Name == "guest" {
+		common.ErrorResp(c, errs.ErrChangeDefaultRole, 403)
+		return
+	}
 	if err := op.UpdateRole(&req); err != nil {
 		common.ErrorResp(c, err, 500, true)
 	} else {
@@ -72,6 +82,15 @@ func DeleteRole(c *gin.Context) {
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
 		common.ErrorResp(c, err, 400)
+		return
+	}
+	role, err := op.GetRole(uint(id))
+	if err != nil {
+		common.ErrorResp(c, err, 500, true)
+		return
+	}
+	if role.Name == "admin" || role.Name == "guest" {
+		common.ErrorResp(c, errs.ErrChangeDefaultRole, 403)
 		return
 	}
 	if err := op.DeleteRole(uint(id)); err != nil {

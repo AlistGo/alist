@@ -1,5 +1,8 @@
 package data
 
+// initRoles creates the default admin and guest roles if missing.
+// These roles are essential and must not be modified or removed.
+
 import (
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/internal/op"

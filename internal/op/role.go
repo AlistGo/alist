@@ -6,6 +6,7 @@ import (
 
 	"github.com/Xhofe/go-cache"
 	"github.com/alist-org/alist/v3/internal/db"
+	"github.com/alist-org/alist/v3/internal/errs"
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/pkg/singleflight"
 	"github.com/alist-org/alist/v3/pkg/utils"
@@ -59,6 +60,13 @@ func CreateRole(r *model.Role) error {
 }
 
 func UpdateRole(r *model.Role) error {
+	old, err := db.GetRole(r.ID)
+	if err != nil {
+		return err
+	}
+	if old.Name == "admin" || old.Name == "guest" {
+		return errs.ErrChangeDefaultRole
+	}
 	for i := range r.BasePaths {
 		r.BasePaths[i] = utils.FixAndCleanPath(r.BasePaths[i])
 	}
@@ -71,6 +79,9 @@ func DeleteRole(id uint) error {
 	old, err := db.GetRole(id)
 	if err != nil {
 		return err
+	}
+	if old.Name == "admin" || old.Name == "guest" {
+		return errs.ErrChangeDefaultRole
 	}
 	roleCache.Del(fmt.Sprint(id))
 	roleCache.Del(old.Name)
