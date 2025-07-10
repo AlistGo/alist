@@ -46,6 +46,7 @@ type User struct {
 	//   11: ftp/sftp write
 	//   12: can read archives
 	//   13: can decompress archives
+	//   14: check path limit
 	Permission int32  `json:"permission"`
 	OtpSecret  string `json:"-"`
 	SsoID      string `json:"sso_id"` // unique by sso platform
@@ -137,8 +138,19 @@ func (u *User) CanDecompress() bool {
 	return (u.Permission>>13)&1 == 1
 }
 
+func (u *User) CheckPathLimit() bool {
+	return (u.Permission>>14)&1 == 1
+}
+
 func (u *User) JoinPath(reqPath string) (string, error) {
-	return utils.JoinBasePath(u.BasePath, reqPath)
+	path, err := utils.JoinBasePath(u.BasePath, reqPath)
+	if err != nil {
+		return "", err
+	}
+	if u.CheckPathLimit() && !utils.IsSubPath(u.BasePath, path) {
+		return "", errs.PermissionDenied
+	}
+	return path, nil
 }
 
 func StaticHash(password string) string {

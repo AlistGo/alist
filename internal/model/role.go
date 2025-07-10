@@ -6,5 +6,10 @@ type Role struct {
 	Name        string `json:"name" gorm:"unique" binding:"required"`
 	Description string `json:"description"`
 	BasePath    string `json:"base_path"`
-	Permission  int32  `json:"permission"`
+	// Determine permissions by bit, see User for details
+	Permission int32 `json:"permission"`
+}
+
+func (r *Role) CheckPathLimit() bool {
+	return (r.Permission>>14)&1 == 1
 }
