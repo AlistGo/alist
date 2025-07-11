@@ -20,7 +20,7 @@ type Role struct {
 	// PermissionScopes stores structured permission list and is ignored by gorm.
 	PermissionScopes []PermissionEntry `json:"permission_scopes" gorm:"-"`
 	// RawPermission is the JSON representation of PermissionScopes stored in DB.
-	RawPermission string `json:"raw_permission" gorm:"type:text"`
+	RawPermission string `json:"-" gorm:"type:text"`
 }
 
 // BeforeSave GORM hook serializes PermissionScopes into RawPermission.

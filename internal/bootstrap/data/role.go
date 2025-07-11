@@ -39,7 +39,7 @@ func initRoles() {
 				Name:        "admin",
 				Description: "Administrator",
 				PermissionScopes: []model.PermissionEntry{
-					{Path: "/", Permission: 0x30FF},
+					{Path: "/", Permission: 0xFFFF},
 				},
 			}
 			if err := op.CreateRole(adminRole); err != nil {
