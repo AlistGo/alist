@@ -87,6 +87,11 @@ func FsArchiveMeta(c *gin.Context) {
 		common.ErrorResp(c, err, 403)
 		return
 	}
+	perm := common.MergeRolePermissions(user, reqPath)
+	if !common.HasPermission(perm, common.PermReadArchives) {
+		common.ErrorResp(c, errs.PermissionDenied, 403)
+		return
+	}
 	meta, err := op.GetNearestMeta(reqPath)
 	if err != nil {
 		if !errors.Is(errors.Cause(err), errs.MetaNotFound) {
@@ -163,6 +168,11 @@ func FsArchiveList(c *gin.Context) {
 	reqPath, err := user.JoinPath(req.Path)
 	if err != nil {
 		common.ErrorResp(c, err, 403)
+		return
+	}
+	perm := common.MergeRolePermissions(user, reqPath)
+	if !common.HasPermission(perm, common.PermReadArchives) {
+		common.ErrorResp(c, errs.PermissionDenied, 403)
 		return
 	}
 	meta, err := op.GetNearestMeta(reqPath)
@@ -262,6 +272,11 @@ func FsArchiveDecompress(c *gin.Context) {
 	}
 	tasks := make([]task.TaskExtensionInfo, 0, len(srcPaths))
 	for _, srcPath := range srcPaths {
+		perm := common.MergeRolePermissions(user, srcPath)
+		if !common.HasPermission(perm, common.PermDecompress) {
+			common.ErrorResp(c, errs.PermissionDenied, 403)
+			return
+		}
 		t, e := fs.ArchiveDecompress(c, srcPath, dstDir, model.ArchiveDecompressArgs{
 			ArchiveInnerArgs: model.ArchiveInnerArgs{
 				ArchiveArgs: model.ArchiveArgs{
