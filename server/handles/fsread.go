@@ -264,7 +264,7 @@ func FsGet(c *gin.Context) {
 		}
 	}
 	c.Set("meta", meta)
-	if !common.CanAccess(user, meta, reqPath, req.Password) {
+	if !common.CanAccessWithRoles(user, meta, reqPath, req.Password) {
 		common.ErrorStrResp(c, "password is incorrect or you have no permission", 403)
 		return
 	}

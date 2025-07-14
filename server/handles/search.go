@@ -57,7 +57,7 @@ func Search(c *gin.Context) {
 		if err != nil && !errors.Is(errors.Cause(err), errs.MetaNotFound) {
 			continue
 		}
-		if !common.CanAccess(user, meta, path.Join(node.Parent, node.Name), req.Password) {
+		if !common.CanAccessWithRoles(user, meta, path.Join(node.Parent, node.Name), req.Password) {
 			continue
 		}
 		filteredNodes = append(filteredNodes, node)
