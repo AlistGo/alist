@@ -268,6 +268,11 @@ func AddOfflineDownload(c *gin.Context) {
 		common.ErrorResp(c, err, 403)
 		return
 	}
+	perm := common.MergeRolePermissions(user, reqPath)
+	if !common.HasPermission(perm, common.PermAddOfflineDownload) {
+		common.ErrorStrResp(c, "permission denied", 403)
+		return
+	}
 	var tasks []task.TaskExtensionInfo
 	for _, url := range req.Urls {
 		t, err := tool.AddURL(c, &tool.AddURLArgs{
