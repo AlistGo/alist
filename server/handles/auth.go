@@ -89,7 +89,9 @@ func loginHash(c *gin.Context, req *LoginReq) {
 
 type UserResp struct {
 	model.User
-	Otp bool `json:"otp"`
+	Otp         bool                    `json:"otp"`
+	RoleNames   []string                `json:"role_names"`
+	Permissions []model.PermissionEntry `json:"permissions"`
 }
 
 // CurrentUser get current user by token
@@ -102,6 +104,23 @@ func CurrentUser(c *gin.Context) {
 	userResp.Password = ""
 	if userResp.OtpSecret != "" {
 		userResp.Otp = true
+	}
+	var roleNames []string
+	permMap := map[string]int32{}
+
+	for _, role := range user.RolesDetail {
+		roleNames = append(roleNames, role.Name)
+		for _, entry := range role.PermissionScopes {
+			permMap[entry.Path] |= entry.Permission
+		}
+	}
+	userResp.RoleNames = roleNames
+
+	for path, perm := range permMap {
+		userResp.Permissions = append(userResp.Permissions, model.PermissionEntry{
+			Path:       path,
+			Permission: perm,
+		})
 	}
 	common.SuccessResp(c, userResp)
 }

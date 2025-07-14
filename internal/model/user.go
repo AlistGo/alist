@@ -22,15 +22,16 @@ const (
 const StaticHashSalt = "https://github.com/alist-org/alist"
 
 type User struct {
-	ID       uint   `json:"id" gorm:"primaryKey"`                      // unique key
-	Username string `json:"username" gorm:"unique" binding:"required"` // username
-	PwdHash  string `json:"-"`                                         // password hash
-	PwdTS    int64  `json:"-"`                                         // password timestamp
-	Salt     string `json:"-"`                                         // unique salt
-	Password string `json:"password"`                                  // password
-	BasePath string `json:"base_path"`                                 // base path
-	Role     Roles  `json:"role" gorm:"type:text"`                     // user's roles
-	Disabled bool   `json:"disabled"`
+	ID          uint   `json:"id" gorm:"primaryKey"`                      // unique key
+	Username    string `json:"username" gorm:"unique" binding:"required"` // username
+	PwdHash     string `json:"-"`                                         // password hash
+	PwdTS       int64  `json:"-"`                                         // password timestamp
+	Salt        string `json:"-"`                                         // unique salt
+	Password    string `json:"password"`                                  // password
+	BasePath    string `json:"base_path"`                                 // base path
+	Role        Roles  `json:"role" gorm:"type:text"`                     // user's roles
+	RolesDetail []Role `json:"-" gorm:"-"`
+	Disabled    bool   `json:"disabled"`
 	// Determine permissions by bit
 	//   0:  can see hidden files
 	//   1:  can access without password
