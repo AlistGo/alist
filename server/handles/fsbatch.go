@@ -34,9 +34,17 @@ func FsRecursiveMove(c *gin.Context) {
 		common.ErrorResp(c, err, 403)
 		return
 	}
+	if !common.CheckPathLimitWithRoles(user, srcDir) {
+		common.ErrorResp(c, errs.PermissionDenied, 403)
+		return
+	}
 	dstDir, err := user.JoinPath(req.DstDir)
 	if err != nil {
 		common.ErrorResp(c, err, 403)
+		return
+	}
+	if !common.CheckPathLimitWithRoles(user, dstDir) {
+		common.ErrorResp(c, errs.PermissionDenied, 403)
 		return
 	}
 	perm := common.MergeRolePermissions(user, srcDir)
@@ -155,6 +163,10 @@ func FsBatchRename(c *gin.Context) {
 		common.ErrorResp(c, err, 403)
 		return
 	}
+	if !common.CheckPathLimitWithRoles(user, reqPath) {
+		common.ErrorResp(c, errs.PermissionDenied, 403)
+		return
+	}
 	perm := common.MergeRolePermissions(user, reqPath)
 	if !common.HasPermission(perm, common.PermRename) {
 		common.ErrorResp(c, errs.PermissionDenied, 403)
@@ -198,6 +210,10 @@ func FsRegexRename(c *gin.Context) {
 	reqPath, err := user.JoinPath(req.SrcDir)
 	if err != nil {
 		common.ErrorResp(c, err, 403)
+		return
+	}
+	if !common.CheckPathLimitWithRoles(user, reqPath) {
+		common.ErrorResp(c, errs.PermissionDenied, 403)
 		return
 	}
 

@@ -87,6 +87,10 @@ func FsArchiveMeta(c *gin.Context) {
 		common.ErrorResp(c, err, 403)
 		return
 	}
+	if !common.CheckPathLimitWithRoles(user, reqPath) {
+		common.ErrorResp(c, errs.PermissionDenied, 403)
+		return
+	}
 	perm := common.MergeRolePermissions(user, reqPath)
 	if !common.HasPermission(perm, common.PermReadArchives) {
 		common.ErrorResp(c, errs.PermissionDenied, 403)
@@ -168,6 +172,10 @@ func FsArchiveList(c *gin.Context) {
 	reqPath, err := user.JoinPath(req.Path)
 	if err != nil {
 		common.ErrorResp(c, err, 403)
+		return
+	}
+	if !common.CheckPathLimitWithRoles(user, reqPath) {
+		common.ErrorResp(c, errs.PermissionDenied, 403)
 		return
 	}
 	perm := common.MergeRolePermissions(user, reqPath)
@@ -263,11 +271,19 @@ func FsArchiveDecompress(c *gin.Context) {
 			common.ErrorResp(c, err, 403)
 			return
 		}
+		if !common.CheckPathLimitWithRoles(user, srcPath) {
+			common.ErrorResp(c, errs.PermissionDenied, 403)
+			return
+		}
 		srcPaths = append(srcPaths, srcPath)
 	}
 	dstDir, err := user.JoinPath(req.DstDir)
 	if err != nil {
 		common.ErrorResp(c, err, 403)
+		return
+	}
+	if !common.CheckPathLimitWithRoles(user, dstDir) {
+		common.ErrorResp(c, errs.PermissionDenied, 403)
 		return
 	}
 	tasks := make([]task.TaskExtensionInfo, 0, len(srcPaths))

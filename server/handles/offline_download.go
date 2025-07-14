@@ -5,6 +5,7 @@ import (
 	"github.com/alist-org/alist/v3/drivers/pikpak"
 	"github.com/alist-org/alist/v3/drivers/thunder"
 	"github.com/alist-org/alist/v3/internal/conf"
+	"github.com/alist-org/alist/v3/internal/errs"
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/internal/offline_download/tool"
 	"github.com/alist-org/alist/v3/internal/op"
@@ -266,6 +267,10 @@ func AddOfflineDownload(c *gin.Context) {
 	reqPath, err := user.JoinPath(req.Path)
 	if err != nil {
 		common.ErrorResp(c, err, 403)
+		return
+	}
+	if !common.CheckPathLimitWithRoles(user, reqPath) {
+		common.ErrorResp(c, errs.PermissionDenied, 403)
 		return
 	}
 	perm := common.MergeRolePermissions(user, reqPath)

@@ -95,3 +95,14 @@ func canReadPathByRole(u *model.User, reqPath string) bool {
 	}
 	return false
 }
+
+// CheckPathLimitWithRoles checks whether the path is allowed when the user has
+// the `PermPathLimit` permission for the target path. When the user does not
+// have this permission, the check passes by default.
+func CheckPathLimitWithRoles(u *model.User, reqPath string) bool {
+	perm := MergeRolePermissions(u, reqPath)
+	if HasPermission(perm, PermPathLimit) {
+		return canReadPathByRole(u, reqPath)
+	}
+	return true
+}
