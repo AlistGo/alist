@@ -14,6 +14,7 @@ import (
 	"github.com/alist-org/alist/v3/internal/fs"
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/internal/op"
+	"github.com/alist-org/alist/v3/server/common"
 )
 
 // slashClean is equivalent to but slightly more efficient than
@@ -34,10 +35,11 @@ func moveFiles(ctx context.Context, src, dst string, overwrite bool) (status int
 	srcName := path.Base(src)
 	dstName := path.Base(dst)
 	user := ctx.Value("user").(*model.User)
-	if srcDir != dstDir && !user.CanMove() {
+	perm := common.MergeRolePermissions(user, src)
+	if srcDir != dstDir && !common.HasPermission(perm, common.PermMove) {
 		return http.StatusForbidden, nil
 	}
-	if srcName != dstName && !user.CanRename() {
+	if srcName != dstName && !common.HasPermission(perm, common.PermRename) {
 		return http.StatusForbidden, nil
 	}
 	if srcDir == dstDir {

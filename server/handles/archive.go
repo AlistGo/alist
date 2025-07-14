@@ -78,10 +78,6 @@ func FsArchiveMeta(c *gin.Context) {
 		return
 	}
 	user := c.MustGet("user").(*model.User)
-	if !user.CanReadArchives() {
-		common.ErrorResp(c, errs.PermissionDenied, 403)
-		return
-	}
 	reqPath, err := user.JoinPath(req.Path)
 	if err != nil {
 		common.ErrorResp(c, err, 403)
@@ -165,10 +161,6 @@ func FsArchiveList(c *gin.Context) {
 	}
 	req.Validate()
 	user := c.MustGet("user").(*model.User)
-	if !user.CanReadArchives() {
-		common.ErrorResp(c, errs.PermissionDenied, 403)
-		return
-	}
 	reqPath, err := user.JoinPath(req.Path)
 	if err != nil {
 		common.ErrorResp(c, err, 403)
@@ -260,10 +252,6 @@ func FsArchiveDecompress(c *gin.Context) {
 		return
 	}
 	user := c.MustGet("user").(*model.User)
-	if !user.CanDecompress() {
-		common.ErrorResp(c, errs.PermissionDenied, 403)
-		return
-	}
 	srcPaths := make([]string, 0, len(req.Name))
 	for _, name := range req.Name {
 		srcPath, err := user.JoinPath(stdpath.Join(req.SrcDir, name))
