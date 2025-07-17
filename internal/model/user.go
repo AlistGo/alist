@@ -60,6 +60,10 @@ func (u *User) IsAdmin() bool {
 	return u.Role == ADMIN
 }
 
+func (u *User) IsOtpEnabled() bool {
+	return u.OtpSecret != ""
+}
+
 func (u *User) ValidateRawPassword(password string) error {
 	return u.ValidatePwdStaticHash(StaticHash(password))
 }
