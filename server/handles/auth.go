@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/base64"
 	"image/png"
+	"path"
+	"strings"
 	"time"
 
 	"github.com/Xhofe/go-cache"
@@ -98,6 +100,7 @@ type UserResp struct {
 // if token is empty, return guest user
 func CurrentUser(c *gin.Context) {
 	user := c.MustGet("user").(*model.User)
+
 	userResp := UserResp{
 		User: *user,
 	}
@@ -105,23 +108,30 @@ func CurrentUser(c *gin.Context) {
 	if userResp.OtpSecret != "" {
 		userResp.Otp = true
 	}
+
 	var roleNames []string
 	permMap := map[string]int32{}
+	addedPaths := map[string]bool{}
 
 	for _, role := range user.RolesDetail {
 		roleNames = append(roleNames, role.Name)
 		for _, entry := range role.PermissionScopes {
-			permMap[entry.Path] |= entry.Permission
+			cleanPath := path.Clean("/" + strings.TrimPrefix(entry.Path, "/"))
+			permMap[cleanPath] |= entry.Permission
 		}
 	}
 	userResp.RoleNames = roleNames
 
-	for path, perm := range permMap {
-		userResp.Permissions = append(userResp.Permissions, model.PermissionEntry{
-			Path:       path,
-			Permission: perm,
-		})
+	for fullPath, perm := range permMap {
+		if !addedPaths[fullPath] {
+			userResp.Permissions = append(userResp.Permissions, model.PermissionEntry{
+				Path:       fullPath,
+				Permission: perm,
+			})
+			addedPaths[fullPath] = true
+		}
 	}
+
 	common.SuccessResp(c, userResp)
 }
 
