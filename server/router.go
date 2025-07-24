@@ -161,6 +161,19 @@ func admin(g *gin.RouterGroup) {
 	index.POST("/stop", middlewares.SearchIndex, handles.StopIndex)
 	index.POST("/clear", middlewares.SearchIndex, handles.ClearIndex)
 	index.GET("/progress", middlewares.SearchIndex, handles.GetProgress)
+
+	label := g.Group("/label")
+	label.GET("/list", handles.ListLabel)
+	label.GET("/get", handles.GetLabel)
+	label.POST("/create", handles.CreateLabel)
+	label.POST("/update", handles.UpdateLabel)
+	label.POST("/delete", handles.DeleteLabel)
+
+	labelFileBinding := g.Group("/label_file_binding")
+	labelFileBinding.GET("/get", handles.GetLabelByFileName)
+	labelFileBinding.GET("/get_file_by_label", handles.GetFileByLabel)
+	labelFileBinding.POST("/create", handles.CreateLabelFileBinDing)
+	labelFileBinding.POST("/delete", handles.DelLabelByFileName)
 }
 
 func _fs(g *gin.RouterGroup) {
