@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/alist-org/alist/v3/drivers/base"
+	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/go-resty/resty/v2"
-	log "github.com/sirupsen/logrus"
 )
 
 // 发送 GET 请求
@@ -23,7 +23,7 @@ func (d *GithubReleases) GetRequest(url string) (*resty.Response, error) {
 		return nil, err
 	}
 	if res.StatusCode() != 200 {
-		log.Warn("failed to get request: ", res.StatusCode(), res.String())
+		utils.Log.Warnf("failed to get request: %s %d %s", url, res.StatusCode(), res.String())
 	}
 	return res, nil
 }

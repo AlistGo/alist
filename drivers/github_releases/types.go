@@ -18,7 +18,7 @@ type MountPoint struct {
 }
 
 // 请求最新版本
-func (m *MountPoint) RequestRelease(get func(url string) (*resty.Response, error), refresh bool) {
+func (m *MountPoint) RequestLatestRelease(get func(url string) (*resty.Response, error), refresh bool) {
 	if m.Repo == "" {
 		return
 	}

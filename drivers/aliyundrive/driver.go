@@ -55,7 +55,7 @@ func (d *AliDrive) Init(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	d.DriveId = utils.Json.Get(res, "default_drive_id").ToString()
+	d.DriveId = d.Addition.DeviceID
 	d.UserID = utils.Json.Get(res, "user_id").ToString()
 	d.cron = cron.NewCron(time.Hour * 2)
 	d.cron.Do(func() {

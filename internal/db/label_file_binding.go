@@ -37,3 +37,20 @@ func GetLabelFileBinDingByLabelIdExists(labelId, userId uint) bool {
 	exists := !errors.Is(result.Error, gorm.ErrRecordNotFound)
 	return exists
 }
+
+// DelLabelFileBinDingByFileName used to del usually
+func DelLabelFileBinDingByFileName(userId uint, fileName string) error {
+	return errors.WithStack(db.Where("file_name = ?", fileName).Where("user_id = ?", userId).Delete(model.LabelFileBinDing{}).Error)
+}
+
+// DelLabelFileBinDingById used to del usually
+func DelLabelFileBinDingById(labelId, userId uint, fileName string) error {
+	return errors.WithStack(db.Where("label_id = ?", labelId).Where("file_name = ?", fileName).Where("user_id = ?", userId).Delete(model.LabelFileBinDing{}).Error)
+}
+
+func GetLabelFileBinDingByLabelId(labelIds []uint, userId uint) (result []model.LabelFileBinDing, err error) {
+	if err := db.Where("label_id in (?)", labelIds).Where("user_id = ?", userId).Find(&result).Error; err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return result, nil
+}

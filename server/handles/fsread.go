@@ -45,16 +45,31 @@ type ObjResp struct {
 	Type        int                        `json:"type"`
 	HashInfoStr string                     `json:"hashinfo"`
 	HashInfo    map[*utils.HashType]string `json:"hash_info"`
-	LabelList   []model.Label              `json:"label_list"`
 }
 
 type FsListResp struct {
-	Content  []ObjResp `json:"content"`
-	Total    int64     `json:"total"`
-	Readme   string    `json:"readme"`
-	Header   string    `json:"header"`
-	Write    bool      `json:"write"`
-	Provider string    `json:"provider"`
+	Content  []ObjLabelResp `json:"content"`
+	Total    int64          `json:"total"`
+	Readme   string         `json:"readme"`
+	Header   string         `json:"header"`
+	Write    bool           `json:"write"`
+	Provider string         `json:"provider"`
+}
+
+type ObjLabelResp struct {
+	Id          string                     `json:"id"`
+	Path        string                     `json:"path"`
+	Name        string                     `json:"name"`
+	Size        int64                      `json:"size"`
+	IsDir       bool                       `json:"is_dir"`
+	Modified    time.Time                  `json:"modified"`
+	Created     time.Time                  `json:"created"`
+	Sign        string                     `json:"sign"`
+	Thumb       string                     `json:"thumb"`
+	Type        int                        `json:"type"`
+	HashInfoStr string                     `json:"hashinfo"`
+	HashInfo    map[*utils.HashType]string `json:"hash_info"`
+	LabelList   []model.Label              `json:"label_list"`
 }
 
 func FsList(c *gin.Context) {
@@ -209,16 +224,15 @@ func pagination(objs []model.Obj, req *model.PageReq) (int, []model.Obj) {
 	return total, objs[start:end]
 }
 
-func toObjsResp(objs []model.Obj, parent string, encrypt bool, userId uint) []ObjResp {
-	var resp []ObjResp
+func toObjsResp(objs []model.Obj, parent string, encrypt bool, userId uint) []ObjLabelResp {
+	var resp []ObjLabelResp
 	for _, obj := range objs {
 		var labels []model.Label
-		fileType := utils.GetObjType(obj.GetName(), obj.IsDir())
-		if fileType == 0 {
+		if obj.IsDir() == false {
 			labels, _ = op.GetLabelByFileName(userId, obj.GetName())
 		}
 		thumb, _ := model.GetThumb(obj)
-		resp = append(resp, ObjResp{
+		resp = append(resp, ObjLabelResp{
 			Id:          obj.GetID(),
 			Path:        obj.GetPath(),
 			Name:        obj.GetName(),
@@ -230,7 +244,7 @@ func toObjsResp(objs []model.Obj, parent string, encrypt bool, userId uint) []Ob
 			HashInfo:    obj.GetHash().Export(),
 			Sign:        common.Sign(obj, parent, encrypt),
 			Thumb:       thumb,
-			Type:        fileType,
+			Type:        utils.GetObjType(obj.GetName(), obj.IsDir()),
 			LabelList:   labels,
 		})
 	}
@@ -244,11 +258,11 @@ type FsGetReq struct {
 
 type FsGetResp struct {
 	ObjResp
-	RawURL   string    `json:"raw_url"`
-	Readme   string    `json:"readme"`
-	Header   string    `json:"header"`
-	Provider string    `json:"provider"`
-	Related  []ObjResp `json:"related"`
+	RawURL   string         `json:"raw_url"`
+	Readme   string         `json:"readme"`
+	Header   string         `json:"header"`
+	Provider string         `json:"provider"`
+	Related  []ObjLabelResp `json:"related"`
 }
 
 func FsGet(c *gin.Context) {

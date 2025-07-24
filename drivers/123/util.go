@@ -161,12 +161,12 @@ func (d *Pan123) login() error {
 	}
 	res, err := base.RestyClient.R().
 		SetHeaders(map[string]string{
-			"origin":      "https://www.123pan.com",
-			"referer":     "https://www.123pan.com/",
-			"user-agent":  "Dart/2.19(dart:io)-alist",
+			"origin":  "https://www.123pan.com",
+			"referer": "https://www.123pan.com/",
+			//"user-agent":  "Dart/2.19(dart:io)-alist",
 			"platform":    "web",
 			"app-version": "3",
-			//"user-agent":  base.UserAgent,
+			"user-agent":  base.UserAgent,
 		}).
 		SetBody(body).Post(SignIn)
 	if err != nil {
@@ -202,7 +202,7 @@ do:
 		"origin":        "https://www.123pan.com",
 		"referer":       "https://www.123pan.com/",
 		"authorization": "Bearer " + d.AccessToken,
-		"user-agent":    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) alist-client",
+		"user-agent":    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
 		"platform":      "web",
 		"app-version":   "3",
 		//"user-agent":    base.UserAgent,
