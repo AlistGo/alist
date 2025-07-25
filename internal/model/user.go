@@ -17,6 +17,7 @@ const (
 	GENERAL = iota
 	GUEST   // only one exists
 	ADMIN
+	NEWGENERAL
 )
 
 const StaticHashSalt = "https://github.com/alist-org/alist"
