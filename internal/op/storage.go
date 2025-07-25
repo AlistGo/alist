@@ -216,6 +216,10 @@ func UpdateStorage(ctx context.Context, storage model.Storage) error {
 	if oldStorage.MountPath != storage.MountPath {
 		// mount path renamed, need to drop the storage
 		storagesMap.Delete(oldStorage.MountPath)
+		err := db.UpdateRolePermissionsPathPrefix(oldStorage.MountPath, storage.MountPath)
+		if err != nil {
+			return errors.WithMessage(err, "failed to update role permissions")
+		}
 	}
 	if err != nil {
 		return errors.WithMessage(err, "failed get storage driver")

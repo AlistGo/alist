@@ -3,6 +3,8 @@ package db
 import (
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/pkg/errors"
+	"path"
+	"strings"
 )
 
 func GetRole(id uint) (*model.Role, error) {
@@ -42,4 +44,33 @@ func UpdateRole(r *model.Role) error {
 
 func DeleteRole(id uint) error {
 	return errors.WithStack(db.Delete(&model.Role{}, id).Error)
+}
+
+func UpdateRolePermissionsPathPrefix(oldPath, newPath string) error {
+	var roles []model.Role
+	if err := db.Find(&roles).Error; err != nil {
+		return errors.WithMessage(err, "failed to load roles")
+	}
+
+	for _, role := range roles {
+		updated := false
+		for i, entry := range role.PermissionScopes {
+			entryPath := path.Clean(entry.Path)
+			oldPathClean := path.Clean(oldPath)
+
+			if entryPath == oldPathClean {
+				role.PermissionScopes[i].Path = newPath
+				updated = true
+			} else if strings.HasPrefix(entryPath, oldPathClean+"/") {
+				role.PermissionScopes[i].Path = newPath + entryPath[len(oldPathClean):]
+				updated = true
+			}
+		}
+		if updated {
+			if err := UpdateRole(&role); err != nil {
+				return errors.WithMessagef(err, "failed to update role ID %d", role.ID)
+			}
+		}
+	}
+	return nil
 }
