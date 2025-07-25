@@ -2,12 +2,13 @@ package db
 
 import (
 	"encoding/base64"
-
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
+	"path"
+	"strings"
 )
 
 func GetUserByRole(role int) (*model.User, error) {
@@ -105,4 +106,37 @@ func RemoveAuthn(u *model.User, id string) error {
 		return err
 	}
 	return UpdateAuthn(u.ID, string(res))
+}
+
+func UpdateUserBasePathPrefix(oldPath, newPath string) ([]string, error) {
+	var users []model.User
+	var modifiedUsernames []string
+
+	if err := db.Find(&users).Error; err != nil {
+		return nil, errors.WithMessage(err, "failed to load users")
+	}
+
+	oldPathClean := path.Clean(oldPath)
+
+	for _, user := range users {
+		basePath := path.Clean(user.BasePath)
+		updated := false
+
+		if basePath == oldPathClean {
+			user.BasePath = newPath
+			updated = true
+		} else if strings.HasPrefix(basePath, oldPathClean+"/") {
+			user.BasePath = newPath + basePath[len(oldPathClean):]
+			updated = true
+		}
+
+		if updated {
+			if err := UpdateUser(&user); err != nil {
+				return nil, errors.WithMessagef(err, "failed to update user ID %d", user.ID)
+			}
+			modifiedUsernames = append(modifiedUsernames, user.Username)
+		}
+	}
+
+	return modifiedUsernames, nil
 }

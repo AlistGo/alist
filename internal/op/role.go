@@ -46,6 +46,38 @@ func GetRoleByName(name string) (*model.Role, error) {
 	return r, err
 }
 
+func GetRolesByUserID(userID uint) ([]model.Role, error) {
+	user, err := GetUserById(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	var roles []model.Role
+	for _, roleID := range user.Role {
+		key := fmt.Sprint(roleID)
+
+		if r, ok := roleCache.Get(key); ok {
+			roles = append(roles, *r)
+			continue
+		}
+
+		r, err, _ := roleG.Do(key, func() (*model.Role, error) {
+			_r, err := db.GetRole(uint(roleID))
+			if err != nil {
+				return nil, err
+			}
+			roleCache.Set(key, _r, cache.WithEx[*model.Role](time.Hour))
+			return _r, nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		roles = append(roles, *r)
+	}
+
+	return roles, nil
+}
+
 func GetRoles(pageIndex, pageSize int) ([]model.Role, int64, error) {
 	return db.GetRoles(pageIndex, pageSize)
 }

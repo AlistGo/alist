@@ -70,15 +70,11 @@ func Auth(c *gin.Context) {
 		return
 	}
 	if len(user.Role) > 0 {
-		var roles []model.Role
-		for _, roleID := range user.Role {
-			role, err := op.GetRole(uint(roleID))
-			if err != nil {
-				common.ErrorStrResp(c, fmt.Sprintf("加载角色 %d 失败", roleID), 500)
-				c.Abort()
-				return
-			}
-			roles = append(roles, *role)
+		roles, err := op.GetRolesByUserID(user.ID)
+		if err != nil {
+			common.ErrorStrResp(c, fmt.Sprintf("Fail to load roles: %v", err), 500)
+			c.Abort()
+			return
 		}
 		user.RolesDetail = roles
 	}

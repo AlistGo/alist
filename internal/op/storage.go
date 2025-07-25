@@ -216,9 +216,20 @@ func UpdateStorage(ctx context.Context, storage model.Storage) error {
 	if oldStorage.MountPath != storage.MountPath {
 		// mount path renamed, need to drop the storage
 		storagesMap.Delete(oldStorage.MountPath)
-		err := db.UpdateRolePermissionsPathPrefix(oldStorage.MountPath, storage.MountPath)
+		modifiedRoleIDs, err := db.UpdateRolePermissionsPathPrefix(oldStorage.MountPath, storage.MountPath)
 		if err != nil {
 			return errors.WithMessage(err, "failed to update role permissions")
+		}
+		for _, id := range modifiedRoleIDs {
+			roleCache.Del(fmt.Sprint(id))
+		}
+
+		modifiedUsernames, err := db.UpdateUserBasePathPrefix(oldStorage.MountPath, storage.MountPath)
+		if err != nil {
+			return errors.WithMessage(err, "failed to update user base path")
+		}
+		for _, name := range modifiedUsernames {
+			userCache.Del(name)
 		}
 	}
 	if err != nil {

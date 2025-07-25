@@ -46,10 +46,12 @@ func DeleteRole(id uint) error {
 	return errors.WithStack(db.Delete(&model.Role{}, id).Error)
 }
 
-func UpdateRolePermissionsPathPrefix(oldPath, newPath string) error {
+func UpdateRolePermissionsPathPrefix(oldPath, newPath string) ([]uint, error) {
 	var roles []model.Role
+	var modifiedRoleIDs []uint
+
 	if err := db.Find(&roles).Error; err != nil {
-		return errors.WithMessage(err, "failed to load roles")
+		return nil, errors.WithMessage(err, "failed to load roles")
 	}
 
 	for _, role := range roles {
@@ -68,9 +70,10 @@ func UpdateRolePermissionsPathPrefix(oldPath, newPath string) error {
 		}
 		if updated {
 			if err := UpdateRole(&role); err != nil {
-				return errors.WithMessagef(err, "failed to update role ID %d", role.ID)
+				return nil, errors.WithMessagef(err, "failed to update role ID %d", role.ID)
 			}
+			modifiedRoleIDs = append(modifiedRoleIDs, role.ID)
 		}
 	}
-	return nil
+	return modifiedRoleIDs, nil
 }
