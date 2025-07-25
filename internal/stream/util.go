@@ -113,61 +113,27 @@ func CacheFullInTempFileAndUpdateProgress(stream model.FileStreamer, up model.Up
 	return tmpF, err
 }
 
-func CacheFullInTempFileAndWriter(stream model.FileStreamer, up model.UpdateProgress, w io.Writer) (model.File, error) {
-	cache := stream.GetFile()
-	if cache != nil {
-		if w == nil {
-			if up != nil {
-				up(100)
-			}
-			return cache, nil
-		}
-
-		if _, err := cache.Seek(0, io.SeekStart); err != nil {
-			return cache, err
-		}
-
-		reader := io.Reader(stream)
-		if up != nil {
-			reader = &ReaderUpdatingProgress{
-				Reader:         stream,
-				UpdateProgress: up,
-			}
-		}
-
-		if _, err := utils.CopyWithBuffer(w, reader); err != nil {
-			return cache, err
-		}
-
+func CacheFullInTempFileAndWriter(stream model.FileStreamer, w io.Writer) (model.File, error) {
+	if cache := stream.GetFile(); cache != nil {
 		_, err := cache.Seek(0, io.SeekStart)
+		if err == nil {
+			_, err = utils.CopyWithBuffer(w, cache)
+			if err == nil {
+				_, err = cache.Seek(0, io.SeekStart)
+			}
+		}
 		return cache, err
 	}
-
-	// 如果没有缓存，则重新生成临时文件
-	reader := io.Reader(stream)
-	if up != nil {
-		reader = &ReaderUpdatingProgress{
-			Reader:         stream,
-			UpdateProgress: up,
-		}
+	tmpF, err := utils.CreateTempFile(io.TeeReader(stream, w), stream.GetSize())
+	if err == nil {
+		stream.SetTmpFile(tmpF)
 	}
-
-	if w != nil {
-		reader = io.TeeReader(reader, w)
-	}
-
-	tmpF, err := utils.CreateTempFile(reader, stream.GetSize())
-	if err != nil {
-		return nil, err
-	}
-
-	stream.SetTmpFile(tmpF)
-	return tmpF, nil
+	return tmpF, err
 }
 
-func CacheFullInTempFileAndHash(stream model.FileStreamer, up model.UpdateProgress, hashType *utils.HashType, hashParams ...any) (model.File, string, error) {
-	h := hashType.NewFunc(hashParams...)
-	tmpF, err := CacheFullInTempFileAndWriter(stream, up, h)
+func CacheFullInTempFileAndHash(stream model.FileStreamer, hashType *utils.HashType, params ...any) (model.File, string, error) {
+	h := hashType.NewFunc(params...)
+	tmpF, err := CacheFullInTempFileAndWriter(stream, h)
 	if err != nil {
 		return nil, "", err
 	}
