@@ -174,6 +174,19 @@ func NewObjMerge() *ObjMerge {
 	}
 }
 
+func UpdateProgressWithRange(inner UpdateProgress, start, end float64) UpdateProgress {
+	return func(p float64) {
+		if p < 0 {
+			p = 0
+		}
+		if p > 100 {
+			p = 100
+		}
+		scaled := start + (end-start)*(p/100.0)
+		inner(scaled)
+	}
+}
+
 type ObjMerge struct {
 	regs []*regexp2.Regexp
 	set  mapset.Set[string]
