@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"github.com/alist-org/alist/v3/internal/bootstrap/patch/v3_46_0"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -16,6 +17,12 @@ func Init() {
 	bootstrap.InitConfig()
 	bootstrap.Log()
 	bootstrap.InitDB()
+
+	if v3_46_0.IsLegacyRoleDetected() {
+		utils.Log.Warnf("Detected legacy role format, executing ConvertLegacyRoles patch early...")
+		v3_46_0.ConvertLegacyRoles()
+	}
+
 	data.InitData()
 	bootstrap.InitStreamLimit()
 	bootstrap.InitIndex()
