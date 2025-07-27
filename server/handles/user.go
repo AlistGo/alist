@@ -1,6 +1,7 @@
 package handles
 
 import (
+	"github.com/alist-org/alist/v3/pkg/utils"
 	"strconv"
 
 	"github.com/alist-org/alist/v3/internal/model"
@@ -60,10 +61,18 @@ func UpdateUser(c *gin.Context) {
 		common.ErrorResp(c, err, 500)
 		return
 	}
-	//if !utils.SliceEqual(user.Role, req.Role) {
-	//	common.ErrorStrResp(c, "role can not be changed", 400)
-	//	return
-	//}
+
+	if user.Username == "admin" {
+		if !utils.SliceEqual(user.Role, req.Role) {
+			common.ErrorStrResp(c, "cannot change role of admin user", 403)
+			return
+		}
+		if user.Username != req.Username {
+			common.ErrorStrResp(c, "cannot change username of admin user", 403)
+			return
+		}
+	}
+
 	if req.Password == "" {
 		req.PwdHash = user.PwdHash
 		req.Salt = user.Salt

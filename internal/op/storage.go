@@ -46,6 +46,11 @@ func GetStorageByMountPath(mountPath string) (driver.Driver, error) {
 func CreateStorage(ctx context.Context, storage model.Storage) (uint, error) {
 	storage.Modified = time.Now()
 	storage.MountPath = utils.FixAndCleanPath(storage.MountPath)
+
+	if storage.MountPath == "/" {
+		return 0, errors.New("Mount path cannot be '/'")
+	}
+
 	var err error
 	// check driver first
 	driverName := storage.Driver
@@ -205,6 +210,9 @@ func UpdateStorage(ctx context.Context, storage model.Storage) error {
 	}
 	storage.Modified = time.Now()
 	storage.MountPath = utils.FixAndCleanPath(storage.MountPath)
+	if storage.MountPath == "/" {
+		return errors.New("Mount path cannot be '/'")
+	}
 	err = db.UpdateStorage(&storage)
 	if err != nil {
 		return errors.WithMessage(err, "failed update storage in database")

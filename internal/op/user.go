@@ -78,7 +78,25 @@ func GetUsers(pageIndex, pageSize int) (users []model.User, count int64, err err
 
 func CreateUser(u *model.User) error {
 	u.BasePath = utils.FixAndCleanPath(u.BasePath)
-	return db.CreateUser(u)
+
+	err := db.CreateUser(u)
+	if err != nil {
+		return err
+	}
+
+	roles, err := GetRolesByUserID(u.ID)
+	if err == nil {
+		for _, role := range roles {
+			if len(role.PermissionScopes) > 0 {
+				u.BasePath = utils.FixAndCleanPath(role.PermissionScopes[0].Path)
+				break
+			}
+		}
+		_ = db.UpdateUser(u)
+		userCache.Del(u.Username)
+	}
+
+	return nil
 }
 
 func DeleteUserById(id uint) error {
@@ -106,6 +124,17 @@ func UpdateUser(u *model.User) error {
 	}
 	userCache.Del(old.Username)
 	u.BasePath = utils.FixAndCleanPath(u.BasePath)
+	if len(u.Role) > 0 {
+		roles, err := GetRolesByUserID(u.ID)
+		if err == nil {
+			for _, role := range roles {
+				if len(role.PermissionScopes) > 0 {
+					u.BasePath = utils.FixAndCleanPath(role.PermissionScopes[0].Path)
+					break
+				}
+			}
+		}
+	}
 	return db.UpdateUser(u)
 }
 

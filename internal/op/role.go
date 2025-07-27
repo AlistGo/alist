@@ -2,6 +2,7 @@ package op
 
 import (
 	"fmt"
+	"github.com/pkg/errors"
 	"time"
 
 	"github.com/Xhofe/go-cache"
@@ -101,6 +102,20 @@ func UpdateRole(r *model.Role) error {
 	}
 	for i := range r.PermissionScopes {
 		r.PermissionScopes[i].Path = utils.FixAndCleanPath(r.PermissionScopes[i].Path)
+	}
+	if len(old.PermissionScopes) > 0 && len(r.PermissionScopes) > 0 &&
+		old.PermissionScopes[0].Path != r.PermissionScopes[0].Path {
+
+		oldPath := old.PermissionScopes[0].Path
+		newPath := r.PermissionScopes[0].Path
+		modifiedUsernames, err := db.UpdateUserBasePathPrefix(oldPath, newPath)
+		if err != nil {
+			return errors.WithMessage(err, "failed to update user base path when role updated")
+		}
+
+		for _, name := range modifiedUsernames {
+			userCache.Del(name)
+		}
 	}
 	roleCache.Del(fmt.Sprint(r.ID))
 	roleCache.Del(r.Name)
