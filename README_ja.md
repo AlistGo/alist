@@ -100,6 +100,10 @@
 
 <https://alistgo.com/>
 
+## APIドキュメント（Apifox 提供）
+
+<https://alist-public.apifox.cn/>
+
 ## デモ
 
 <https://al.nn.ci>

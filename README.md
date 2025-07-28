@@ -101,6 +101,10 @@ English | [中文](./README_cn.md) | [日本語](./README_ja.md) | [Contributing
 
 <https://alistgo.com/>
 
+## API Documentation (via Apifox):
+
+<https://alist-public.apifox.cn/>
+
 ## Demo
 
 <https://al.nn.ci>

@@ -99,6 +99,10 @@
 
 <https://alistgo.com/zh/>
 
+## API 文档（通过 Apifox 提供）
+
+<https://alist-public.apifox.cn/>
+
 ## Demo
 
 <https://al.nn.ci>
