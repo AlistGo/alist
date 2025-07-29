@@ -1,4 +1,4 @@
-FROM alpine:edge
+FROM alpine:3.20.7
 
 ARG TARGETPLATFORM
 ARG INSTALL_FFMPEG=false
