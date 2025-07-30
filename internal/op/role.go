@@ -100,7 +100,6 @@ func UpdateRole(r *model.Role) error {
 	switch old.Name {
 	case "admin":
 		return errs.ErrChangeDefaultRole
-
 	case "guest":
 		r.Name = "guest"
 	}
@@ -112,7 +111,13 @@ func UpdateRole(r *model.Role) error {
 
 		oldPath := old.PermissionScopes[0].Path
 		newPath := r.PermissionScopes[0].Path
-		modifiedUsernames, err := db.UpdateUserBasePathPrefix(oldPath, newPath)
+
+		users, err := db.GetUsersByRole(int(r.ID))
+		if err != nil {
+			return errors.WithMessage(err, "failed to get users by role")
+		}
+
+		modifiedUsernames, err := db.UpdateUserBasePathPrefix(oldPath, newPath, users)
 		if err != nil {
 			return errors.WithMessage(err, "failed to update user base path when role updated")
 		}

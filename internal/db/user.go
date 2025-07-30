@@ -9,6 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 	"path"
+	"slices"
 	"strings"
 )
 
@@ -23,6 +24,20 @@ func GetUserByRole(role int) (*model.User, error) {
 		}
 	}
 	return nil, gorm.ErrRecordNotFound
+}
+
+func GetUsersByRole(roleID int) ([]model.User, error) {
+	var users []model.User
+	if err := db.Find(&users).Error; err != nil {
+		return nil, err
+	}
+	var result []model.User
+	for _, u := range users {
+		if slices.Contains(u.Role, roleID) {
+			result = append(result, u)
+		}
+	}
+	return result, nil
 }
 
 func GetUserByName(username string) (*model.User, error) {
@@ -109,25 +124,29 @@ func RemoveAuthn(u *model.User, id string) error {
 	return UpdateAuthn(u.ID, string(res))
 }
 
-func UpdateUserBasePathPrefix(oldPath, newPath string) ([]string, error) {
+func UpdateUserBasePathPrefix(oldPath, newPath string, usersOpt ...[]model.User) ([]string, error) {
 	var users []model.User
 	var modifiedUsernames []string
 
-	if err := db.Find(&users).Error; err != nil {
-		return nil, errors.WithMessage(err, "failed to load users")
-	}
-
 	oldPathClean := path.Clean(oldPath)
+
+	if len(usersOpt) > 0 {
+		users = usersOpt[0]
+	} else {
+		if err := db.Find(&users).Error; err != nil {
+			return nil, errors.WithMessage(err, "failed to load users")
+		}
+	}
 
 	for _, user := range users {
 		basePath := path.Clean(user.BasePath)
 		updated := false
 
 		if basePath == oldPathClean {
-			user.BasePath = newPath
+			user.BasePath = path.Clean(newPath)
 			updated = true
 		} else if strings.HasPrefix(basePath, oldPathClean+"/") {
-			user.BasePath = newPath + basePath[len(oldPathClean):]
+			user.BasePath = path.Clean(newPath + basePath[len(oldPathClean):])
 			updated = true
 		}
 

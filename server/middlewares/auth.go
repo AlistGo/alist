@@ -41,6 +41,15 @@ func Auth(c *gin.Context) {
 			c.Abort()
 			return
 		}
+		if len(guest.Role) > 0 {
+			roles, err := op.GetRolesByUserID(guest.ID)
+			if err != nil {
+				common.ErrorStrResp(c, fmt.Sprintf("Fail to load guest roles: %v", err), 500)
+				c.Abort()
+				return
+			}
+			guest.RolesDetail = roles
+		}
 		c.Set("user", guest)
 		log.Debugf("use empty token: %+v", guest)
 		c.Next()
