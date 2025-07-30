@@ -16,6 +16,7 @@ const (
 	AllowIndexed = "allow_indexed"
 	AllowMounted = "allow_mounted"
 	RobotsTxt    = "robots_txt"
+	UseNewui     = "use_newui"
 
 	Logo      = "logo"
 	Favicon   = "favicon"
