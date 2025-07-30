@@ -2,6 +2,7 @@ package db
 
 import (
 	"encoding/base64"
+	"fmt"
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/go-webauthn/webauthn/webauthn"
@@ -139,4 +140,14 @@ func UpdateUserBasePathPrefix(oldPath, newPath string) ([]string, error) {
 	}
 
 	return modifiedUsernames, nil
+}
+
+func CountUsersByRoleAndEnabledExclude(roleID uint, excludeUserID uint) (int64, error) {
+	var count int64
+	jsonValue := fmt.Sprintf("[%d]", roleID)
+	err := db.Model(&model.User{}).
+		Where("disabled = ? AND id != ?", false, excludeUserID).
+		Where("JSON_CONTAINS(role, ?)", jsonValue).
+		Count(&count).Error
+	return count, err
 }

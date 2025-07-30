@@ -66,9 +66,13 @@ func UpdateRole(c *gin.Context) {
 		common.ErrorResp(c, err, 500, true)
 		return
 	}
-	if role.Name == "admin" || role.Name == "guest" {
+	switch role.Name {
+	case "admin":
 		common.ErrorResp(c, errs.ErrChangeDefaultRole, 403)
 		return
+
+	case "guest":
+		req.Name = "guest"
 	}
 	if err := op.UpdateRole(&req); err != nil {
 		common.ErrorResp(c, err, 500, true)

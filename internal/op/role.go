@@ -97,8 +97,12 @@ func UpdateRole(r *model.Role) error {
 	if err != nil {
 		return err
 	}
-	if old.Name == "admin" || old.Name == "guest" {
+	switch old.Name {
+	case "admin":
 		return errs.ErrChangeDefaultRole
+
+	case "guest":
+		r.Name = "guest"
 	}
 	for i := range r.PermissionScopes {
 		r.PermissionScopes[i].Path = utils.FixAndCleanPath(r.PermissionScopes[i].Path)

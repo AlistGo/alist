@@ -165,3 +165,11 @@ func DelUserCache(username string) error {
 	userCache.Del(username)
 	return nil
 }
+
+func CountEnabledAdminsExcluding(userID uint) (int64, error) {
+	adminRole, err := GetRoleByName("admin")
+	if err != nil {
+		return 0, err
+	}
+	return db.CountUsersByRoleAndEnabledExclude(adminRole.ID, userID)
+}

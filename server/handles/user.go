@@ -83,9 +83,16 @@ func UpdateUser(c *gin.Context) {
 	if req.OtpSecret == "" {
 		req.OtpSecret = user.OtpSecret
 	}
-	if req.Disabled && req.IsAdmin() {
-		common.ErrorStrResp(c, "admin user can not be disabled", 400)
-		return
+	if req.Disabled && user.IsAdmin() {
+		count, err := op.CountEnabledAdminsExcluding(user.ID)
+		if err != nil {
+			common.ErrorResp(c, err, 500)
+			return
+		}
+		if count == 0 {
+			common.ErrorStrResp(c, "at least one enabled admin must be kept", 400)
+			return
+		}
 	}
 	if err := op.UpdateUser(&req); err != nil {
 		common.ErrorResp(c, err, 500)
