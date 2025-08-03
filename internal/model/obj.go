@@ -55,6 +55,21 @@ type FileStreamer interface {
 
 type UpdateProgress func(percentage float64)
 
+// Reference implementation from OpenListTeam:
+// https://github.com/OpenListTeam/OpenList/blob/a703b736c9346c483bae56905a39bc07bf781cff/internal/model/obj.go#L58
+func UpdateProgressWithRange(inner UpdateProgress, start, end float64) UpdateProgress {
+	return func(p float64) {
+		if p < 0 {
+			p = 0
+		}
+		if p > 100 {
+			p = 100
+		}
+		scaled := start + (end-start)*(p/100.0)
+		inner(scaled)
+	}
+}
+
 type URL interface {
 	URL() string
 }
