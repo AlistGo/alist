@@ -1,6 +1,7 @@
 package alist_v3
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/alist-org/alist/v3/internal/model"
@@ -72,15 +73,15 @@ type LoginResp struct {
 }
 
 type MeResp struct {
-	Id         int    `json:"id"`
-	Username   string `json:"username"`
-	Password   string `json:"password"`
-	BasePath   string `json:"base_path"`
-	Role       []int  `json:"role"`
-	Disabled   bool   `json:"disabled"`
-	Permission int    `json:"permission"`
-	SsoId      string `json:"sso_id"`
-	Otp        bool   `json:"otp"`
+	Id         int      `json:"id"`
+	Username   string   `json:"username"`
+	Password   string   `json:"password"`
+	BasePath   string   `json:"base_path"`
+	Role       IntSlice `json:"role"`
+	Disabled   bool     `json:"disabled"`
+	Permission int      `json:"permission"`
+	SsoId      string   `json:"sso_id"`
+	Otp        bool     `json:"otp"`
 }
 
 type ArchiveMetaReq struct {
@@ -167,4 +168,18 @@ type DecompressReq struct {
 	Name          []string `json:"name"`
 	PutIntoNewDir bool     `json:"put_into_new_dir"`
 	SrcDir        string   `json:"src_dir"`
+}
+
+type IntSlice []int
+
+func (s *IntSlice) UnmarshalJSON(data []byte) error {
+	if len(data) > 0 && data[0] == '[' {
+		return json.Unmarshal(data, (*[]int)(s))
+	}
+	var single int
+	if err := json.Unmarshal(data, &single); err != nil {
+		return err
+	}
+	*s = []int{single}
+	return nil
 }
