@@ -88,6 +88,13 @@ func JoinBasePath(basePath, reqPath string) (string, error) {
 		strings.Contains(reqPath, "/../") {
 		return "", errs.RelativePath
 	}
+
+	reqPath = FixAndCleanPath(reqPath)
+
+	if strings.HasPrefix(reqPath, "/") {
+		return reqPath, nil
+	}
+
 	return stdpath.Join(FixAndCleanPath(basePath), FixAndCleanPath(reqPath)), nil
 }
 

@@ -149,9 +149,21 @@ func (u *User) JoinPath(reqPath string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if u.CheckPathLimit() && !utils.IsSubPath(u.BasePath, path) {
-		return "", errs.PermissionDenied
+
+	if u.CheckPathLimit() {
+		basePaths := GetAllBasePathsFromRoles(u)
+		match := false
+		for _, base := range basePaths {
+			if utils.IsSubPath(base, path) {
+				match = true
+				break
+			}
+		}
+		if !match {
+			return "", errs.PermissionDenied
+		}
 	}
+
 	return path, nil
 }
 
@@ -192,4 +204,23 @@ func (u *User) WebAuthnCredentials() []webauthn.Credential {
 
 func (u *User) WebAuthnIcon() string {
 	return "https://alistgo.com/logo.svg"
+}
+
+// GetAllBasePathsFromRoles returns all permission paths from user's roles
+func GetAllBasePathsFromRoles(u *User) []string {
+	basePaths := make([]string, 0)
+	seen := make(map[string]struct{})
+
+	for _, role := range u.RolesDetail {
+		for _, entry := range role.PermissionScopes {
+			if entry.Path == "" {
+				continue
+			}
+			if _, ok := seen[entry.Path]; !ok {
+				basePaths = append(basePaths, entry.Path)
+				seen[entry.Path] = struct{}{}
+			}
+		}
+	}
+	return basePaths
 }

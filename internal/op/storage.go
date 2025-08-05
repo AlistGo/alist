@@ -232,12 +232,20 @@ func UpdateStorage(ctx context.Context, storage model.Storage) error {
 			roleCache.Del(fmt.Sprint(id))
 		}
 
-		modifiedUsernames, err := db.UpdateUserBasePathPrefix(oldStorage.MountPath, storage.MountPath)
-		if err != nil {
-			return errors.WithMessage(err, "failed to update user base path")
-		}
-		for _, name := range modifiedUsernames {
-			userCache.Del(name)
+		//modifiedUsernames, err := db.UpdateUserBasePathPrefix(oldStorage.MountPath, storage.MountPath)
+		//if err != nil {
+		//	return errors.WithMessage(err, "failed to update user base path")
+		//}
+		for _, id := range modifiedRoleIDs {
+			roleCache.Del(fmt.Sprint(id))
+
+			users, err := db.GetUsersByRole(int(id))
+			if err != nil {
+				return errors.WithMessage(err, "failed to get users by role")
+			}
+			for _, user := range users {
+				userCache.Del(user.Username)
+			}
 		}
 	}
 	if err != nil {

@@ -50,6 +50,10 @@ func GetUserByRole(role int) (*model.User, error) {
 	return db.GetUserByRole(role)
 }
 
+func GetUsersByRole(role int) ([]model.User, error) {
+	return db.GetUsersByRole(role)
+}
+
 func GetUserByName(username string) (*model.User, error) {
 	if username == "" {
 		return nil, errs.EmptyUsername
@@ -124,17 +128,17 @@ func UpdateUser(u *model.User) error {
 	}
 	userCache.Del(old.Username)
 	u.BasePath = utils.FixAndCleanPath(u.BasePath)
-	if len(u.Role) > 0 {
-		roles, err := GetRolesByUserID(u.ID)
-		if err == nil {
-			for _, role := range roles {
-				if len(role.PermissionScopes) > 0 {
-					u.BasePath = utils.FixAndCleanPath(role.PermissionScopes[0].Path)
-					break
-				}
-			}
-		}
-	}
+	//if len(u.Role) > 0 {
+	//	roles, err := GetRolesByUserID(u.ID)
+	//	if err == nil {
+	//		for _, role := range roles {
+	//			if len(role.PermissionScopes) > 0 {
+	//				u.BasePath = utils.FixAndCleanPath(role.PermissionScopes[0].Path)
+	//				break
+	//			}
+	//		}
+	//	}
+	//}
 	return db.UpdateUser(u)
 }
 
