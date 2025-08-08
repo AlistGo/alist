@@ -1,0 +1,28 @@
+nameOverride: ""
+
+fullnameOverride: ""
+
+image:
+  registry: docker.io
+  repository:  xhofe/alist
+  tag: latest
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+persistence:
+  storageClass: ""
+  accessMode: ReadWriteOnce
+  size: 5Gi
+
+service:
+  type: ClusterIP
+  loadBalancerIP: ~
+  http:
+    port: 5244
+    targetPort: 5244
+    nodePort: 35244
+  https:
+    port: 5245
+    targetPort: 5245
+    nodePort: 35245
