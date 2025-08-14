@@ -54,6 +54,10 @@ func GetLabelByFileName(userId uint, fileName string) ([]model.Label, error) {
 	return labels, nil
 }
 
+func GetLabelsByFileNamesPublic(fileNames []string) (map[string][]model.Label, error) {
+	return db.GetLabelsByFileNamesPublic(fileNames)
+}
+
 func CreateLabelFileBinDing(req CreateLabelFileBinDingReq, userId uint) error {
 	if err := db.DelLabelFileBinDingByFileName(userId, req.Name); err != nil {
 		return errors.WithMessage(err, "failed del label_file_bin_ding in database")
