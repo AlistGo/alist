@@ -49,7 +49,7 @@ func MergeRolePermissions(u *model.User, reqPath string) int32 {
 			}
 		} else {
 			for _, entry := range role.PermissionScopes {
-				if utils.IsSubPath(entry.Path, reqPath) {
+				if utils.IsSubPath(entry.Path, reqPath) || utils.IsSubPath(reqPath, entry.Path) {
 					perm |= entry.Permission
 				}
 			}
@@ -97,7 +97,7 @@ func canReadPathByRole(u *model.User, reqPath string) bool {
 			continue
 		}
 		for _, entry := range role.PermissionScopes {
-			if utils.IsSubPath(entry.Path, reqPath) {
+			if utils.IsSubPath(entry.Path, reqPath) || utils.IsSubPath(reqPath, entry.Path) {
 				return true
 			}
 		}
