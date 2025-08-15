@@ -11,7 +11,7 @@ import (
 
 // GetLabelIds Get all label_ids from database order by file_name
 func GetLabelIds(userId uint, fileName string) ([]uint, error) {
-	fmt.Printf(">>> [GetLabelIds] userId: %d, fileName: %s\n", userId, fileName)
+	//fmt.Printf(">>> [GetLabelIds] userId: %d, fileName: %s\n", userId, fileName)
 	labelFileBinDingDB := db.Model(&model.LabelFileBinding{})
 	var labelIds []uint
 	if err := labelFileBinDingDB.Where("file_name = ?", fileName).Where("user_id = ?", userId).Pluck("label_id", &labelIds).Error; err != nil {
