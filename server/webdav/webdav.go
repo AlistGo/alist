@@ -712,7 +712,8 @@ func (h *Handler) handlePropfind(w http.ResponseWriter, r *http.Request) (status
 						return http.StatusInternalServerError, err
 					}
 				}
-				href := path.Join(h.Prefix, strings.TrimPrefix(item.path, user.BasePath))
+				rel := strings.TrimPrefix(strings.TrimPrefix(item.path, user.BasePath), "/")
+				href := utils.EncodePath(path.Join("/", h.Prefix, rel), true)
 				if href != "/" && item.info.IsDir() {
 					href += "/"
 				}
@@ -750,7 +751,8 @@ func (h *Handler) handlePropfind(w http.ResponseWriter, r *http.Request) (status
 		if err != nil {
 			return err
 		}
-		href := path.Join("/", h.Prefix, strings.TrimPrefix(reqPath, user.BasePath))
+		rel := strings.TrimPrefix(strings.TrimPrefix(reqPath, user.BasePath), "/")
+		href := utils.EncodePath(path.Join("/", h.Prefix, rel), true)
 		if href != "/" && info.IsDir() {
 			href += "/"
 		}
