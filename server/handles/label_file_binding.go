@@ -204,3 +204,47 @@ func RestoreLabelFileBinding(c *gin.Context) {
 		"msg": fmt.Sprintf("restored %d rows", len(req.Bindings)),
 	})
 }
+
+func CreateLabelFileBinDingBatch(c *gin.Context) {
+	var req struct {
+		Items []op.CreateLabelFileBinDingReq `json:"items" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || len(req.Items) == 0 {
+		common.ErrorResp(c, err, 400)
+		return
+	}
+
+	userObj, ok := c.Value("user").(*model.User)
+	if !ok {
+		common.ErrorStrResp(c, "user invalid", 401)
+		return
+	}
+
+	type perResult struct {
+		Name   string `json:"name"`
+		Ok     bool   `json:"ok"`
+		ErrMsg string `json:"errMsg,omitempty"`
+	}
+	results := make([]perResult, 0, len(req.Items))
+	succeed := 0
+
+	for _, item := range req.Items {
+		if item.IsDir {
+			results = append(results, perResult{Name: item.Name, Ok: false, ErrMsg: "Unable to bind folder"})
+			continue
+		}
+		if err := op.CreateLabelFileBinDing(item, userObj.ID); err != nil {
+			results = append(results, perResult{Name: item.Name, Ok: false, ErrMsg: err.Error()})
+			continue
+		}
+		succeed++
+		results = append(results, perResult{Name: item.Name, Ok: true})
+	}
+
+	common.SuccessResp(c, gin.H{
+		"total":   len(req.Items),
+		"succeed": succeed,
+		"failed":  len(req.Items) - succeed,
+		"results": results,
+	})
+}

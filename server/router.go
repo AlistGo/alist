@@ -179,6 +179,7 @@ func admin(g *gin.RouterGroup) {
 	labelFileBinding := g.Group("/label_file_binding")
 	labelFileBinding.GET("/list", handles.ListLabelFileBinding)
 	labelFileBinding.POST("/create", handles.CreateLabelFileBinDing)
+	labelFileBinding.POST("/create_batch", handles.CreateLabelFileBinDingBatch)
 	labelFileBinding.POST("/delete", handles.DelLabelByFileName)
 	labelFileBinding.POST("/restore", handles.RestoreLabelFileBinding)
 
