@@ -67,10 +67,10 @@ func UpdateUser(c *gin.Context) {
 			common.ErrorStrResp(c, "cannot change role of admin user", 403)
 			return
 		}
-		if user.Username != req.Username {
-			common.ErrorStrResp(c, "cannot change username of admin user", 403)
-			return
-		}
+		//if user.Username != req.Username {
+		//	common.ErrorStrResp(c, "cannot change username of admin user", 403)
+		//	return
+		//}
 	}
 
 	if req.Password == "" {

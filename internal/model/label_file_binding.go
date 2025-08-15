@@ -2,7 +2,7 @@ package model
 
 import "time"
 
-type LabelFileBinDing struct {
+type LabelFileBinding struct {
 	ID         uint      `json:"id" gorm:"primaryKey"` // unique key
 	UserId     uint      `json:"user_id"`              // use to user_id
 	LabelId    uint      `json:"label_id"`             // use to label_id

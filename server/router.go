@@ -177,8 +177,11 @@ func admin(g *gin.RouterGroup) {
 	label.POST("/delete", handles.DeleteLabel)
 
 	labelFileBinding := g.Group("/label_file_binding")
+	labelFileBinding.GET("/list", handles.ListLabelFileBinding)
 	labelFileBinding.POST("/create", handles.CreateLabelFileBinDing)
 	labelFileBinding.POST("/delete", handles.DelLabelByFileName)
+	labelFileBinding.POST("/restore", handles.RestoreLabelFileBinding)
+
 }
 
 func _fs(g *gin.RouterGroup) {

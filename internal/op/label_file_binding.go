@@ -101,7 +101,7 @@ func CreateLabelFileBinDing(req CreateLabelFileBinDingReq, userId uint) error {
 func GetFileByLabel(userId uint, labelId string) (result []ObjLabelResp, err error) {
 	labelMap := strings.Split(labelId, ",")
 	var labelIds []uint
-	var labelsFile []model.LabelFileBinDing
+	var labelsFile []model.LabelFileBinding
 	var labels []model.Label
 	var labelsFileMap = make(map[string][]model.Label)
 	var labelsMap = make(map[uint]model.Label)
@@ -160,4 +160,8 @@ func StringSliceToUintSlice(strSlice []string) ([]uint, error) {
 		uintSlice[i] = uint(uint64Value)
 	}
 	return uintSlice, nil
+}
+
+func RestoreLabelFileBindings(bindings []model.LabelFileBinding, keepIDs bool, override bool) error {
+	return db.RestoreLabelFileBindings(bindings, keepIDs, override)
 }
