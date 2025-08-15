@@ -673,7 +673,13 @@ func (h *Handler) handlePropfind(w http.ResponseWriter, r *http.Request) (status
 				if !utils.IsSubPath(user.BasePath, p) {
 					continue
 				}
-				rel := strings.TrimPrefix(strings.TrimPrefix(p, user.BasePath), "/")
+				rel := strings.TrimPrefix(
+					strings.TrimPrefix(
+						utils.FixAndCleanPath(p),
+						utils.FixAndCleanPath(user.BasePath),
+					),
+					"/",
+				)
 				dir := strings.Split(rel, "/")[0]
 				if dir == "" {
 					continue
@@ -712,7 +718,13 @@ func (h *Handler) handlePropfind(w http.ResponseWriter, r *http.Request) (status
 						return http.StatusInternalServerError, err
 					}
 				}
-				rel := strings.TrimPrefix(strings.TrimPrefix(item.path, user.BasePath), "/")
+				rel := strings.TrimPrefix(
+					strings.TrimPrefix(
+						utils.FixAndCleanPath(item.path),
+						utils.FixAndCleanPath(user.BasePath),
+					),
+					"/",
+				)
 				href := utils.EncodePath(path.Join("/", h.Prefix, rel), true)
 				if href != "/" && item.info.IsDir() {
 					href += "/"
@@ -751,7 +763,13 @@ func (h *Handler) handlePropfind(w http.ResponseWriter, r *http.Request) (status
 		if err != nil {
 			return err
 		}
-		rel := strings.TrimPrefix(strings.TrimPrefix(reqPath, user.BasePath), "/")
+		rel := strings.TrimPrefix(
+			strings.TrimPrefix(
+				utils.FixAndCleanPath(reqPath),
+				utils.FixAndCleanPath(user.BasePath),
+			),
+			"/",
+		)
 		href := utils.EncodePath(path.Join("/", h.Prefix, rel), true)
 		if href != "/" && info.IsDir() {
 			href += "/"
