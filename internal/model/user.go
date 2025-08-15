@@ -145,12 +145,15 @@ func (u *User) CheckPathLimit() bool {
 }
 
 func (u *User) JoinPath(reqPath string) (string, error) {
+	if reqPath == "/" {
+		return utils.FixAndCleanPath(u.BasePath), nil
+	}
 	path, err := utils.JoinBasePath(u.BasePath, reqPath)
 	if err != nil {
 		return "", err
 	}
 
-	if u.CheckPathLimit() {
+	if path != "/" && u.CheckPathLimit() {
 		basePaths := GetAllBasePathsFromRoles(u)
 		match := false
 		for _, base := range basePaths {
@@ -206,12 +209,23 @@ func (u *User) WebAuthnIcon() string {
 	return "https://alistgo.com/logo.svg"
 }
 
+// FetchRole is used to load role details by id. It should be set by the op package
+// to avoid an import cycle between model and op.
+var FetchRole func(uint) (*Role, error)
+
 // GetAllBasePathsFromRoles returns all permission paths from user's roles
 func GetAllBasePathsFromRoles(u *User) []string {
 	basePaths := make([]string, 0)
 	seen := make(map[string]struct{})
 
-	for _, role := range u.RolesDetail {
+	for _, rid := range u.Role {
+		if FetchRole == nil {
+			continue
+		}
+		role, err := FetchRole(uint(rid))
+		if err != nil || role == nil {
+			continue
+		}
 		for _, entry := range role.PermissionScopes {
 			if entry.Path == "" {
 				continue

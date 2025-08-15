@@ -43,9 +43,15 @@ func MergeRolePermissions(u *model.User, reqPath string) int32 {
 		if err != nil {
 			continue
 		}
-		for _, entry := range role.PermissionScopes {
-			if utils.IsSubPath(entry.Path, reqPath) {
+		if reqPath == "/" || utils.PathEqual(reqPath, u.BasePath) {
+			for _, entry := range role.PermissionScopes {
 				perm |= entry.Permission
+			}
+		} else {
+			for _, entry := range role.PermissionScopes {
+				if utils.IsSubPath(entry.Path, reqPath) {
+					perm |= entry.Permission
+				}
 			}
 		}
 	}
@@ -81,6 +87,9 @@ func CanAccessWithRoles(u *model.User, meta *model.Meta, reqPath, password strin
 func canReadPathByRole(u *model.User, reqPath string) bool {
 	if u == nil {
 		return false
+	}
+	if reqPath == "/" || utils.PathEqual(reqPath, u.BasePath) {
+		return len(u.Role) > 0
 	}
 	for _, rid := range u.Role {
 		role, err := op.GetRole(uint(rid))

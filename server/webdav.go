@@ -95,6 +95,9 @@ func WebDAVAuth(c *gin.Context) {
 		c.Abort()
 		return
 	}
+	if roles, err := op.GetRolesByUserID(user.ID); err == nil {
+		user.RolesDetail = roles
+	}
 	reqPath := c.Param("path")
 	if reqPath == "" {
 		reqPath = "/"

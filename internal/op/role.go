@@ -15,6 +15,10 @@ import (
 var roleCache = cache.NewMemCache[*model.Role](cache.WithShards[*model.Role](2))
 var roleG singleflight.Group[*model.Role]
 
+func init() {
+	model.FetchRole = GetRole
+}
+
 func GetRole(id uint) (*model.Role, error) {
 	key := fmt.Sprint(id)
 	if r, ok := roleCache.Get(key); ok {

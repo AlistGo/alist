@@ -648,6 +648,85 @@ func (h *Handler) handlePropfind(w http.ResponseWriter, r *http.Request) (status
 
 	mw := multistatusWriter{w: w}
 
+	if utils.PathEqual(reqPath, user.BasePath) {
+		hasRootPerm := false
+		for _, role := range user.RolesDetail {
+			for _, entry := range role.PermissionScopes {
+				if utils.PathEqual(entry.Path, user.BasePath) {
+					hasRootPerm = true
+					break
+				}
+			}
+			if hasRootPerm {
+				break
+			}
+		}
+		if !hasRootPerm {
+			basePaths := model.GetAllBasePathsFromRoles(user)
+			type infoItem struct {
+				path string
+				info model.Obj
+			}
+			infos := []infoItem{{reqPath, fi}}
+			seen := make(map[string]struct{})
+			for _, p := range basePaths {
+				if !utils.IsSubPath(user.BasePath, p) {
+					continue
+				}
+				rel := strings.TrimPrefix(strings.TrimPrefix(p, user.BasePath), "/")
+				dir := strings.Split(rel, "/")[0]
+				if dir == "" {
+					continue
+				}
+				if _, ok := seen[dir]; ok {
+					continue
+				}
+				seen[dir] = struct{}{}
+				sp := utils.FixAndCleanPath(path.Join(user.BasePath, dir))
+				info, err := fs.Get(ctx, sp, &fs.GetArgs{})
+				if err != nil {
+					continue
+				}
+				infos = append(infos, infoItem{sp, info})
+			}
+			for _, item := range infos {
+				var pstats []Propstat
+				if pf.Propname != nil {
+					pnames, err := propnames(ctx, h.LockSystem, item.info)
+					if err != nil {
+						return http.StatusInternalServerError, err
+					}
+					pstat := Propstat{Status: http.StatusOK}
+					for _, xmlname := range pnames {
+						pstat.Props = append(pstat.Props, Property{XMLName: xmlname})
+					}
+					pstats = append(pstats, pstat)
+				} else if pf.Allprop != nil {
+					pstats, err = allprop(ctx, h.LockSystem, item.info, pf.Prop)
+					if err != nil {
+						return http.StatusInternalServerError, err
+					}
+				} else {
+					pstats, err = props(ctx, h.LockSystem, item.info, pf.Prop)
+					if err != nil {
+						return http.StatusInternalServerError, err
+					}
+				}
+				href := path.Join(h.Prefix, strings.TrimPrefix(item.path, user.BasePath))
+				if href != "/" && item.info.IsDir() {
+					href += "/"
+				}
+				if err := mw.write(makePropstatResponse(href, pstats)); err != nil {
+					return http.StatusInternalServerError, err
+				}
+			}
+			if err := mw.close(); err != nil {
+				return http.StatusInternalServerError, err
+			}
+			return 0, nil
+		}
+	}
+
 	walkFn := func(reqPath string, info model.Obj, err error) error {
 		if err != nil {
 			return err
@@ -671,7 +750,7 @@ func (h *Handler) handlePropfind(w http.ResponseWriter, r *http.Request) (status
 		if err != nil {
 			return err
 		}
-		href := path.Join(h.Prefix, strings.TrimPrefix(reqPath, user.BasePath))
+		href := path.Join("/", h.Prefix, strings.TrimPrefix(reqPath, user.BasePath))
 		if href != "/" && info.IsDir() {
 			href += "/"
 		}
