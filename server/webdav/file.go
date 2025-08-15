@@ -94,6 +94,7 @@ func walkFS(ctx context.Context, depth int, name string, info model.Obj, walkFn 
 		depth = 0
 	}
 	meta, _ := op.GetNearestMeta(name)
+	user := ctx.Value("user").(*model.User)
 	// Read directory names.
 	objs, err := fs.List(context.WithValue(ctx, "meta", meta), name, &fs.ListArgs{})
 	//f, err := fs.OpenFile(ctx, name, os.O_RDONLY, 0)
@@ -108,6 +109,9 @@ func walkFS(ctx context.Context, depth int, name string, info model.Obj, walkFn 
 
 	for _, fileInfo := range objs {
 		filename := path.Join(name, fileInfo.GetName())
+		if !common.CanReadPathByRole(user, filename) {
+			continue
+		}
 		if err != nil {
 			if err := walkFn(filename, fileInfo, err); err != nil && err != filepath.SkipDir {
 				return err

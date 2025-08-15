@@ -107,7 +107,14 @@ func FsList(c *gin.Context) {
 		common.ErrorResp(c, err, 500)
 		return
 	}
-	total, objs := pagination(objs, &req.PageReq)
+	filtered := make([]model.Obj, 0, len(objs))
+	for _, obj := range objs {
+		childPath := stdpath.Join(reqPath, obj.GetName())
+		if common.CanReadPathByRole(user, childPath) {
+			filtered = append(filtered, obj)
+		}
+	}
+	total, objs := pagination(filtered, &req.PageReq)
 	provider := "unknown"
 	storage, err := fs.GetStorage(reqPath, &fs.GetStoragesArgs{})
 	if err == nil {
@@ -161,7 +168,14 @@ func FsDirs(c *gin.Context) {
 		common.ErrorResp(c, err, 500)
 		return
 	}
-	dirs := filterDirs(objs)
+	visible := make([]model.Obj, 0, len(objs))
+	for _, obj := range objs {
+		childPath := stdpath.Join(reqPath, obj.GetName())
+		if common.CanReadPathByRole(user, childPath) {
+			visible = append(visible, obj)
+		}
+	}
+	dirs := filterDirs(visible)
 	common.SuccessResp(c, dirs)
 }
 
