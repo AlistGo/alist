@@ -110,7 +110,8 @@ func WebDAVAuth(c *gin.Context) {
 		return
 	}
 	perm := common.MergeRolePermissions(user, reqPath)
-	if user.Disabled || !common.HasPermission(perm, common.PermWebdavRead) {
+	webdavRead := common.HasPermission(perm, common.PermWebdavRead)
+	if user.Disabled || (!webdavRead && (c.Request.Method != "PROPFIND" || !common.HasChildPermission(user, reqPath, common.PermWebdavRead))) {
 		if c.Request.Method == "OPTIONS" {
 			c.Set("user", guest)
 			c.Next()

@@ -97,7 +97,27 @@ func CanReadPathByRole(u *model.User, reqPath string) bool {
 			continue
 		}
 		for _, entry := range role.PermissionScopes {
-			if utils.PathEqual(entry.Path, reqPath) || utils.IsSubPath(entry.Path, reqPath) {
+			if utils.PathEqual(entry.Path, reqPath) || utils.IsSubPath(entry.Path, reqPath) || utils.IsSubPath(reqPath, entry.Path) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// HasChildPermission checks whether any child path under reqPath grants the
+// specified permission bit.
+func HasChildPermission(u *model.User, reqPath string, bit uint) bool {
+	if u == nil {
+		return false
+	}
+	for _, rid := range u.Role {
+		role, err := op.GetRole(uint(rid))
+		if err != nil {
+			continue
+		}
+		for _, entry := range role.PermissionScopes {
+			if utils.IsSubPath(reqPath, entry.Path) && HasPermission(entry.Permission, bit) {
 				return true
 			}
 		}
