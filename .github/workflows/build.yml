@@ -25,6 +25,8 @@ jobs:
           - android-arm64
     name: Build
     runs-on: ${{ matrix.platform }}
+    env:
+      GOPROXY: https://proxy.golang.org,direct
     steps:
 
       - name: Checkout
