@@ -52,6 +52,23 @@ func GetRoleByName(name string) (*model.Role, error) {
 	return r, err
 }
 
+func GetDefaultRoleID() int {
+	item, err := GetSettingItemByKey(conf.DefaultRole)
+	if err == nil && item != nil && item.Value != "" {
+		if id, err := strconv.Atoi(item.Value); err == nil && id != 0 {
+			return id
+		}
+		if r, err := db.GetRoleByName(item.Value); err == nil {
+			return int(r.ID)
+		}
+	}
+	var r model.Role
+	if err := db.GetDb().Where("`default` = ?", true).First(&r).Error; err == nil {
+		return int(r.ID)
+	}
+	return int(model.GUEST)
+}
+
 func GetRolesByUserID(userID uint) ([]model.Role, error) {
 	user, err := GetUserById(userID)
 	if err != nil {

@@ -4,10 +4,8 @@ import (
 	"github.com/alist-org/alist/v3/pkg/utils"
 	"strconv"
 
-	"github.com/alist-org/alist/v3/internal/conf"
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/internal/op"
-	"github.com/alist-org/alist/v3/internal/setting"
 	"github.com/alist-org/alist/v3/server/common"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
@@ -39,7 +37,7 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 	if len(req.Role) == 0 {
-		req.Role = model.Roles{setting.GetInt(conf.DefaultRole, int(model.GUEST))}
+		req.Role = model.Roles{op.GetDefaultRoleID()}
 	}
 	if req.IsAdmin() || req.IsGuest() {
 		common.ErrorStrResp(c, "admin or guest user can not be created", 400, true)

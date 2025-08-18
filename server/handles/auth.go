@@ -109,7 +109,7 @@ func Register(c *gin.Context) {
 	}
 	user := &model.User{
 		Username: req.Username,
-		Role:     model.Roles{setting.GetInt(conf.DefaultRole, int(model.GUEST))},
+		Role:     model.Roles{op.GetDefaultRoleID()},
 		Authn:    "[]",
 	}
 	user.SetPassword(req.Password)
