@@ -35,11 +35,27 @@ func GetRoles(pageIndex, pageSize int) (roles []model.Role, count int64, err err
 }
 
 func CreateRole(r *model.Role) error {
-	return errors.WithStack(db.Create(r).Error)
+	if err := db.Create(r).Error; err != nil {
+		return errors.WithStack(err)
+	}
+	if r.Default {
+		if err := db.Model(&model.Role{}).Where("id <> ?", r.ID).Update("default", false).Error; err != nil {
+			return errors.WithStack(err)
+		}
+	}
+	return nil
 }
 
 func UpdateRole(r *model.Role) error {
-	return errors.WithStack(db.Save(r).Error)
+	if err := db.Save(r).Error; err != nil {
+		return errors.WithStack(err)
+	}
+	if r.Default {
+		if err := db.Model(&model.Role{}).Where("id <> ?", r.ID).Update("default", false).Error; err != nil {
+			return errors.WithStack(err)
+		}
+	}
+	return nil
 }
 
 func DeleteRole(id uint) error {

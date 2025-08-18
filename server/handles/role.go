@@ -44,7 +44,7 @@ func GetRole(c *gin.Context) {
 
 func CreateRole(c *gin.Context) {
 	var req model.Role
-	if err := c.ShouldBind(&req); err != nil {
+	if err := c.ShouldBindJSON(&req); err != nil {
 		common.ErrorResp(c, err, 400)
 		return
 	}
@@ -56,8 +56,14 @@ func CreateRole(c *gin.Context) {
 }
 
 func UpdateRole(c *gin.Context) {
-	var req model.Role
-	if err := c.ShouldBind(&req); err != nil {
+	var req struct {
+		ID               uint                    `json:"id"`
+		Name             string                  `json:"name" binding:"required"`
+		Description      string                  `json:"description"`
+		PermissionScopes []model.PermissionEntry `json:"permission_scopes"`
+		Default          *bool                   `json:"default"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
 		common.ErrorResp(c, err, 400)
 		return
 	}
@@ -74,7 +80,13 @@ func UpdateRole(c *gin.Context) {
 	case "guest":
 		req.Name = "guest"
 	}
-	if err := op.UpdateRole(&req); err != nil {
+	role.Name = req.Name
+	role.Description = req.Description
+	role.PermissionScopes = req.PermissionScopes
+	if req.Default != nil {
+		role.Default = *req.Default
+	}
+	if err := op.UpdateRole(role); err != nil {
 		common.ErrorResp(c, err, 500, true)
 	} else {
 		common.SuccessResp(c)

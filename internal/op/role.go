@@ -2,9 +2,11 @@ package op
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/Xhofe/go-cache"
+	"github.com/alist-org/alist/v3/internal/conf"
 	"github.com/alist-org/alist/v3/internal/db"
 	"github.com/alist-org/alist/v3/internal/errs"
 	"github.com/alist-org/alist/v3/internal/model"
@@ -92,7 +94,21 @@ func CreateRole(r *model.Role) error {
 	}
 	roleCache.Del(fmt.Sprint(r.ID))
 	roleCache.Del(r.Name)
-	return db.CreateRole(r)
+	if err := db.CreateRole(r); err != nil {
+		return err
+	}
+	if r.Default {
+		roleCache.Clear()
+		item, err := GetSettingItemByKey(conf.DefaultRole)
+		if err != nil {
+			return err
+		}
+		item.Value = strconv.Itoa(int(r.ID))
+		if err := SaveSettingItem(item); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func UpdateRole(r *model.Role) error {
@@ -131,7 +147,21 @@ func UpdateRole(r *model.Role) error {
 	//}
 	roleCache.Del(fmt.Sprint(r.ID))
 	roleCache.Del(r.Name)
-	return db.UpdateRole(r)
+	if err := db.UpdateRole(r); err != nil {
+		return err
+	}
+	if r.Default {
+		roleCache.Clear()
+		item, err := GetSettingItemByKey(conf.DefaultRole)
+		if err != nil {
+			return err
+		}
+		item.Value = strconv.Itoa(int(r.ID))
+		if err := SaveSettingItem(item); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func DeleteRole(id uint) error {
