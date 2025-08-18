@@ -14,6 +14,18 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func getRoleOptions() string {
+	roles, _, err := op.GetRoles(1, model.MaxInt)
+	if err != nil {
+		return ""
+	}
+	names := make([]string, len(roles))
+	for i, r := range roles {
+		names[i] = r.Name
+	}
+	return strings.Join(names, ",")
+}
+
 func ResetToken(c *gin.Context) {
 	token := random.Token()
 	item := model.SettingItem{Key: "token", Value: token, Type: conf.TypeString, Group: model.SINGLE, Flag: model.PRIVATE}
@@ -34,12 +46,24 @@ func GetSetting(c *gin.Context) {
 			common.ErrorResp(c, err, 400)
 			return
 		}
+		if item.Key == conf.DefaultRole {
+			copy := *item
+			copy.Options = getRoleOptions()
+			common.SuccessResp(c, copy)
+			return
+		}
 		common.SuccessResp(c, item)
 	} else {
 		items, err := op.GetSettingItemInKeys(strings.Split(keys, ","))
 		if err != nil {
 			common.ErrorResp(c, err, 400)
 			return
+		}
+		for i := range items {
+			if items[i].Key == conf.DefaultRole {
+				items[i].Options = getRoleOptions()
+				break
+			}
 		}
 		common.SuccessResp(c, items)
 	}
@@ -87,6 +111,12 @@ func ListSettings(c *gin.Context) {
 	if err != nil {
 		common.ErrorResp(c, err, 400)
 		return
+	}
+	for i := range settings {
+		if settings[i].Key == conf.DefaultRole {
+			settings[i].Options = getRoleOptions()
+			break
+		}
 	}
 	common.SuccessResp(c, settings)
 }

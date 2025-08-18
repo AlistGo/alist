@@ -2,6 +2,7 @@ package data
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/alist-org/alist/v3/cmd/flags"
 	"github.com/alist-org/alist/v3/internal/conf"
@@ -91,6 +92,14 @@ func InitialSettings() []model.SettingItem {
 	} else {
 		token = random.Token()
 	}
+	roles, _, err := op.GetRoles(1, model.MaxInt)
+	if err != nil {
+		utils.Log.Fatalf("failed get roles: %+v", err)
+	}
+	roleNames := make([]string, len(roles))
+	for i, role := range roles {
+		roleNames[i] = role.Name
+	}
 	initialSettingItems = []model.SettingItem{
 		// site settings
 		{Key: conf.VERSION, Value: conf.Version, Type: conf.TypeString, Group: model.SITE, Flag: model.READONLY},
@@ -103,6 +112,8 @@ func InitialSettings() []model.SettingItem {
 		{Key: conf.AllowIndexed, Value: "false", Type: conf.TypeBool, Group: model.SITE},
 		{Key: conf.AllowMounted, Value: "true", Type: conf.TypeBool, Group: model.SITE},
 		{Key: conf.RobotsTxt, Value: "User-agent: *\nAllow: /", Type: conf.TypeText, Group: model.SITE},
+		{Key: conf.AllowRegister, Value: "false", Type: conf.TypeBool, Group: model.SITE},
+		{Key: conf.DefaultRole, Value: "guest", Type: conf.TypeSelect, Options: strings.Join(roleNames, ","), Group: model.SITE},
 		// newui settings
 		{Key: conf.UseNewui, Value: "false", Type: conf.TypeBool, Group: model.SITE},
 		// style settings
