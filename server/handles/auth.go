@@ -9,8 +9,10 @@ import (
 	"time"
 
 	"github.com/Xhofe/go-cache"
+	"github.com/alist-org/alist/v3/internal/conf"
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/internal/op"
+	"github.com/alist-org/alist/v3/internal/setting"
 	"github.com/alist-org/alist/v3/server/common"
 	"github.com/gin-gonic/gin"
 	"github.com/pquerna/otp/totp"
@@ -87,6 +89,40 @@ func loginHash(c *gin.Context, req *LoginReq) {
 	}
 	common.SuccessResp(c, gin.H{"token": token})
 	loginCache.Del(ip)
+}
+
+type RegisterReq struct {
+	Username string `json:"username" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
+// Register a new user
+func Register(c *gin.Context) {
+	if !setting.GetBool(conf.AllowRegister) {
+		common.ErrorStrResp(c, "registration is disabled", 403)
+		return
+	}
+	var req RegisterReq
+	if err := c.ShouldBind(&req); err != nil {
+		common.ErrorResp(c, err, 400)
+		return
+	}
+	user := &model.User{
+		Username: req.Username,
+		Role:     model.Roles{setting.GetInt(conf.DefaultRole, int(model.GUEST))},
+		Authn:    "[]",
+	}
+	user.SetPassword(req.Password)
+	if err := op.CreateUser(user); err != nil {
+		common.ErrorResp(c, err, 500, true)
+		return
+	}
+	token, err := common.GenerateToken(user)
+	if err != nil {
+		common.ErrorResp(c, err, 500, true)
+		return
+	}
+	common.SuccessResp(c, gin.H{"token": token})
 }
 
 type UserResp struct {
