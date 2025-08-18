@@ -2,6 +2,7 @@ package op
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/alist-org/alist/v3/internal/conf"
@@ -80,6 +81,18 @@ var settingItemHooks = map[string]SettingItemHook{
 	},
 	conf.IgnoreDirectLinkParams: func(item *model.SettingItem) error {
 		conf.SlicesMap[conf.IgnoreDirectLinkParams] = strings.Split(item.Value, ",")
+		return nil
+	},
+	conf.DefaultRole: func(item *model.SettingItem) error {
+		v := strings.TrimSpace(item.Value)
+		if v == "" {
+			return nil
+		}
+		r, err := GetRoleByName(v)
+		if err != nil {
+			return err
+		}
+		item.Value = strconv.Itoa(int(r.ID))
 		return nil
 	},
 }

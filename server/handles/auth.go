@@ -117,12 +117,7 @@ func Register(c *gin.Context) {
 		common.ErrorResp(c, err, 500, true)
 		return
 	}
-	token, err := common.GenerateToken(user)
-	if err != nil {
-		common.ErrorResp(c, err, 500, true)
-		return
-	}
-	common.SuccessResp(c, gin.H{"token": token})
+	common.SuccessResp(c)
 }
 
 type UserResp struct {
