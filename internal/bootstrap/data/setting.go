@@ -97,8 +97,15 @@ func InitialSettings() []model.SettingItem {
 		utils.Log.Fatalf("failed get roles: %+v", err)
 	}
 	roleNames := make([]string, len(roles))
+	defaultRoleID := ""
 	for i, role := range roles {
 		roleNames[i] = role.Name
+		if role.Name == "guest" {
+			defaultRoleID = strconv.Itoa(int(role.ID))
+		}
+	}
+	if defaultRoleID == "" && len(roles) > 0 {
+		defaultRoleID = strconv.Itoa(int(roles[0].ID))
 	}
 	initialSettingItems = []model.SettingItem{
 		// site settings
@@ -113,7 +120,7 @@ func InitialSettings() []model.SettingItem {
 		{Key: conf.AllowMounted, Value: "true", Type: conf.TypeBool, Group: model.SITE},
 		{Key: conf.RobotsTxt, Value: "User-agent: *\nAllow: /", Type: conf.TypeText, Group: model.SITE},
 		{Key: conf.AllowRegister, Value: "false", Type: conf.TypeBool, Group: model.SITE},
-		{Key: conf.DefaultRole, Value: "guest", Type: conf.TypeSelect, Options: strings.Join(roleNames, ","), Group: model.SITE},
+		{Key: conf.DefaultRole, Value: defaultRoleID, Type: conf.TypeSelect, Options: strings.Join(roleNames, ","), Group: model.SITE},
 		// newui settings
 		{Key: conf.UseNewui, Value: "false", Type: conf.TypeBool, Group: model.SITE},
 		// style settings
