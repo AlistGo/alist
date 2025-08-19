@@ -19,9 +19,12 @@ func getRoleOptions() string {
 	if err != nil {
 		return ""
 	}
-	names := make([]string, len(roles))
-	for i, r := range roles {
-		names[i] = r.Name
+	names := make([]string, 0, len(roles))
+	for _, r := range roles {
+		if r.Name == "admin" || r.Name == "guest" {
+			continue
+		}
+		names = append(names, r.Name)
 	}
 	return strings.Join(names, ",")
 }
@@ -85,6 +88,22 @@ func SaveSettings(c *gin.Context) {
 		common.ErrorResp(c, err, 400)
 		return
 	}
+
+	for i := range req {
+		if req[i].Key == conf.DefaultRole {
+			role, err := op.GetRoleByName(req[i].Value)
+			if err != nil {
+				common.ErrorResp(c, err, 400)
+				return
+			}
+			if role.Name == "admin" || role.Name == "guest" {
+				common.ErrorStrResp(c, "cannot set admin or guest as default role", 400)
+				return
+			}
+			req[i].Value = strconv.Itoa(int(role.ID))
+		}
+	}
+
 	if err := op.SaveSettingItems(req); err != nil {
 		common.ErrorResp(c, err, 500)
 	} else {
