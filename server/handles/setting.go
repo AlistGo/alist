@@ -49,6 +49,11 @@ func GetSetting(c *gin.Context) {
 		if item.Key == conf.DefaultRole {
 			copy := *item
 			copy.Options = getRoleOptions()
+			if id, err := strconv.Atoi(copy.Value); err == nil {
+				if r, err := op.GetRole(uint(id)); err == nil {
+					copy.Value = r.Name
+				}
+			}
 			common.SuccessResp(c, copy)
 			return
 		}
@@ -61,6 +66,11 @@ func GetSetting(c *gin.Context) {
 		}
 		for i := range items {
 			if items[i].Key == conf.DefaultRole {
+				if id, err := strconv.Atoi(items[i].Value); err == nil {
+					if r, err := op.GetRole(uint(id)); err == nil {
+						items[i].Value = r.Name
+					}
+				}
 				items[i].Options = getRoleOptions()
 				break
 			}
@@ -114,6 +124,11 @@ func ListSettings(c *gin.Context) {
 	}
 	for i := range settings {
 		if settings[i].Key == conf.DefaultRole {
+			if id, err := strconv.Atoi(settings[i].Value); err == nil {
+				if r, err := op.GetRole(uint(id)); err == nil {
+					settings[i].Value = r.Name
+				}
+			}
 			settings[i].Options = getRoleOptions()
 			break
 		}
