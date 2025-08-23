@@ -12,6 +12,7 @@ import (
 	"github.com/alist-org/alist/v3/internal/conf"
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/internal/op"
+	"github.com/alist-org/alist/v3/internal/session"
 	"github.com/alist-org/alist/v3/internal/setting"
 	"github.com/alist-org/alist/v3/server/common"
 	"github.com/gin-gonic/gin"
@@ -247,6 +248,13 @@ func Verify2FA(c *gin.Context) {
 }
 
 func LogOut(c *gin.Context) {
+	if keyVal, ok := c.Get("device_key"); ok {
+		if err := session.MarkInactive(keyVal.(string)); err != nil {
+			common.ErrorResp(c, err, 500)
+			return
+		}
+		c.Set("session_inactive", true)
+	}
 	err := common.InvalidateToken(c.GetHeader("Authorization"))
 	if err != nil {
 		common.ErrorResp(c, err, 500)

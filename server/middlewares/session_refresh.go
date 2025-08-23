@@ -12,6 +12,11 @@ func SessionRefresh(c *gin.Context) {
 	if c.Writer.Status() >= 400 {
 		return
 	}
+	if inactive, ok := c.Get("session_inactive"); ok {
+		if b, ok := inactive.(bool); ok && b {
+			return
+		}
+	}
 	userVal, uok := c.Get("user")
 	keyVal, kok := c.Get("device_key")
 	if uok && kok {
