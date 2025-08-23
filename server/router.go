@@ -71,6 +71,8 @@ func Init(e *gin.Engine) {
 	auth.POST("/auth/2fa/generate", handles.Generate2FA)
 	auth.POST("/auth/2fa/verify", handles.Verify2FA)
 	auth.GET("/auth/logout", handles.LogOut)
+	auth.GET("/me/sessions", handles.ListMySessions)
+	auth.POST("/me/sessions/evict", handles.EvictMySession)
 
 	// auth
 	api.GET("/auth/sso", handles.SSOLoginRedirect)
@@ -184,6 +186,10 @@ func admin(g *gin.RouterGroup) {
 	labelFileBinding.POST("/create_batch", handles.CreateLabelFileBinDingBatch)
 	labelFileBinding.POST("/delete", handles.DelLabelByFileName)
 	labelFileBinding.POST("/restore", handles.RestoreLabelFileBinding)
+
+	session := g.Group("/session")
+	session.GET("/list", handles.ListSessions)
+	session.POST("/evict", handles.EvictSession)
 
 }
 

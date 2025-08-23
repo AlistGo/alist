@@ -47,3 +47,19 @@ func GetOldestSession(userID uint) (*model.Session, error) {
 func UpdateSessionLastActive(userID uint, deviceKey string, lastActive int64) error {
 	return errors.WithStack(db.Model(&model.Session{}).Where("user_id = ? AND device_key = ?", userID, deviceKey).Update("last_active", lastActive).Error)
 }
+
+func ListSessionsByUser(userID uint) ([]model.Session, error) {
+	var sessions []model.Session
+	err := db.Where("user_id = ? AND status = ?", userID, model.SessionActive).Find(&sessions).Error
+	return sessions, errors.WithStack(err)
+}
+
+func ListSessions() ([]model.Session, error) {
+	var sessions []model.Session
+	err := db.Where("status = ?", model.SessionActive).Find(&sessions).Error
+	return sessions, errors.WithStack(err)
+}
+
+func MarkInactive(sessionID string) error {
+	return errors.WithStack(db.Model(&model.Session{}).Where("device_key = ?", sessionID).Update("status", model.SessionInactive).Error)
+}
