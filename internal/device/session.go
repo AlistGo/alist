@@ -8,16 +8,19 @@ import (
 	"github.com/alist-org/alist/v3/internal/errs"
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/internal/setting"
+	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 )
 
 // Handle verifies device sessions for a user and upserts current session.
-func Handle(userID uint, deviceKey string) error {
+func Handle(userID uint, deviceKey, ua, ip string) error {
 	ttl := setting.GetInt(conf.DeviceSessionTTL, 86400)
 	if ttl > 0 {
 		_ = db.DeleteSessionsBefore(time.Now().Unix() - int64(ttl))
 	}
+
+	ip = utils.MaskIP(ip)
 
 	now := time.Now().Unix()
 	sess, err := db.GetSession(userID, deviceKey)
@@ -27,6 +30,8 @@ func Handle(userID uint, deviceKey string) error {
 		}
 		sess.LastActive = now
 		sess.Status = model.SessionActive
+		sess.UserAgent = ua
+		sess.IP = ip
 		return db.UpsertSession(sess)
 	}
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -52,7 +57,7 @@ func Handle(userID uint, deviceKey string) error {
 		}
 	}
 
-	s := &model.Session{UserID: userID, DeviceKey: deviceKey, LastActive: now, Status: model.SessionActive}
+	s := &model.Session{UserID: userID, DeviceKey: deviceKey, UserAgent: ua, IP: ip, LastActive: now, Status: model.SessionActive}
 	return db.CreateSession(s)
 }
 

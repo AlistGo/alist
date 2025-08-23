@@ -7,6 +7,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type SessionResp struct {
+	SessionID  string `json:"session_id"`
+	UserID     uint   `json:"user_id,omitempty"`
+	LastActive int64  `json:"last_active"`
+	Status     int    `json:"status"`
+	UA         string `json:"ua"`
+	IP         string `json:"ip"`
+}
+
 func ListMySessions(c *gin.Context) {
 	user := c.MustGet("user").(*model.User)
 	sessions, err := db.ListSessionsByUser(user.ID)
@@ -14,7 +23,17 @@ func ListMySessions(c *gin.Context) {
 		common.ErrorResp(c, err, 500)
 		return
 	}
-	common.SuccessResp(c, sessions)
+	resp := make([]SessionResp, len(sessions))
+	for i, s := range sessions {
+		resp[i] = SessionResp{
+			SessionID:  s.DeviceKey,
+			LastActive: s.LastActive,
+			Status:     s.Status,
+			UA:         s.UserAgent,
+			IP:         s.IP,
+		}
+	}
+	common.SuccessResp(c, resp)
 }
 
 type EvictSessionReq struct {
@@ -45,7 +64,18 @@ func ListSessions(c *gin.Context) {
 		common.ErrorResp(c, err, 500)
 		return
 	}
-	common.SuccessResp(c, sessions)
+	resp := make([]SessionResp, len(sessions))
+	for i, s := range sessions {
+		resp[i] = SessionResp{
+			SessionID:  s.DeviceKey,
+			UserID:     s.UserID,
+			LastActive: s.LastActive,
+			Status:     s.Status,
+			UA:         s.UserAgent,
+			IP:         s.IP,
+		}
+	}
+	common.SuccessResp(c, resp)
 }
 
 func EvictSession(c *gin.Context) {

@@ -8,7 +8,7 @@ import (
 
 func GetSession(userID uint, deviceKey string) (*model.Session, error) {
 	s := model.Session{UserID: userID, DeviceKey: deviceKey}
-	if err := db.Where(&s).First(&s).Error; err != nil {
+	if err := db.Select("user_id, device_key, last_active, status, user_agent, ip").Where(&s).First(&s).Error; err != nil {
 		return nil, errors.Wrap(err, "failed find session")
 	}
 	return &s, nil
@@ -50,13 +50,13 @@ func UpdateSessionLastActive(userID uint, deviceKey string, lastActive int64) er
 
 func ListSessionsByUser(userID uint) ([]model.Session, error) {
 	var sessions []model.Session
-	err := db.Where("user_id = ? AND status = ?", userID, model.SessionActive).Find(&sessions).Error
+	err := db.Select("user_id, device_key, last_active, status, user_agent, ip").Where("user_id = ? AND status = ?", userID, model.SessionActive).Find(&sessions).Error
 	return sessions, errors.WithStack(err)
 }
 
 func ListSessions() ([]model.Session, error) {
 	var sessions []model.Session
-	err := db.Where("status = ?", model.SessionActive).Find(&sessions).Error
+	err := db.Select("user_id, device_key, last_active, status, user_agent, ip").Where("status = ?", model.SessionActive).Find(&sessions).Error
 	return sessions, errors.WithStack(err)
 }
 

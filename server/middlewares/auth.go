@@ -106,7 +106,7 @@ func handleSession(c *gin.Context, user *model.User) bool {
 		clientID = c.Query("client_id")
 	}
 	key := utils.GetMD5EncodeStr(fmt.Sprintf("%d-%s-%s-%s", user.ID, c.Request.UserAgent(), c.ClientIP(), clientID))
-	if err := device.Handle(user.ID, key); err != nil {
+	if err := device.Handle(user.ID, key, c.Request.UserAgent(), c.ClientIP()); err != nil {
 		common.ErrorResp(c, err, 403)
 		c.Abort()
 		return false
