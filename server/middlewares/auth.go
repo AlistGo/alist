@@ -5,9 +5,11 @@ import (
 	"fmt"
 
 	"github.com/alist-org/alist/v3/internal/conf"
+	"github.com/alist-org/alist/v3/internal/device"
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/internal/op"
 	"github.com/alist-org/alist/v3/internal/setting"
+	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/alist-org/alist/v3/server/common"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
@@ -24,7 +26,9 @@ func Auth(c *gin.Context) {
 			c.Abort()
 			return
 		}
-		c.Set("user", admin)
+		if !handleSession(c, admin) {
+			return
+		}
 		log.Debugf("use admin token: %+v", admin)
 		c.Next()
 		return
@@ -50,7 +54,9 @@ func Auth(c *gin.Context) {
 			}
 			guest.RolesDetail = roles
 		}
-		c.Set("user", guest)
+		if !handleSession(c, guest) {
+			return
+		}
 		log.Debugf("use empty token: %+v", guest)
 		c.Next()
 		return
@@ -87,9 +93,27 @@ func Auth(c *gin.Context) {
 		}
 		user.RolesDetail = roles
 	}
-	c.Set("user", user)
+	if !handleSession(c, user) {
+		return
+	}
 	log.Debugf("use login token: %+v", user)
 	c.Next()
+}
+
+func handleSession(c *gin.Context, user *model.User) bool {
+	clientID := c.GetHeader("Client-Id")
+	if clientID == "" {
+		clientID = c.Query("client_id")
+	}
+	key := utils.GetMD5EncodeStr(fmt.Sprintf("%d-%s-%s-%s", user.ID, c.Request.UserAgent(), c.ClientIP(), clientID))
+	if err := device.Handle(user.ID, key); err != nil {
+		common.ErrorResp(c, err, 403)
+		c.Abort()
+		return false
+	}
+	c.Set("device_key", key)
+	c.Set("user", user)
+	return true
 }
 
 func Authn(c *gin.Context) {

@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"crypto/subtle"
+	"fmt"
 	"net/http"
 	"net/url"
 	"path"
@@ -12,9 +13,11 @@ import (
 	"github.com/alist-org/alist/v3/server/middlewares"
 
 	"github.com/alist-org/alist/v3/internal/conf"
+	"github.com/alist-org/alist/v3/internal/device"
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/internal/op"
 	"github.com/alist-org/alist/v3/internal/setting"
+	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/alist-org/alist/v3/server/common"
 	"github.com/alist-org/alist/v3/server/webdav"
 	"github.com/gin-gonic/gin"
@@ -69,6 +72,13 @@ func WebDAVAuth(c *gin.Context) {
 					c.Abort()
 					return
 				}
+				key := utils.GetMD5EncodeStr(fmt.Sprintf("%d-%s", admin.ID, c.ClientIP()))
+				if err := device.Handle(admin.ID, key); err != nil {
+					c.Status(http.StatusForbidden)
+					c.Abort()
+					return
+				}
+				c.Set("device_key", key)
 				c.Set("user", admin)
 				c.Next()
 				return
@@ -146,6 +156,13 @@ func WebDAVAuth(c *gin.Context) {
 		c.Abort()
 		return
 	}
+	key := utils.GetMD5EncodeStr(fmt.Sprintf("%d-%s", user.ID, c.ClientIP()))
+	if err := device.Handle(user.ID, key); err != nil {
+		c.Status(http.StatusForbidden)
+		c.Abort()
+		return
+	}
+	c.Set("device_key", key)
 	c.Set("user", user)
 	c.Next()
 }

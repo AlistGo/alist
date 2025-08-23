@@ -22,6 +22,7 @@ func Init(e *gin.Engine) {
 		})
 	}
 	Cors(e)
+	e.Use(middlewares.SessionRefresh)
 	g := e.Group(conf.URL.Path)
 	if conf.Conf.Scheme.HttpPort != -1 && conf.Conf.Scheme.HttpsPort != -1 && conf.Conf.Scheme.ForceHttps {
 		e.Use(middlewares.ForceHttps)
