@@ -1,10 +1,14 @@
 package halalcloud
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha1"
+	"encoding/json"
 	"fmt"
 	"io"
+	"math"
+	"net/http"
 	"net/url"
 	"path"
 	"strconv"
@@ -15,14 +19,12 @@ import (
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/internal/op"
 	"github.com/alist-org/alist/v3/pkg/http_range"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/city404/v6-public-rpc-proto/go/v6/common"
 	pbPublicUser "github.com/city404/v6-public-rpc-proto/go/v6/user"
 	pubUserFile "github.com/city404/v6-public-rpc-proto/go/v6/userfile"
+	"github.com/ipfs/go-cid"
 	"github.com/rclone/rclone/lib/readers"
+	log "github.com/sirupsen/logrus"
 	"github.com/zzzhr1990/go-common-entity/userfile"
 )
 
@@ -367,39 +369,173 @@ func (d *HalalCloud) put(ctx context.Context, dstDir model.Obj, fileStream model
 
 	newDir := path.Join(dstDir.GetPath(), fileStream.GetName())
 
-	result, err := pubUserFile.NewPubUserFileClient(d.HalalCommon.serv.GetGrpcConnection()).CreateUploadToken(ctx, &pubUserFile.File{
+	// https://github.com/city404/v6-public-rpc-proto/wiki/0.100.000-%E6%96%87%E4%BB%B6%E4%B8%8A%E4%BC%A0
+
+	// https://github.com/halalcloud/golang-sdk/blob/652cd8d99c8329b6a975b608d094944cb006d757/cmd/disk/upload.go#L73
+	result, err := pubUserFile.NewPubUserFileClient(d.HalalCommon.serv.GetGrpcConnection()).CreateUploadTask(ctx, &pubUserFile.File{
+		// Parent: &pubUserFile.File{Path: currentDir},
 		Path: newDir,
+		//ContentIdentity: args[1],
+		Size: fileStream.GetSize(),
 	})
 	if err != nil {
 		return nil, err
 	}
-	u, _ := url.Parse(result.Endpoint)
-	u.Host = "s3." + u.Host
-	result.Endpoint = u.String()
-	s, err := session.NewSession(&aws.Config{
-		HTTPClient:       base.HttpClient,
-		Credentials:      credentials.NewStaticCredentials(result.AccessKey, result.SecretKey, result.Token),
-		Region:           aws.String(result.Region),
-		Endpoint:         aws.String(result.Endpoint),
-		S3ForcePathStyle: aws.Bool(true),
-	})
-	if err != nil {
-		return nil, err
+	if result.Created {
+		return nil, fmt.Errorf("upload file has been created")
 	}
-	uploader := s3manager.NewUploader(s, func(u *s3manager.Uploader) {
-		u.Concurrency = d.uploadThread
-	})
-	if fileStream.GetSize() > s3manager.MaxUploadParts*s3manager.DefaultUploadPartSize {
-		uploader.PartSize = fileStream.GetSize() / (s3manager.MaxUploadParts - 1)
+	log.Debugf("[halalcloud] Upload task started, total size: %d, block size: %d -> %s\n", fileStream.GetSize(), result.BlockSize, result.Task)
+	slicesCount := int(math.Ceil(float64(fileStream.GetSize()) / float64(result.BlockSize)))
+	bufferSize := int(result.BlockSize)
+	buffer := make([]byte, bufferSize)
+	slicesList := make([]string, 0)
+	codec := uint64(0x55)
+	if result.BlockCodec > 0 {
+		codec = uint64(result.BlockCodec)
 	}
+	mhType := uint64(0x12)
+	if result.BlockHashType > 0 {
+		mhType = uint64(result.BlockHashType)
+	}
+	prefix := cid.Prefix{
+		Codec:    codec,
+		MhLength: -1,
+		MhType:   mhType,
+		Version:  1,
+	}
+	// read file
 	reader := driver.NewLimitedUploadStream(ctx, fileStream)
-	_, err = uploader.UploadWithContext(ctx, &s3manager.UploadInput{
-		Bucket: aws.String(result.Bucket),
-		Key:    aws.String(result.Key),
-		Body:   io.TeeReader(reader, driver.NewProgress(fileStream.GetSize(), up)),
-	})
+	for {
+		n, err := io.ReadFull(reader, buffer)
+		if n > 0 {
+			data := buffer[:n]
+			uploadCid, err := postFileSlice(data, result.Task, result.UploadAddress, prefix)
+			if err != nil {
+				return nil, err
+			}
+			slicesList = append(slicesList, uploadCid.String())
+			up(float64(len(slicesList)) * 90 / float64(slicesCount))
+		}
+		if err == io.EOF || n == 0 {
+			break
+		}
+	}
+	up(95.0)
+	newFile, err := makeFile(slicesList, result.Task, result.UploadAddress)
+	if err != nil {
+		return nil, err
+	}
+	log.Debugf("[halalcloud] File uploaded, cid: %s\n", newFile.ContentIdentity)
 	return nil, err
 
+}
+
+func makeFile(fileSlice []string, taskID string, uploadAddress string) (*pubUserFile.File, error) {
+	accessUrl := uploadAddress + "/" + taskID
+	u, err := url.Parse(accessUrl)
+	if err != nil {
+		return nil, err
+	}
+	n, _ := json.Marshal(fileSlice)
+	httpRequest := http.Request{
+		Method: http.MethodPost,
+		URL:    u,
+		Header: map[string][]string{
+			"Accept":       {"application/json"},
+			"Content-Type": {"application/json"},
+			//"Content-Length": {fmt.Sprintf("%d", len(n))},
+		},
+		Body: io.NopCloser(bytes.NewReader(n)),
+	}
+	httpResponse, err := base.HttpClient.Do(&httpRequest)
+	if err != nil {
+		return nil, err
+	}
+	defer httpResponse.Body.Close()
+	if httpResponse.StatusCode != http.StatusOK && httpResponse.StatusCode != http.StatusCreated {
+		b, _ := io.ReadAll(httpResponse.Body)
+		fmt.Println(string(b))
+		return nil, fmt.Errorf("mk file slice failed, status code: %d", httpResponse.StatusCode)
+	}
+	b, _ := io.ReadAll(httpResponse.Body)
+	var result *pubUserFile.File
+	err = json.Unmarshal(b, &result)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func postFileSlice(fileSlice []byte, taskID string, uploadAddress string, preix cid.Prefix) (cid.Cid, error) {
+	// 1. sum file slice
+	newCid, err := preix.Sum(fileSlice)
+	if err != nil {
+		return cid.Undef, err
+	}
+	// 2. post file slice
+	sliceCidString := newCid.String()
+	// /{taskID}/{sliceID}
+	accessUrl := uploadAddress + "/" + taskID + "/" + sliceCidString
+	// get {accessUrl} in {getTimeOut}
+	u, err := url.Parse(accessUrl)
+	if err != nil {
+		return cid.Undef, err
+	}
+	// header: accept: application/json
+	// header: content-type: application/octet-stream
+	// header: content-length: {fileSlice.length}
+	// header: x-content-cid: {sliceCidString}
+	// header: x-task-id: {taskID}
+	httpRequest := http.Request{
+		Method: http.MethodGet,
+		URL:    u,
+		Header: map[string][]string{
+			"Accept": {"application/json"},
+		},
+	}
+	httpResponse, err := base.HttpClient.Do(&httpRequest)
+	if err != nil {
+		return cid.Undef, err
+	}
+	if httpResponse.StatusCode != http.StatusOK {
+		return cid.Undef, fmt.Errorf("check file slice failed, status code: %d", httpResponse.StatusCode)
+	}
+	var result bool
+	b, err := io.ReadAll(httpResponse.Body)
+	if err != nil {
+		return cid.Undef, err
+	}
+	err = json.Unmarshal(b, &result)
+	if err != nil {
+		return cid.Undef, err
+	}
+	if result {
+		log.Debugf("[halalcloud] Slice exists, cid: %s\n", newCid)
+		return newCid, nil
+	}
+
+	httpRequest = http.Request{
+		Method: http.MethodPost,
+		URL:    u,
+		Header: map[string][]string{
+			"Accept":       {"application/json"},
+			"Content-Type": {"application/octet-stream"},
+			// "Content-Length": {fmt.Sprintf("%d", len(fileSlice))},
+		},
+		Body: io.NopCloser(bytes.NewReader(fileSlice)),
+	}
+	httpResponse, err = base.HttpClient.Do(&httpRequest)
+	if err != nil {
+		return cid.Undef, err
+	}
+	defer httpResponse.Body.Close()
+	if httpResponse.StatusCode != http.StatusOK && httpResponse.StatusCode != http.StatusCreated {
+		b, _ := io.ReadAll(httpResponse.Body)
+		fmt.Println(string(b))
+		return cid.Undef, fmt.Errorf("upload file slice failed, status code: %d", httpResponse.StatusCode)
+	}
+	log.Debugf("[halalcloud] Slice uploaded, cid: %s\n", newCid)
+	return newCid, nil
 }
 
 var _ driver.Driver = (*HalalCloud)(nil)
