@@ -195,3 +195,9 @@ type CaptchaTokenResponse struct {
 	ExpiresIn    int64  `json:"expires_in"`
 	Url          string `json:"url"`
 }
+
+type CaptchaApiResponse struct {
+	Token string `json:"token"`
+	Code  int64  `json:"code"`
+	Url   string `json:"url_received"`
+}
