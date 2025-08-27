@@ -1,8 +1,9 @@
 package handles
 
 import (
-	"github.com/alist-org/alist/v3/pkg/utils"
 	"strconv"
+
+	"github.com/alist-org/alist/v3/pkg/utils"
 
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/internal/op"
@@ -97,6 +98,14 @@ func UpdateUser(c *gin.Context) {
 			return
 		}
 	}
+
+	if !utils.SliceEqual(user.Role, req.Role) {
+		if req.IsAdmin() || req.IsGuest() {
+			common.ErrorStrResp(c, "cannot assign admin or guest role to user", 400, true)
+			return
+		}
+	}
+
 	if err := op.UpdateUser(&req); err != nil {
 		common.ErrorResp(c, err, 500)
 	} else {
