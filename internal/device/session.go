@@ -25,11 +25,8 @@ func Handle(userID uint, deviceKey, ua, ip string) error {
 	now := time.Now().Unix()
 	sess, err := db.GetSession(userID, deviceKey)
 	if err == nil {
-		if sess.Status == model.SessionInactive {
-			return errors.WithStack(errs.SessionInactive)
-		}
-		sess.LastActive = now
 		sess.Status = model.SessionActive
+		sess.LastActive = now
 		sess.UserAgent = ua
 		sess.IP = ip
 		return db.UpsertSession(sess)
