@@ -8,7 +8,7 @@ require (
 	github.com/KirCute/ftpserverlib-pasvportmap v1.25.0
 	github.com/KirCute/sftpd-alist v0.0.12
 	github.com/ProtonMail/go-crypto v1.0.0
-	github.com/SheltonZhu/115driver v1.1.1
+	github.com/SheltonZhu/115driver v1.1.2
 	github.com/Xhofe/go-cache v0.0.0-20240804043513-b1a71927bc21
 	github.com/Xhofe/rateg v0.0.0-20230728072201-251a4e1adad4
 	github.com/alist-org/gofakes3 v0.0.7
@@ -265,4 +265,4 @@ require (
 	lukechampine.com/blake3 v1.1.7 // indirect
 )
 
-// replace github.com/xhofe/115-sdk-go => ../../xhofe/115-sdk-go
+replace github.com/SheltonZhu/115driver => github.com/okatu-loli/115driver v1.1.2
