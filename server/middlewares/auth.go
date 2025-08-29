@@ -2,10 +2,12 @@ package middlewares
 
 import (
 	"crypto/subtle"
+	"errors"
 	"fmt"
 
 	"github.com/alist-org/alist/v3/internal/conf"
 	"github.com/alist-org/alist/v3/internal/device"
+	"github.com/alist-org/alist/v3/internal/errs"
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/internal/op"
 	"github.com/alist-org/alist/v3/internal/setting"
@@ -106,9 +108,15 @@ func HandleSession(c *gin.Context, user *model.User) bool {
 	if clientID == "" {
 		clientID = c.Query("client_id")
 	}
-	key := utils.GetMD5EncodeStr(fmt.Sprintf("%d-%s-%s-%s", user.ID, c.Request.UserAgent(), c.ClientIP(), clientID))
+	key := utils.GetMD5EncodeStr(fmt.Sprintf("%d-%s", user.ID, clientID))
 	if err := device.Handle(user.ID, key, c.Request.UserAgent(), c.ClientIP()); err != nil {
-		common.ErrorResp(c, err, 403)
+		token := c.GetHeader("Authorization")
+		if errors.Is(err, errs.SessionInactive) {
+			_ = common.InvalidateToken(token)
+			common.ErrorResp(c, err, 401)
+		} else {
+			common.ErrorResp(c, err, 403)
+		}
 		c.Abort()
 		return false
 	}
