@@ -36,6 +36,87 @@ func isSymlinkDir(f fs.FileInfo, path string) bool {
 	return false
 }
 
+// resizeImageToBufferWithFFmpegGo 使用 ffmpeg-go 调整图片大小并输出到内存缓冲区
+func resizeImageToBufferWithFFmpegGo(inputFile string, width int, outputFormat string /* e.g., "image2pipe", "png_pipe", "mjpeg" */) (*bytes.Buffer, error) {
+	outBuffer := bytes.NewBuffer(nil)
+
+	// Determine codec based on desired output format for piping
+	// For generic image piping, 'image2' is often used with -f image2pipe
+	// For specific formats to buffer, you might specify the codec directly
+	var vcodec string
+	switch outputFormat {
+	case "png_pipe": // if you want to ensure PNG format in buffer
+		vcodec = "png"
+	case "mjpeg": // if you want to ensure JPEG format in buffer
+		vcodec = "mjpeg"
+		// default or "image2pipe" could leave codec choice more to ffmpeg or require -c:v later
+	}
+
+	outputArgs := ffmpeg.KwArgs{
+		"vf":      fmt.Sprintf("scale=%d:-1:flags=lanczos,format=yuv444p", width),
+		"vframes": "1",
+		"f":       outputFormat, // Format for piping (e.g., image2pipe, png_pipe)
+	}
+	if vcodec != "" {
+		outputArgs["vcodec"] = vcodec
+	}
+	if outputFormat == "mjpeg" {
+		outputArgs["q:v"] = "3"
+	}
+
+	err := ffmpeg.Input(inputFile).
+		Output("pipe:", outputArgs). // Output to pipe (stdout)
+		GlobalArgs("-loglevel", "error").
+		Silent(true).                     // Suppress ffmpeg's own console output
+		WithOutput(outBuffer, os.Stderr). // Capture stdout to outBuffer, stderr to os.Stderr
+		// ErrorToStdOut(). // Alternative: send ffmpeg's stderr to Go's stdout
+		Run()
+
+	if err != nil {
+		return nil, fmt.Errorf("ffmpeg-go failed to resize image %s to buffer: %w", inputFile, err)
+	}
+	if outBuffer.Len() == 0 {
+		return nil, fmt.Errorf("ffmpeg-go produced empty buffer for %s", inputFile)
+	}
+
+	return outBuffer, nil
+}
+
+func generateThumbnailWithImagingOptimized(imagePath string, targetWidth int, quality int) (*bytes.Buffer, error) {
+
+	file, err := os.Open(imagePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open image: %w", err)
+	}
+	defer file.Close()
+
+	img, err := imaging.Decode(file, imaging.AutoOrientation(true))
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode image: %w", err)
+	}
+
+	thumbImg := imaging.Resize(img, targetWidth, 0, imaging.Lanczos)
+	img = nil
+
+	var buf bytes.Buffer
+	// imaging.Encode
+	// imaging.PNG, imaging.JPEG, imaging.GIF, imaging.BMP, imaging.TIFF
+	outputFormat := imaging.JPEG
+	encodeOptions := []imaging.EncodeOption{imaging.JPEGQuality(quality)}
+
+	// outputFormat := imaging.PNG
+	// encodeOptions := []imaging.EncodeOption{}
+
+	err = imaging.Encode(&buf, thumbImg, outputFormat, encodeOptions...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode thumbnail: %w", err)
+	}
+
+	thumbImg = nil
+
+	return &buf, nil
+}
+
 // Get the snapshot of the video
 func (d *Local) GetSnapshot(videoPath string) (imgData *bytes.Buffer, err error) {
 	// Run ffprobe to get the video duration
@@ -80,7 +161,7 @@ func (d *Local) GetSnapshot(videoPath string) (imgData *bytes.Buffer, err error)
 	// The "noaccurate_seek" option prevents this error and would also speed up
 	// the seek process.
 	stream := ffmpeg.Input(videoPath, ffmpeg.KwArgs{"ss": ss, "noaccurate_seek": ""}).
-		Output("pipe:", ffmpeg.KwArgs{"vframes": 1, "format": "image2", "vcodec": "mjpeg"}).
+		Output("pipe:", ffmpeg.KwArgs{"vframes": 1, "format": "image2", "vcodec": "mjpeg", "vf": fmt.Sprintf("scale=%d:-1:flags=lanczos", d.thumbPixel)}).
 		GlobalArgs("-loglevel", "error").Silent(true).
 		WithOutput(srcBuf, os.Stdout)
 	if err = stream.Run(); err != nil {
@@ -125,29 +206,26 @@ func (d *Local) getThumb(file model.Obj) (*bytes.Buffer, *string, error) {
 		}
 		srcBuf = videoBuf
 	} else {
-		imgData, err := os.ReadFile(fullPath)
-		if err != nil {
-			return nil, nil, err
+		if d.useFFmpeg {
+			imgData, err := resizeImageToBufferWithFFmpegGo(fullPath, d.thumbPixel, "image2pipe")
+			srcBuf = imgData
+			if err != nil {
+				return nil, nil, err
+			}
+		} else {
+			imgData, err := generateThumbnailWithImagingOptimized(fullPath, d.thumbPixel, 70)
+			srcBuf = imgData
+			if err != nil {
+				return nil, nil, err
+			}
 		}
-		imgBuf := bytes.NewBuffer(imgData)
-		srcBuf = imgBuf
 	}
 
-	image, err := imaging.Decode(srcBuf, imaging.AutoOrientation(true))
-	if err != nil {
-		return nil, nil, err
-	}
-	thumbImg := imaging.Resize(image, 144, 0, imaging.Lanczos)
-	var buf bytes.Buffer
-	err = imaging.Encode(&buf, thumbImg, imaging.PNG)
-	if err != nil {
-		return nil, nil, err
-	}
 	if d.ThumbCacheFolder != "" {
-		err = os.WriteFile(filepath.Join(d.ThumbCacheFolder, thumbName), buf.Bytes(), 0666)
+		err := os.WriteFile(filepath.Join(d.ThumbCacheFolder, thumbName), srcBuf.Bytes(), 0666)
 		if err != nil {
 			return nil, nil, err
 		}
 	}
-	return &buf, nil, nil
+	return srcBuf, nil, nil
 }
