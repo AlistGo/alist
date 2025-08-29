@@ -38,10 +38,12 @@ func DeleteSessionsBefore(ts int64) error {
 	return errors.WithStack(db.Where("last_active < ?", ts).Delete(&model.Session{}).Error)
 }
 
-func GetOldestSession(userID uint) (*model.Session, error) {
+// GetOldestActiveSession returns the oldest active session for the specified user.
+func GetOldestActiveSession(userID uint) (*model.Session, error) {
 	var s model.Session
-	if err := db.Where("user_id = ?", userID).Order("last_active ASC").First(&s).Error; err != nil {
-		return nil, errors.Wrap(err, "failed get oldest session")
+	if err := db.Where("user_id = ? AND status = ?", userID, model.SessionActive).
+		Order("last_active ASC").First(&s).Error; err != nil {
+		return nil, errors.Wrap(err, "failed get oldest active session")
 	}
 	return &s, nil
 }

@@ -47,7 +47,7 @@ func Handle(userID uint, deviceKey, ua, ip string) error {
 		if count >= int64(max) {
 			policy := setting.GetStr(conf.DeviceEvictPolicy, "deny")
 			if policy == "evict_oldest" {
-				if oldest, err := db.GetOldestSession(userID); err == nil {
+				if oldest, err := db.GetOldestActiveSession(userID); err == nil {
 					if err := db.MarkInactive(oldest.DeviceKey); err != nil {
 						return err
 					}
@@ -81,7 +81,7 @@ func EnsureActiveOnLogin(userID uint, deviceKey, ua, ip string) error {
 				if count >= int64(max) {
 					policy := setting.GetStr(conf.DeviceEvictPolicy, "deny")
 					if policy == "evict_oldest" {
-						if oldest, gerr := db.GetOldestSession(userID); gerr == nil {
+						if oldest, gerr := db.GetOldestActiveSession(userID); gerr == nil {
 							if err := db.MarkInactive(oldest.DeviceKey); err != nil {
 								return err
 							}
@@ -111,7 +111,7 @@ func EnsureActiveOnLogin(userID uint, deviceKey, ua, ip string) error {
 		if count >= int64(max) {
 			policy := setting.GetStr(conf.DeviceEvictPolicy, "deny")
 			if policy == "evict_oldest" {
-				if oldest, gerr := db.GetOldestSession(userID); gerr == nil {
+				if oldest, gerr := db.GetOldestActiveSession(userID); gerr == nil {
 					if err := db.MarkInactive(oldest.DeviceKey); err != nil {
 						return err
 					}
