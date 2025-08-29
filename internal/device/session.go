@@ -71,6 +71,27 @@ func EnsureActiveOnLogin(userID uint, deviceKey, ua, ip string) error {
 
 	sess, err := db.GetSession(userID, deviceKey)
 	if err == nil {
+		if sess.Status == model.SessionInactive {
+			max := setting.GetInt(conf.MaxDevices, 0)
+			if max > 0 {
+				count, err := db.CountActiveSessionsByUser(userID)
+				if err != nil {
+					return err
+				}
+				if count >= int64(max) {
+					policy := setting.GetStr(conf.DeviceEvictPolicy, "deny")
+					if policy == "evict_oldest" {
+						if oldest, gerr := db.GetOldestSession(userID); gerr == nil {
+							if err := db.MarkInactive(oldest.DeviceKey); err != nil {
+								return err
+							}
+						}
+					} else {
+						return errors.WithStack(errs.TooManyDevices)
+					}
+				}
+			}
+		}
 		sess.Status = model.SessionActive
 		sess.LastActive = now
 		sess.UserAgent = ua
