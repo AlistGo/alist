@@ -1,0 +1,66 @@
+FROM ubuntu AS build_alist
+WORKDIR /app/
+# RUN apt update && apt install bash curl gcc git go musl-dev
+# 安装基本工具
+RUN apt update && \
+    apt install -y software-properties-common && \
+    add-apt-repository ppa:longsleep/golang-backports && \
+    apt update && \
+    apt install -y bash curl gcc git golang-go musl-dev
+COPY go.mod go.sum ./
+RUN go mod download
+COPY ./ ./
+RUN bash build.sh release docker
+
+FROM ubuntu AS install_yolov8
+RUN apt update && \
+    apt install -y python3 python3-pip python3.12-venv
+WORKDIR /app/auto_pikpak/
+# 创建虚拟环境并激活
+RUN python3 -m venv venv && \
+    . venv/bin/activate && \
+    pip install \
+    # pip install \
+    ultralytics
+
+# FROM ubuntu AS install_py2
+# COPY --from=install_yolov8 /app/auto_pikpak/venv /app/pikpak_captcha_server/venv
+# RUN apt update && \
+#     apt install -y python3 python3-pip python3.12-venv
+# WORKDIR /app/pikpak_captcha_server/
+# # 使用虚拟环境中的 Python 安装其他依赖
+# RUN /app/pikpak_captcha_server/venv/bin/python -m pip install --no-cache-dir 2captcha-python Flask
+
+FROM ubuntu as pikpak_server
+RUN apt update && \
+    apt install -y git python3 python3-pip python3.12-venv
+WORKDIR /app
+RUN git clone --depth=1 --recurse-submodules https://github.com/wangjunkai2022/pikpak_captcha_server.git
+WORKDIR /app/pikpak_captcha_server
+RUN rm -rf /app/pikpak_captcha_server/pikpak_captcha/ai/ai_train_pikpak
+COPY --from=install_yolov8 /app/auto_pikpak/venv /app/pikpak_captcha_server/venv
+# 使用虚拟环境中的 Python 安装其他依赖
+RUN /app/pikpak_captcha_server/venv/bin/python -m pip install -r requirements.txt
+# 安装每个子模块的依赖项
+RUN find . -name 'requirements.txt' -exec /app/pikpak_captcha_server/venv/bin/python -m pip install -r {} \;
+
+FROM ubuntu
+ARG INSTALL_FFMPEG=false
+LABEL MAINTAINER="i@nn.ci"
+
+WORKDIR /opt/alist/
+
+RUN apt update && \
+    apt upgrade -y && \
+    apt install -y bash ca-certificates tzdata ffmpeg
+
+# 复制 auto_pikpak 到第二阶段
+COPY --from=pikpak_server /app/pikpak_captcha_server /app/pikpak_captcha_server
+COPY --from=build_alist /app/bin/alist ./
+COPY entrypoint_pkserver.sh /entrypoint_pkserver.sh
+RUN chmod +x /entrypoint_pkserver.sh && /entrypoint_pkserver.sh version
+
+ENV PUID=0 PGID=0 UMASK=022
+VOLUME /opt/alist/data/
+EXPOSE 5244 5245
+CMD [ "/entrypoint_pkserver.sh" ]
