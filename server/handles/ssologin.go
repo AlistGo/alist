@@ -256,6 +256,7 @@ func OIDCLoginCallback(c *gin.Context) {
 			user, err = autoRegister(userID, userID, err)
 			if err != nil {
 				common.ErrorResp(c, err, 400)
+				return
 			}
 		}
 		token, err := common.GenerateToken(user)
