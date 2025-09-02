@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/alist-org/alist/v3/internal/op"
 	"net/http"
 	"net/url"
 	"path"
@@ -154,7 +155,7 @@ func autoRegister(username, userID string, err error) (*model.User, error) {
 		Password:   random.String(16),
 		Permission: int32(setting.GetInt(conf.SSODefaultPermission, 0)),
 		BasePath:   setting.GetStr(conf.SSODefaultDir),
-		Role:       nil,
+		Role:       model.Roles{op.GetDefaultRoleID()},
 		Disabled:   false,
 		SsoID:      userID,
 	}
