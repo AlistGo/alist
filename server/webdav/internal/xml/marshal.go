@@ -546,9 +546,9 @@ func (p *printer) setAttrPrefix(prefix, url string) {
 }
 
 var (
-	marshalerType     = reflect.TypeOf((*Marshaler)(nil)).Elem()
-	marshalerAttrType = reflect.TypeOf((*MarshalerAttr)(nil)).Elem()
-	textMarshalerType = reflect.TypeOf((*encoding.TextMarshaler)(nil)).Elem()
+	marshalerType     = reflect.TypeFor[Marshaler]()
+	marshalerAttrType = reflect.TypeFor[MarshalerAttr]()
+	textMarshalerType = reflect.TypeFor[encoding.TextMarshaler]()
 )
 
 // marshalValue writes one or more XML elements representing val.
