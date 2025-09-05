@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -28,7 +30,8 @@ import (
 type Pan123 struct {
 	model.Storage
 	Addition
-	apiRateLimit sync.Map
+	apiRateLimit    sync.Map
+	safeBoxUnlocked sync.Map
 }
 
 func (d *Pan123) Config() driver.Config {
@@ -52,9 +55,26 @@ func (d *Pan123) Drop(ctx context.Context) error {
 }
 
 func (d *Pan123) List(ctx context.Context, dir model.Obj, args model.ListArgs) ([]model.Obj, error) {
+	if f, ok := dir.(File); ok && f.IsLock == 1 {
+		if err := d.unlockSafeBox(f.FileId); err != nil {
+			return nil, err
+		}
+	}
 	files, err := d.getFiles(ctx, dir.GetID(), dir.GetName())
 	if err != nil {
-		return nil, err
+		msg := strings.ToLower(err.Error())
+		if strings.Contains(msg, "safe box") || strings.Contains(err.Error(), "保险箱") {
+			if id, e := strconv.ParseInt(dir.GetID(), 10, 64); e == nil {
+				if e = d.unlockSafeBox(id); e == nil {
+					files, err = d.getFiles(ctx, dir.GetID(), dir.GetName())
+				} else {
+					return nil, e
+				}
+			}
+		}
+		if err != nil {
+			return nil, err
+		}
 	}
 	return utils.SliceConvert(files, func(src File) (model.Obj, error) {
 		return src, nil
