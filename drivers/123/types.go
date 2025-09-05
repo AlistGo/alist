@@ -20,7 +20,7 @@ type File struct {
 	Etag        string    `json:"Etag"`
 	S3KeyFlag   string    `json:"S3KeyFlag"`
 	DownloadUrl string    `json:"DownloadUrl"`
-	IsLock      int       `json:"IsLock"`
+	IsLock      bool      `json:"IsLock"`
 }
 
 func (f File) CreateTime() time.Time {

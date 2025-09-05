@@ -55,7 +55,7 @@ func (d *Pan123) Drop(ctx context.Context) error {
 }
 
 func (d *Pan123) List(ctx context.Context, dir model.Obj, args model.ListArgs) ([]model.Obj, error) {
-	if f, ok := dir.(File); ok && f.IsLock == 1 {
+	if f, ok := dir.(File); ok && f.IsLock {
 		if err := d.unlockSafeBox(f.FileId); err != nil {
 			return nil, err
 		}
