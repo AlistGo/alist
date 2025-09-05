@@ -204,3 +204,102 @@ type UploadTaskResponse struct {
 
 	File Files `json:"file"`
 }
+
+// 添加离线下载响应
+type OfflineDownloadResp struct {
+	File       *string     `json:"file"`
+	Task       OfflineTask `json:"task"`
+	UploadType string      `json:"upload_type"`
+	URL        struct {
+		Kind string `json:"kind"`
+	} `json:"url"`
+}
+
+// 离线下载列表
+type OfflineListResp struct {
+	ExpiresIn     int64         `json:"expires_in"`
+	NextPageToken string        `json:"next_page_token"`
+	Tasks         []OfflineTask `json:"tasks"`
+}
+
+// offlineTask
+type OfflineTask struct {
+	Callback          string            `json:"callback"`
+	CreatedTime       string            `json:"created_time"`
+	FileID            string            `json:"file_id"`
+	FileName          string            `json:"file_name"`
+	FileSize          string            `json:"file_size"`
+	IconLink          string            `json:"icon_link"`
+	ID                string            `json:"id"`
+	Kind              string            `json:"kind"`
+	Message           string            `json:"message"`
+	Name              string            `json:"name"`
+	Params            Params            `json:"params"`
+	Phase             string            `json:"phase"` // PHASE_TYPE_RUNNING, PHASE_TYPE_ERROR, PHASE_TYPE_COMPLETE, PHASE_TYPE_PENDING
+	Progress          int64             `json:"progress"`
+	ReferenceResource ReferenceResource `json:"reference_resource"`
+	Space             string            `json:"space"`
+	StatusSize        int64             `json:"status_size"`
+	Statuses          []string          `json:"statuses"`
+	ThirdTaskID       string            `json:"third_task_id"`
+	Type              string            `json:"type"`
+	UpdatedTime       string            `json:"updated_time"`
+	UserID            string            `json:"user_id"`
+}
+
+type Params struct {
+	Age         string  `json:"age"`
+	MIMEType    *string `json:"mime_type,omitempty"`
+	PredictType string  `json:"predict_type"`
+	URL         string  `json:"url"`
+}
+
+type ReferenceResource struct {
+	Type          string                 `json:"@type"`
+	Audit         interface{}            `json:"audit"`
+	Hash          string                 `json:"hash"`
+	IconLink      string                 `json:"icon_link"`
+	ID            string                 `json:"id"`
+	Kind          string                 `json:"kind"`
+	Medias        []Media                `json:"medias"`
+	MIMEType      string                 `json:"mime_type"`
+	Name          string                 `json:"name"`
+	Params        map[string]interface{} `json:"params"`
+	ParentID      string                 `json:"parent_id"`
+	Phase         string                 `json:"phase"`
+	Size          string                 `json:"size"`
+	Space         string                 `json:"space"`
+	Starred       bool                   `json:"starred"`
+	Tags          []string               `json:"tags"`
+	ThumbnailLink string                 `json:"thumbnail_link"`
+}
+
+type Media struct {
+	MediaId   string `json:"media_id"`
+	MediaName string `json:"media_name"`
+	Video     struct {
+		Height     int    `json:"height"`
+		Width      int    `json:"width"`
+		Duration   int    `json:"duration"`
+		BitRate    int    `json:"bit_rate"`
+		FrameRate  int    `json:"frame_rate"`
+		VideoCodec string `json:"video_codec"`
+		AudioCodec string `json:"audio_codec"`
+		VideoType  string `json:"video_type"`
+	} `json:"video"`
+	Link struct {
+		Url    string    `json:"url"`
+		Token  string    `json:"token"`
+		Expire time.Time `json:"expire"`
+	} `json:"link"`
+	NeedMoreQuota  bool          `json:"need_more_quota"`
+	VipTypes       []interface{} `json:"vip_types"`
+	RedirectLink   string        `json:"redirect_link"`
+	IconLink       string        `json:"icon_link"`
+	IsDefault      bool          `json:"is_default"`
+	Priority       int           `json:"priority"`
+	IsOrigin       bool          `json:"is_origin"`
+	ResolutionName string        `json:"resolution_name"`
+	IsVisible      bool          `json:"is_visible"`
+	Category       string        `json:"category"`
+}

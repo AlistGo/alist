@@ -75,6 +75,9 @@ const (
 	// thunder
 	ThunderTempDir = "thunder_temp_dir"
 
+	// thunderx
+	ThunderXTempDir = "thunderx_temp_dir"
+
 	// single
 	Token         = "token"
 	IndexProgress = "index_progress"
