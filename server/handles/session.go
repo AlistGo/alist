@@ -10,6 +10,7 @@ import (
 type SessionResp struct {
 	SessionID  string `json:"session_id"`
 	UserID     uint   `json:"user_id,omitempty"`
+	Username   string `json:"username,omitempty"`
 	LastActive int64  `json:"last_active"`
 	Status     int    `json:"status"`
 	UA         string `json:"ua"`
@@ -64,7 +65,7 @@ func EvictMySession(c *gin.Context) {
 }
 
 func ListSessions(c *gin.Context) {
-	sessions, err := db.ListSessions()
+	sessions, err := db.ListSessionsWithUser()
 	if err != nil {
 		common.ErrorResp(c, err, 500)
 		return
@@ -74,6 +75,7 @@ func ListSessions(c *gin.Context) {
 		resp[i] = SessionResp{
 			SessionID:  s.DeviceKey,
 			UserID:     s.UserID,
+			Username:   s.Username,
 			LastActive: s.LastActive,
 			Status:     s.Status,
 			UA:         s.UserAgent,

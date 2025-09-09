@@ -1,10 +1,16 @@
 package db
 
 import (
+	"github.com/alist-org/alist/v3/internal/conf"
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/pkg/errors"
 	"gorm.io/gorm/clause"
 )
+
+type SessionWithUser struct {
+	model.Session
+	Username string
+}
 
 func GetSession(userID uint, deviceKey string) (*model.Session, error) {
 	s := model.Session{UserID: userID, DeviceKey: deviceKey}
@@ -61,6 +67,19 @@ func ListSessionsByUser(userID uint) ([]model.Session, error) {
 func ListSessions() ([]model.Session, error) {
 	var sessions []model.Session
 	err := db.Select("user_id, device_key, last_active, status, user_agent, ip").Where("status = ?", model.SessionActive).Find(&sessions).Error
+	return sessions, errors.WithStack(err)
+}
+
+func ListSessionsWithUser() ([]SessionWithUser, error) {
+	var sessions []SessionWithUser
+	sessionTable := conf.Conf.Database.TablePrefix + "sessions"
+	userTable := conf.Conf.Database.TablePrefix + "users"
+	err := db.Table(sessionTable).
+		Select(sessionTable+".user_id, "+sessionTable+".device_key, "+sessionTable+".last_active, "+
+			sessionTable+".status, "+sessionTable+".user_agent, "+sessionTable+".ip, "+userTable+".username").
+		Joins("JOIN "+userTable+" ON "+sessionTable+".user_id = "+userTable+".id").
+		Where(sessionTable+".status = ?", model.SessionActive).
+		Scan(&sessions).Error
 	return sessions, errors.WithStack(err)
 }
 
