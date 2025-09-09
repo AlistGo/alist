@@ -73,7 +73,7 @@ func WebDAVAuth(c *gin.Context) {
 					return
 				}
 				key := utils.GetMD5EncodeStr(fmt.Sprintf("%d-%s", admin.ID, c.ClientIP()))
-				if err := device.Handle(admin.ID, key, c.Request.UserAgent(), c.ClientIP()); err != nil {
+				if err := device.Handle(admin, key, c.Request.UserAgent(), c.ClientIP()); err != nil {
 					c.Status(http.StatusForbidden)
 					c.Abort()
 					return
@@ -157,7 +157,7 @@ func WebDAVAuth(c *gin.Context) {
 		return
 	}
 	key := utils.GetMD5EncodeStr(fmt.Sprintf("%d-%s", user.ID, c.ClientIP()))
-	if err := device.Handle(user.ID, key, c.Request.UserAgent(), c.ClientIP()); err != nil {
+	if err := device.Handle(user, key, c.Request.UserAgent(), c.ClientIP()); err != nil {
 		c.Status(http.StatusForbidden)
 		c.Abort()
 		return

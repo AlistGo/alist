@@ -52,6 +52,8 @@ type User struct {
 	Permission int32  `json:"permission"`
 	OtpSecret  string `json:"-"`
 	SsoID      string `json:"sso_id"` // unique by sso platform
+	MaxDevices *int   `json:"max_devices"`
+	SessionTTL *int   `json:"session_ttl"`
 	Authn      string `gorm:"type:text" json:"-"`
 }
 
