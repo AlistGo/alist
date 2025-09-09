@@ -18,6 +18,7 @@ import (
 	"github.com/alist-org/alist/v3/internal/op"
 	"github.com/alist-org/alist/v3/internal/setting"
 	"github.com/alist-org/alist/v3/pkg/utils"
+	"github.com/alist-org/alist/v3/pkg/utils/random"
 	"github.com/alist-org/alist/v3/server/common"
 	"github.com/alist-org/alist/v3/server/webdav"
 	"github.com/gin-gonic/gin"
@@ -55,6 +56,10 @@ func ServeWebDAV(c *gin.Context) {
 	handler.ServeHTTP(c.Writer, c.Request.WithContext(ctx))
 }
 
+// WebDAVAuth authenticates WebDAV requests and reactivates inactive
+// sessions using device.EnsureActiveOnLogin. Device keys are based on
+// Client-Id headers when available or the client IP with a random
+// suffix to avoid conflicts.
 func WebDAVAuth(c *gin.Context) {
 	guest, _ := op.GetGuest()
 	username, password, ok := c.Request.BasicAuth()
@@ -72,8 +77,17 @@ func WebDAVAuth(c *gin.Context) {
 					c.Abort()
 					return
 				}
-				key := utils.GetMD5EncodeStr(fmt.Sprintf("%d-%s", admin.ID, c.ClientIP()))
-				if err := device.Handle(admin, key, c.Request.UserAgent(), c.ClientIP()); err != nil {
+				clientID := c.GetHeader("Client-Id")
+				if clientID == "" {
+					if cookie, err := c.Request.Cookie("Client-Id"); err == nil {
+						clientID = cookie.Value
+					} else {
+						clientID = c.ClientIP() + "-" + random.String(8)
+						http.SetCookie(c.Writer, &http.Cookie{Name: "Client-Id", Value: clientID, Path: "/"})
+					}
+				}
+				key := utils.GetMD5EncodeStr(fmt.Sprintf("%d-%s", admin.ID, clientID))
+				if err := device.EnsureActiveOnLogin(admin, key, c.Request.UserAgent(), c.ClientIP()); err != nil {
 					c.Status(http.StatusForbidden)
 					c.Abort()
 					return
@@ -156,8 +170,17 @@ func WebDAVAuth(c *gin.Context) {
 		c.Abort()
 		return
 	}
-	key := utils.GetMD5EncodeStr(fmt.Sprintf("%d-%s", user.ID, c.ClientIP()))
-	if err := device.Handle(user, key, c.Request.UserAgent(), c.ClientIP()); err != nil {
+	clientID := c.GetHeader("Client-Id")
+	if clientID == "" {
+		if cookie, err := c.Request.Cookie("Client-Id"); err == nil {
+			clientID = cookie.Value
+		} else {
+			clientID = c.ClientIP() + "-" + random.String(8)
+			http.SetCookie(c.Writer, &http.Cookie{Name: "Client-Id", Value: clientID, Path: "/"})
+		}
+	}
+	key := utils.GetMD5EncodeStr(fmt.Sprintf("%d-%s", user.ID, clientID))
+	if err := device.EnsureActiveOnLogin(user, key, c.Request.UserAgent(), c.ClientIP()); err != nil {
 		c.Status(http.StatusForbidden)
 		c.Abort()
 		return
