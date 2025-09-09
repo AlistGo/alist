@@ -190,6 +190,7 @@ func admin(g *gin.RouterGroup) {
 	session := g.Group("/session")
 	session.GET("/list", handles.ListSessions)
 	session.POST("/evict", handles.EvictSession)
+	session.POST("/clean", handles.CleanSessions)
 
 }
 

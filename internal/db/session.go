@@ -67,3 +67,15 @@ func ListSessions() ([]model.Session, error) {
 func MarkInactive(sessionID string) error {
 	return errors.WithStack(db.Model(&model.Session{}).Where("device_key = ?", sessionID).Update("status", model.SessionInactive).Error)
 }
+
+func DeleteInactiveSessions(userID *uint) error {
+	query := db.Where("status = ?", model.SessionInactive)
+	if userID != nil {
+		query = query.Where("user_id = ?", *userID)
+	}
+	return errors.WithStack(query.Delete(&model.Session{}).Error)
+}
+
+func DeleteSessionByID(sessionID string) error {
+	return errors.WithStack(db.Where("device_key = ?", sessionID).Delete(&model.Session{}).Error)
+}

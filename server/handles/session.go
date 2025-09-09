@@ -40,6 +40,11 @@ type EvictSessionReq struct {
 	SessionID string `json:"session_id"`
 }
 
+type CleanSessionsReq struct {
+	UserID    *uint  `json:"user_id"`
+	SessionID string `json:"session_id"`
+}
+
 func EvictMySession(c *gin.Context) {
 	var req EvictSessionReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -85,6 +90,35 @@ func EvictSession(c *gin.Context) {
 		return
 	}
 	if err := db.MarkInactive(req.SessionID); err != nil {
+		common.ErrorResp(c, err, 500)
+		return
+	}
+	common.SuccessResp(c)
+}
+
+func CleanSessions(c *gin.Context) {
+	var req CleanSessionsReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ErrorResp(c, err, 400)
+		return
+	}
+	if req.SessionID != "" {
+		if err := db.DeleteSessionByID(req.SessionID); err != nil {
+			common.ErrorResp(c, err, 500)
+			return
+		}
+		common.SuccessResp(c)
+		return
+	}
+	if req.UserID != nil {
+		if err := db.DeleteInactiveSessions(req.UserID); err != nil {
+			common.ErrorResp(c, err, 500)
+			return
+		}
+		common.SuccessResp(c)
+		return
+	}
+	if err := db.DeleteInactiveSessions(nil); err != nil {
 		common.ErrorResp(c, err, 500)
 		return
 	}
