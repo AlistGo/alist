@@ -1,10 +1,16 @@
 package db
 
 import (
+	"github.com/alist-org/alist/v3/internal/conf"
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/pkg/errors"
 	"gorm.io/gorm/clause"
 )
+
+type SessionWithUser struct {
+	model.Session
+	Username string
+}
 
 func GetSession(userID uint, deviceKey string) (*model.Session, error) {
 	s := model.Session{UserID: userID, DeviceKey: deviceKey}
@@ -64,6 +70,31 @@ func ListSessions() ([]model.Session, error) {
 	return sessions, errors.WithStack(err)
 }
 
+func ListSessionsWithUser() ([]SessionWithUser, error) {
+	var sessions []SessionWithUser
+	sessionTable := conf.Conf.Database.TablePrefix + "sessions"
+	userTable := conf.Conf.Database.TablePrefix + "users"
+	err := db.Table(sessionTable).
+		Select(sessionTable+".user_id, "+sessionTable+".device_key, "+sessionTable+".last_active, "+
+			sessionTable+".status, "+sessionTable+".user_agent, "+sessionTable+".ip, "+userTable+".username").
+		Joins("JOIN "+userTable+" ON "+sessionTable+".user_id = "+userTable+".id").
+		Where(sessionTable+".status = ?", model.SessionActive).
+		Scan(&sessions).Error
+	return sessions, errors.WithStack(err)
+}
+
 func MarkInactive(sessionID string) error {
 	return errors.WithStack(db.Model(&model.Session{}).Where("device_key = ?", sessionID).Update("status", model.SessionInactive).Error)
+}
+
+func DeleteInactiveSessions(userID *uint) error {
+	query := db.Where("status = ?", model.SessionInactive)
+	if userID != nil {
+		query = query.Where("user_id = ?", *userID)
+	}
+	return errors.WithStack(query.Delete(&model.Session{}).Error)
+}
+
+func DeleteSessionByID(sessionID string) error {
+	return errors.WithStack(db.Where("device_key = ?", sessionID).Delete(&model.Session{}).Error)
 }

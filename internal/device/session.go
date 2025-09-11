@@ -14,8 +14,11 @@ import (
 )
 
 // Handle verifies device sessions for a user and upserts current session.
-func Handle(userID uint, deviceKey, ua, ip string) error {
+func Handle(user *model.User, deviceKey, ua, ip string) error {
 	ttl := setting.GetInt(conf.DeviceSessionTTL, 86400)
+	if user.SessionTTL != nil {
+		ttl = *user.SessionTTL
+	}
 	if ttl > 0 {
 		_ = db.DeleteSessionsBefore(time.Now().Unix() - int64(ttl))
 	}
@@ -23,7 +26,7 @@ func Handle(userID uint, deviceKey, ua, ip string) error {
 	ip = utils.MaskIP(ip)
 
 	now := time.Now().Unix()
-	sess, err := db.GetSession(userID, deviceKey)
+	sess, err := db.GetSession(user.ID, deviceKey)
 	if err == nil {
 		if sess.Status == model.SessionInactive {
 			return errors.WithStack(errs.SessionInactive)
@@ -39,15 +42,18 @@ func Handle(userID uint, deviceKey, ua, ip string) error {
 	}
 
 	max := setting.GetInt(conf.MaxDevices, 0)
+	if user.MaxDevices != nil {
+		max = *user.MaxDevices
+	}
 	if max > 0 {
-		count, err := db.CountActiveSessionsByUser(userID)
+		count, err := db.CountActiveSessionsByUser(user.ID)
 		if err != nil {
 			return err
 		}
 		if count >= int64(max) {
 			policy := setting.GetStr(conf.DeviceEvictPolicy, "deny")
 			if policy == "evict_oldest" {
-				if oldest, err := db.GetOldestActiveSession(userID); err == nil {
+				if oldest, err := db.GetOldestActiveSession(user.ID); err == nil {
 					if err := db.MarkInactive(oldest.DeviceKey); err != nil {
 						return err
 					}
@@ -58,30 +64,40 @@ func Handle(userID uint, deviceKey, ua, ip string) error {
 		}
 	}
 
-	s := &model.Session{UserID: userID, DeviceKey: deviceKey, UserAgent: ua, IP: ip, LastActive: now, Status: model.SessionActive}
+	s := &model.Session{UserID: user.ID, DeviceKey: deviceKey, UserAgent: ua, IP: ip, LastActive: now, Status: model.SessionActive}
 	return db.CreateSession(s)
 }
 
 // EnsureActiveOnLogin is used only in login flow:
 // - If session exists (even Inactive): reactivate and refresh fields.
 // - If not exists: apply max-devices policy, then create Active session.
-func EnsureActiveOnLogin(userID uint, deviceKey, ua, ip string) error {
+func EnsureActiveOnLogin(user *model.User, deviceKey, ua, ip string) error {
+	ttl := setting.GetInt(conf.DeviceSessionTTL, 86400)
+	if user.SessionTTL != nil {
+		ttl = *user.SessionTTL
+	}
+	if ttl > 0 {
+		_ = db.DeleteSessionsBefore(time.Now().Unix() - int64(ttl))
+	}
 	ip = utils.MaskIP(ip)
 	now := time.Now().Unix()
 
-	sess, err := db.GetSession(userID, deviceKey)
+	sess, err := db.GetSession(user.ID, deviceKey)
 	if err == nil {
 		if sess.Status == model.SessionInactive {
 			max := setting.GetInt(conf.MaxDevices, 0)
+			if user.MaxDevices != nil {
+				max = *user.MaxDevices
+			}
 			if max > 0 {
-				count, err := db.CountActiveSessionsByUser(userID)
+				count, err := db.CountActiveSessionsByUser(user.ID)
 				if err != nil {
 					return err
 				}
 				if count >= int64(max) {
 					policy := setting.GetStr(conf.DeviceEvictPolicy, "deny")
 					if policy == "evict_oldest" {
-						if oldest, gerr := db.GetOldestActiveSession(userID); gerr == nil {
+						if oldest, gerr := db.GetOldestActiveSession(user.ID); gerr == nil {
 							if err := db.MarkInactive(oldest.DeviceKey); err != nil {
 								return err
 							}
@@ -103,15 +119,18 @@ func EnsureActiveOnLogin(userID uint, deviceKey, ua, ip string) error {
 	}
 
 	max := setting.GetInt(conf.MaxDevices, 0)
+	if user.MaxDevices != nil {
+		max = *user.MaxDevices
+	}
 	if max > 0 {
-		count, err := db.CountActiveSessionsByUser(userID)
+		count, err := db.CountActiveSessionsByUser(user.ID)
 		if err != nil {
 			return err
 		}
 		if count >= int64(max) {
 			policy := setting.GetStr(conf.DeviceEvictPolicy, "deny")
 			if policy == "evict_oldest" {
-				if oldest, gerr := db.GetOldestActiveSession(userID); gerr == nil {
+				if oldest, gerr := db.GetOldestActiveSession(user.ID); gerr == nil {
 					if err := db.MarkInactive(oldest.DeviceKey); err != nil {
 						return err
 					}
@@ -123,7 +142,7 @@ func EnsureActiveOnLogin(userID uint, deviceKey, ua, ip string) error {
 	}
 
 	return db.CreateSession(&model.Session{
-		UserID:     userID,
+		UserID:     user.ID,
 		DeviceKey:  deviceKey,
 		UserAgent:  ua,
 		IP:         ip,

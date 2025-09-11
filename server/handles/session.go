@@ -10,6 +10,7 @@ import (
 type SessionResp struct {
 	SessionID  string `json:"session_id"`
 	UserID     uint   `json:"user_id,omitempty"`
+	Username   string `json:"username,omitempty"`
 	LastActive int64  `json:"last_active"`
 	Status     int    `json:"status"`
 	UA         string `json:"ua"`
@@ -40,6 +41,11 @@ type EvictSessionReq struct {
 	SessionID string `json:"session_id"`
 }
 
+type CleanSessionsReq struct {
+	UserID    *uint  `json:"user_id"`
+	SessionID string `json:"session_id"`
+}
+
 func EvictMySession(c *gin.Context) {
 	var req EvictSessionReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -59,7 +65,7 @@ func EvictMySession(c *gin.Context) {
 }
 
 func ListSessions(c *gin.Context) {
-	sessions, err := db.ListSessions()
+	sessions, err := db.ListSessionsWithUser()
 	if err != nil {
 		common.ErrorResp(c, err, 500)
 		return
@@ -69,6 +75,7 @@ func ListSessions(c *gin.Context) {
 		resp[i] = SessionResp{
 			SessionID:  s.DeviceKey,
 			UserID:     s.UserID,
+			Username:   s.Username,
 			LastActive: s.LastActive,
 			Status:     s.Status,
 			UA:         s.UserAgent,
@@ -85,6 +92,35 @@ func EvictSession(c *gin.Context) {
 		return
 	}
 	if err := db.MarkInactive(req.SessionID); err != nil {
+		common.ErrorResp(c, err, 500)
+		return
+	}
+	common.SuccessResp(c)
+}
+
+func CleanSessions(c *gin.Context) {
+	var req CleanSessionsReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ErrorResp(c, err, 400)
+		return
+	}
+	if req.SessionID != "" {
+		if err := db.DeleteSessionByID(req.SessionID); err != nil {
+			common.ErrorResp(c, err, 500)
+			return
+		}
+		common.SuccessResp(c)
+		return
+	}
+	if req.UserID != nil {
+		if err := db.DeleteInactiveSessions(req.UserID); err != nil {
+			common.ErrorResp(c, err, 500)
+			return
+		}
+		common.SuccessResp(c)
+		return
+	}
+	if err := db.DeleteInactiveSessions(nil); err != nil {
 		common.ErrorResp(c, err, 500)
 		return
 	}

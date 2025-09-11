@@ -87,6 +87,12 @@ func UpdateUser(c *gin.Context) {
 	if req.OtpSecret == "" {
 		req.OtpSecret = user.OtpSecret
 	}
+	if req.MaxDevices == nil {
+		req.MaxDevices = user.MaxDevices
+	}
+	if req.SessionTTL == nil {
+		req.SessionTTL = user.SessionTTL
+	}
 	if req.Disabled && user.IsAdmin() {
 		count, err := op.CountEnabledAdminsExcluding(user.ID)
 		if err != nil {

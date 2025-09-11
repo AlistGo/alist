@@ -95,7 +95,7 @@ func loginHash(c *gin.Context, req *LoginReq) {
 	key := utils.GetMD5EncodeStr(fmt.Sprintf("%d-%s",
 		user.ID, clientID))
 
-	if err := device.EnsureActiveOnLogin(user.ID, key, c.Request.UserAgent(), c.ClientIP()); err != nil {
+	if err := device.EnsureActiveOnLogin(user, key, c.Request.UserAgent(), c.ClientIP()); err != nil {
 		if errors.Is(err, errs.TooManyDevices) {
 			common.ErrorResp(c, err, 403)
 		} else {
