@@ -41,6 +41,7 @@ import (
 	_ "github.com/alist-org/alist/v3/drivers/lanzou"
 	_ "github.com/alist-org/alist/v3/drivers/lenovonas_share"
 	_ "github.com/alist-org/alist/v3/drivers/local"
+	_ "github.com/alist-org/alist/v3/drivers/mediafire"
 	_ "github.com/alist-org/alist/v3/drivers/mediatrack"
 	_ "github.com/alist-org/alist/v3/drivers/mega"
 	_ "github.com/alist-org/alist/v3/drivers/misskey"
