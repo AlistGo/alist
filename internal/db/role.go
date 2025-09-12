@@ -34,6 +34,14 @@ func GetRoles(pageIndex, pageSize int) (roles []model.Role, count int64, err err
 	return roles, count, nil
 }
 
+func GetAllRoles() ([]model.Role, error) {
+	var roles []model.Role
+	if err := db.Find(&roles).Error; err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return roles, nil
+}
+
 func CreateRole(r *model.Role) error {
 	if err := db.Create(r).Error; err != nil {
 		return errors.WithStack(err)
