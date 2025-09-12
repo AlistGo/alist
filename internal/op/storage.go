@@ -280,30 +280,32 @@ func DeleteStorageById(ctx context.Context, id uint) error {
 		return errors.WithMessage(err, "failed get storage")
 	}
 	firstMount := firstPathSegment(storage.MountPath)
-	roles, err := db.GetAllRoles()
-	if err != nil {
-		return errors.WithMessage(err, "failed to load roles")
-	}
-	users, err := db.GetAllUsers()
-	if err != nil {
-		return errors.WithMessage(err, "failed to load users")
-	}
-	var usedBy []string
-	for _, r := range roles {
-		for _, entry := range r.PermissionScopes {
-			if firstPathSegment(entry.Path) == firstMount {
-				usedBy = append(usedBy, "role:"+r.Name)
-				break
+	if firstMount != "" {
+		roles, err := db.GetAllRoles()
+		if err != nil {
+			return errors.WithMessage(err, "failed to load roles")
+		}
+		users, err := db.GetAllUsers()
+		if err != nil {
+			return errors.WithMessage(err, "failed to load users")
+		}
+		var usedBy []string
+		for _, r := range roles {
+			for _, entry := range r.PermissionScopes {
+				if firstPathSegment(entry.Path) == firstMount {
+					usedBy = append(usedBy, "role:"+r.Name)
+					break
+				}
 			}
 		}
-	}
-	for _, u := range users {
-		if firstPathSegment(u.BasePath) == firstMount {
-			usedBy = append(usedBy, "user:"+u.Username)
+		for _, u := range users {
+			if firstPathSegment(u.BasePath) == firstMount {
+				usedBy = append(usedBy, "user:"+u.Username)
+			}
 		}
-	}
-	if len(usedBy) > 0 {
-		return errors.Errorf("storage is used by %s, please cancel usage first", strings.Join(usedBy, ", "))
+		if len(usedBy) > 0 {
+			return errors.Errorf("storage is used by %s, please cancel usage first", strings.Join(usedBy, ", "))
+		}
 	}
 	if !storage.Disabled {
 		storageDriver, err := GetStorageByMountPath(storage.MountPath)
