@@ -106,6 +106,9 @@ func (d *Mediafire) getSessionToken(ctx context.Context) (string, error) {
 	}
 
 	d.SessionToken = tokenResp.Response.SessionToken
+
+	//fmt.Printf("Init :: Obtain Session Token %v", d.SessionToken)
+
 	op.MustSaveDriverStorage(d)
 
 	return d.SessionToken, nil
@@ -131,6 +134,9 @@ func (d *Mediafire) renewToken(_ context.Context) error {
 	}
 
 	d.SessionToken = resp.Response.SessionToken
+
+	//fmt.Printf("Init :: Renew Session Token: %s", resp.Response.Result)
+
 	op.MustSaveDriverStorage(d)
 
 	return nil
