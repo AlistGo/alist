@@ -19,7 +19,7 @@ type searchDocument struct {
 }
 
 type Meilisearch struct {
-	Client               *meilisearch.Client
+	Client               meilisearch.ServiceManager
 	IndexUid             string
 	FilterableAttributes []string
 	SearchableAttributes []string
@@ -216,10 +216,7 @@ func (m *Meilisearch) Clear(ctx context.Context) error {
 }
 
 func (m *Meilisearch) getTaskStatus(ctx context.Context, taskUID int64) (meilisearch.TaskStatus, error) {
-	forTask, err := m.Client.WaitForTask(taskUID, meilisearch.WaitParams{
-		Context:  ctx,
-		Interval: time.Second,
-	})
+	forTask, err := m.Client.WaitForTask(taskUID, time.Second)
 	if err != nil {
 		return meilisearch.TaskStatusUnknown, err
 	}
