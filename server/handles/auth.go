@@ -165,25 +165,25 @@ func CurrentUser(c *gin.Context) {
 
 	var roleNames []string
 	permMap := map[string]int32{}
-	addedPaths := map[string]bool{}
+	paths := make([]string, 0)
 
 	for _, role := range user.RolesDetail {
 		roleNames = append(roleNames, role.Name)
 		for _, entry := range role.PermissionScopes {
 			cleanPath := path.Clean("/" + strings.TrimPrefix(entry.Path, "/"))
+			if _, ok := permMap[cleanPath]; !ok {
+				paths = append(paths, cleanPath)
+			}
 			permMap[cleanPath] |= entry.Permission
 		}
 	}
 	userResp.RoleNames = roleNames
 
-	for fullPath, perm := range permMap {
-		if !addedPaths[fullPath] {
-			userResp.Permissions = append(userResp.Permissions, model.PermissionEntry{
-				Path:       fullPath,
-				Permission: perm,
-			})
-			addedPaths[fullPath] = true
-		}
+	for _, fullPath := range paths {
+		userResp.Permissions = append(userResp.Permissions, model.PermissionEntry{
+			Path:       fullPath,
+			Permission: permMap[fullPath],
+		})
 	}
 
 	common.SuccessResp(c, userResp)

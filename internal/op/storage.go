@@ -41,6 +41,18 @@ func GetStorageByMountPath(mountPath string) (driver.Driver, error) {
 	return storageDriver, nil
 }
 
+func firstPathSegment(p string) string {
+	p = utils.FixAndCleanPath(p)
+	p = strings.TrimPrefix(p, "/")
+	if p == "" {
+		return ""
+	}
+	if i := strings.Index(p, "/"); i >= 0 {
+		return p[:i]
+	}
+	return p
+}
+
 // CreateStorage Save the storage to database so storage can get an id
 // then instantiate corresponding driver and save it in memory
 func CreateStorage(ctx context.Context, storage model.Storage) (uint, error) {
@@ -266,6 +278,34 @@ func DeleteStorageById(ctx context.Context, id uint) error {
 	storage, err := db.GetStorageById(id)
 	if err != nil {
 		return errors.WithMessage(err, "failed get storage")
+	}
+	firstMount := firstPathSegment(storage.MountPath)
+	if firstMount != "" {
+		roles, err := db.GetAllRoles()
+		if err != nil {
+			return errors.WithMessage(err, "failed to load roles")
+		}
+		users, err := db.GetAllUsers()
+		if err != nil {
+			return errors.WithMessage(err, "failed to load users")
+		}
+		var usedBy []string
+		for _, r := range roles {
+			for _, entry := range r.PermissionScopes {
+				if firstPathSegment(entry.Path) == firstMount {
+					usedBy = append(usedBy, "role:"+r.Name)
+					break
+				}
+			}
+		}
+		for _, u := range users {
+			if firstPathSegment(u.BasePath) == firstMount {
+				usedBy = append(usedBy, "user:"+u.Username)
+			}
+		}
+		if len(usedBy) > 0 {
+			return errors.Errorf("storage is used by %s, please cancel usage first", strings.Join(usedBy, ", "))
+		}
 	}
 	if !storage.Disabled {
 		storageDriver, err := GetStorageByMountPath(storage.MountPath)

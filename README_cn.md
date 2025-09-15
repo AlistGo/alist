@@ -57,6 +57,7 @@
     - [x] [又拍云对象存储](https://www.upyun.com/products/file-storage)
     - [x] WebDav(支持无API的OneDrive/SharePoint)
     - [x] Teambition（[中国](https://www.teambition.com/ )，[国际](https://us.teambition.com/ )）
+    - [x] [MediaFire](https://www.mediafire.com)
     - [x] [分秒帧](https://www.mediatrack.cn/)
     - [x] [和彩云](https://yun.139.com/) (个人云, 家庭云，共享群组)
     - [x] [Yandex.Disk](https://disk.yandex.com/)

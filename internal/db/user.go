@@ -83,6 +83,14 @@ func GetUsers(pageIndex, pageSize int) (users []model.User, count int64, err err
 	return users, count, nil
 }
 
+func GetAllUsers() ([]model.User, error) {
+	var users []model.User
+	if err := db.Find(&users).Error; err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return users, nil
+}
+
 func DeleteUserById(id uint) error {
 	return errors.WithStack(db.Delete(&model.User{}, id).Error)
 }
