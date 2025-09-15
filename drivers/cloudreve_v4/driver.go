@@ -91,6 +91,13 @@ func (d *CloudreveV4) List(ctx context.Context, dir model.Obj, args model.ListAr
 			break
 		}
 		params["next_page_token"] = r.Pagination.NextToken
+
+		if d.HideUploading {
+			f = utils.SliceFilter(f, func(src File) bool {
+				// Filter out files that are currently being uploaded
+				return src.Metadata == nil || src.Metadata[MetadataUploadSessionID] == nil
+			})
+		}
 	}
 
 	return utils.SliceConvert(f, func(src File) (model.Obj, error) {
@@ -105,7 +112,7 @@ func (d *CloudreveV4) List(ctx context.Context, dir model.Obj, args model.ListAr
 			}
 		}
 		var thumb model.Thumbnail
-		if d.EnableThumb && src.Type == 0 {
+		if d.EnableThumb && src.Type == 0 && src.Metadata != nil && src.Metadata[MetadataThumbDisabled] != nil {
 			var t FileThumbResp
 			err := d.request(http.MethodGet, "/file/thumb", func(req *resty.Request) {
 				req.SetQueryParam("uri", src.Path)
@@ -173,7 +180,7 @@ func (d *CloudreveV4) Move(ctx context.Context, srcObj, dstDir model.Obj) error 
 }
 
 func (d *CloudreveV4) Rename(ctx context.Context, srcObj model.Obj, newName string) error {
-	return d.request(http.MethodPost, "/file/create", func(req *resty.Request) {
+	return d.request(http.MethodPost, "/file/rename", func(req *resty.Request) {
 		req.SetBody(base.Json{
 			"new_name": newName,
 			"uri":      srcObj.GetPath(),
@@ -192,14 +199,52 @@ func (d *CloudreveV4) Copy(ctx context.Context, srcObj, dstDir model.Obj) error 
 	}, nil)
 }
 
-func (d *CloudreveV4) Remove(ctx context.Context, obj model.Obj) error {
-	return d.request(http.MethodDelete, "/file", func(req *resty.Request) {
-		req.SetBody(base.Json{
-			"uris":             []string{obj.GetPath()},
+func (c *CloudreveV4) Remove(ctx context.Context, target model.Obj) error {
+	path := target.GetPath()
+
+	deletePayload := func() base.Json {
+		return base.Json{
+			"uris":             []string{path},
 			"unlink":           false,
 			"skip_soft_delete": true,
-		})
-	}, nil)
+		}
+	}
+
+	var resp FileDeleteResp
+	del := func() error {
+		return c.request(http.MethodDelete, "/file", func(req *resty.Request) {
+			req.SetBody(deletePayload())
+			req.SetResult(&resp)
+		}, nil)
+	}
+
+	// 尝试第一次删除
+	if err := del(); err != nil {
+		return err
+	}
+	if resp.Code == 0 {
+		return nil
+	}
+
+	// 若存在锁冲突，则先清除锁再重试
+	if resp.Code == 40073 && resp.Msg == "Lock conflict" && len(resp.Data) > 0 {
+		var lockTokens []string
+		for _, entry := range resp.Data {
+			lockTokens = append(lockTokens, entry.Token)
+		}
+
+		// 先解锁
+		if err := c.request(http.MethodDelete, "/file/lock", func(req *resty.Request) {
+			req.SetBody(base.Json{"tokens": lockTokens})
+		}, nil); err != nil {
+			return err
+		}
+
+		// 再次尝试删除
+		return del()
+	}
+
+	return errors.New(resp.Msg)
 }
 
 func (d *CloudreveV4) Put(ctx context.Context, dstDir model.Obj, file model.FileStreamer, up driver.UpdateProgress) error {
