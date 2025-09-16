@@ -10,10 +10,12 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/alist-org/alist/v3/drivers/base"
 	"github.com/alist-org/alist/v3/internal/driver"
 	"github.com/alist-org/alist/v3/internal/model"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -137,9 +139,10 @@ func (d *Gofile) deleteJSON(ctx context.Context, endpoint string, data interface
 
 func (d *Gofile) handleError(resp *http.Response) error {
 	body, _ := io.ReadAll(resp.Body)
+	log.Debugf("Gofile API error (HTTP %d): %s", resp.StatusCode, string(body))
 
 	var errorResp ErrorResponse
-	if err := json.Unmarshal(body, &errorResp); err == nil {
+	if err := json.Unmarshal(body, &errorResp); err == nil && errorResp.Status == "error" {
 		return fmt.Errorf("gofile API error: %s (code: %s)", errorResp.Error.Message, errorResp.Error.Code)
 	}
 
@@ -198,6 +201,11 @@ func (d *Gofile) uploadFile(ctx context.Context, folderId string, file model.Fil
 
 func (d *Gofile) createDirectLink(ctx context.Context, contentId string) (string, error) {
 	data := map[string]interface{}{}
+
+	if d.DirectLinkExpiry > 0 {
+		expireTime := time.Now().Add(time.Duration(d.DirectLinkExpiry) * time.Hour).Unix()
+		data["expireTime"] = expireTime
+	}
 
 	var result DirectLinkResponse
 	err := d.postJSON(ctx, fmt.Sprintf("/contents/%s/directlinks", contentId), data, &result)
