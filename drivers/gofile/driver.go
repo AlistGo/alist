@@ -3,6 +3,7 @@ package gofile
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/alist-org/alist/v3/internal/driver"
 	"github.com/alist-org/alist/v3/internal/errs"
@@ -72,7 +73,7 @@ func (d *Gofile) List(ctx context.Context, dir model.Obj, args model.ListArgs) (
 	}
 
 	var objects []model.Obj
-	
+
 	// Process children or contents
 	contents := response.Data.Children
 	if contents == nil {
@@ -97,9 +98,18 @@ func (d *Gofile) Link(ctx context.Context, file model.Obj, args model.LinkArgs) 
 		return nil, fmt.Errorf("failed to create direct link: %w", err)
 	}
 
-	return &model.Link{
+	// Configure cache expiration based on user setting
+	link := &model.Link{
 		URL: directLink,
-	}, nil
+	}
+
+	// Only set expiration if LinkExpiry > 0 (0 means no caching)
+	if d.LinkExpiry > 0 {
+		expiration := time.Duration(d.LinkExpiry) * 24 * time.Hour
+		link.Expiration = &expiration
+	}
+
+	return link, nil
 }
 
 func (d *Gofile) MakeDir(ctx context.Context, parentDir model.Obj, dirName string) (model.Obj, error) {
