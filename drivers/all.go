@@ -53,6 +53,7 @@ import (
 	_ "github.com/alist-org/alist/v3/drivers/onedrive_sharelink"
 	_ "github.com/alist-org/alist/v3/drivers/pikpak"
 	_ "github.com/alist-org/alist/v3/drivers/pikpak_share"
+	_ "github.com/alist-org/alist/v3/drivers/proton_drive"
 	_ "github.com/alist-org/alist/v3/drivers/quark_uc"
 	_ "github.com/alist-org/alist/v3/drivers/quark_uc_tv"
 	_ "github.com/alist-org/alist/v3/drivers/quqi"
