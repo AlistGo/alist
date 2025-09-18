@@ -146,13 +146,14 @@ func (d *Local) FileInfoToObj(ctx context.Context, f fs.FileInfo, reqPath string
 			thumb += "?type=thumb&sign=" + sign.Sign(stdpath.Join(reqPath, f.Name()))
 		}
 	}
-	isFolder := f.IsDir() || isSymlinkDir(f, fullPath)
+	filePath := filepath.Join(fullPath, f.Name())
+	isFolder := f.IsDir() || isLinkedDir(f, filePath)
 	var size int64
 	if !isFolder {
 		size = f.Size()
 	}
 	var ctime time.Time
-	t, err := times.Stat(stdpath.Join(fullPath, f.Name()))
+	t, err := times.Stat(filePath)
 	if err == nil {
 		if t.HasBirthTime() {
 			ctime = t.BirthTime()
@@ -161,7 +162,7 @@ func (d *Local) FileInfoToObj(ctx context.Context, f fs.FileInfo, reqPath string
 
 	file := model.ObjThumb{
 		Object: model.Object{
-			Path:     filepath.Join(fullPath, f.Name()),
+			Path:     filePath,
 			Name:     f.Name(),
 			Modified: f.ModTime(),
 			Size:     size,
@@ -197,7 +198,7 @@ func (d *Local) Get(ctx context.Context, path string) (model.Obj, error) {
 		}
 		return nil, err
 	}
-	isFolder := f.IsDir() || isSymlinkDir(f, path)
+	isFolder := f.IsDir() || isLinkedDir(f, path)
 	size := f.Size()
 	if isFolder {
 		size = 0
