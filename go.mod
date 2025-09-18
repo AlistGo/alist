@@ -8,6 +8,7 @@ require (
 	github.com/KirCute/ftpserverlib-pasvportmap v1.25.0
 	github.com/KirCute/sftpd-alist v0.0.12
 	github.com/ProtonMail/go-crypto v1.0.0
+	github.com/ProtonMail/gopenpgp/v2 v2.7.4
 	github.com/SheltonZhu/115driver v1.1.2
 	github.com/Xhofe/go-cache v0.0.0-20240804043513-b1a71927bc21
 	github.com/Xhofe/rateg v0.0.0-20230728072201-251a4e1adad4
@@ -38,6 +39,8 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/hekmon/transmissionrpc/v3 v3.0.0
+	github.com/henrybear327/Proton-API-Bridge v1.0.0
+	github.com/henrybear327/go-proton-api v1.0.0
 	github.com/hirochachacha/go-smb2 v1.1.0
 	github.com/ipfs/go-ipfs-api v0.7.0
 	github.com/jlaffaye/ftp v0.2.0
@@ -83,11 +86,10 @@ require (
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.10.0 // indirect
-	github.com/ProtonMail/bcrypt v0.0.0-20211005172633-e235017c1baf
-	github.com/ProtonMail/gluon v0.17.1-0.20230724134000-308be39be96e
-	github.com/ProtonMail/go-mime v0.0.0-20230322103455-7d82a3887f2f
-	github.com/ProtonMail/go-srp v0.0.7
-	github.com/ProtonMail/gopenpgp/v2 v2.7.4 // indirect
+	github.com/ProtonMail/bcrypt v0.0.0-20211005172633-e235017c1baf // indirect
+	github.com/ProtonMail/gluon v0.17.1-0.20230724134000-308be39be96e // indirect
+	github.com/ProtonMail/go-mime v0.0.0-20230322103455-7d82a3887f2f // indirect
+	github.com/ProtonMail/go-srp v0.0.7 // indirect
 	github.com/PuerkitoBio/goquery v1.8.1 // indirect
 	github.com/andybalholm/cascadia v1.3.2 // indirect
 	github.com/bradenaw/juniper v0.15.2 // indirect
@@ -95,7 +97,6 @@ require (
 	github.com/emersion/go-message v0.18.0 // indirect
 	github.com/emersion/go-textwrapper v0.0.0-20200911093747-65d896831594 // indirect
 	github.com/emersion/go-vcard v0.0.0-20230815062825-8fda7d206ec9 // indirect
-	github.com/henrybear327/go-proton-api v1.0.0 // indirect
 	github.com/relvacode/iso8601 v1.3.0 // indirect
 )
 
@@ -191,7 +192,6 @@ require (
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-version v1.6.0 // indirect
-	github.com/henrybear327/Proton-API-Bridge v1.0.0
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/ipfs/go-cid v0.4.1
 	github.com/jackc/pgpassfile v1.0.0 // indirect
@@ -282,7 +282,8 @@ require (
 	lukechampine.com/blake3 v1.1.7 // indirect
 )
 
-//ProtonDrive
-replace github.com/ProtonMail/go-proton-api => github.com/henrybear327/go-proton-api v0.0.0-20250127204557-9ee38cb0a689
+replace github.com/ProtonMail/go-proton-api => github.com/henrybear327/go-proton-api v1.0.0
+
+replace github.com/cronokirby/saferith => github.com/Da3zKi7/saferith v0.33.0-fixed
 
 replace github.com/SheltonZhu/115driver => github.com/okatu-loli/115driver v1.1.2

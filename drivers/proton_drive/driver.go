@@ -122,7 +122,7 @@ func (d *ProtonDrive) Init(ctx context.Context) error {
 		EnableCaching:              true,
 		ConcurrentBlockUploadCount: 5,
 		ConcurrentFileCryptoCount:  2,
-		UseReusableLogin:           useReusableLogin,
+		UseReusableLogin:           false,
 		ReplaceExistingDraft:       true,
 		ReusableCredential:         reusableCredential,
 		CredentialCacheFile:        d.credentialCacheFile,
