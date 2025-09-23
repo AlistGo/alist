@@ -51,6 +51,7 @@ import (
 	_ "github.com/alist-org/alist/v3/drivers/onedrive"
 	_ "github.com/alist-org/alist/v3/drivers/onedrive_app"
 	_ "github.com/alist-org/alist/v3/drivers/onedrive_sharelink"
+	_ "github.com/alist-org/alist/v3/drivers/pcloud"
 	_ "github.com/alist-org/alist/v3/drivers/pikpak"
 	_ "github.com/alist-org/alist/v3/drivers/pikpak_share"
 	_ "github.com/alist-org/alist/v3/drivers/quark_uc"
