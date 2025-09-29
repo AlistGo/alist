@@ -113,7 +113,7 @@ func WebDAVAuth(c *gin.Context) {
 		reqPath = "/"
 	}
 	reqPath, _ = url.PathUnescape(reqPath)
-	reqPath, err = user.JoinPath(reqPath)
+	reqPath, err = webdav.ResolvePath(user, reqPath)
 	if err != nil {
 		c.Status(http.StatusForbidden)
 		c.Abort()
