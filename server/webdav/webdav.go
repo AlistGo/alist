@@ -194,7 +194,7 @@ func (h *Handler) handleOptions(w http.ResponseWriter, r *http.Request) (status 
 	}
 	ctx := r.Context()
 	user := ctx.Value("user").(*model.User)
-	reqPath, err = user.JoinPath(reqPath)
+	reqPath, err = ResolvePath(user, reqPath)
 	if err != nil {
 		return 403, err
 	}
@@ -222,7 +222,7 @@ func (h *Handler) handleGetHeadPost(w http.ResponseWriter, r *http.Request) (sta
 	// TODO: check locks for read-only access??
 	ctx := r.Context()
 	user := ctx.Value("user").(*model.User)
-	reqPath, err = user.JoinPath(reqPath)
+	reqPath, err = ResolvePath(user, reqPath)
 	if err != nil {
 		return http.StatusForbidden, err
 	}
@@ -282,7 +282,7 @@ func (h *Handler) handleDelete(w http.ResponseWriter, r *http.Request) (status i
 
 	ctx := r.Context()
 	user := ctx.Value("user").(*model.User)
-	reqPath, err = user.JoinPath(reqPath)
+	reqPath, err = ResolvePath(user, reqPath)
 	if err != nil {
 		return 403, err
 	}
@@ -321,7 +321,7 @@ func (h *Handler) handlePut(w http.ResponseWriter, r *http.Request) (status int,
 	// comments in http.checkEtag.
 	ctx := r.Context()
 	user := ctx.Value("user").(*model.User)
-	reqPath, err = user.JoinPath(reqPath)
+	reqPath, err = ResolvePath(user, reqPath)
 	if err != nil {
 		return http.StatusForbidden, err
 	}
@@ -375,7 +375,7 @@ func (h *Handler) handleMkcol(w http.ResponseWriter, r *http.Request) (status in
 
 	ctx := r.Context()
 	user := ctx.Value("user").(*model.User)
-	reqPath, err = user.JoinPath(reqPath)
+	reqPath, err = ResolvePath(user, reqPath)
 	if err != nil {
 		return 403, err
 	}
@@ -439,11 +439,11 @@ func (h *Handler) handleCopyMove(w http.ResponseWriter, r *http.Request) (status
 
 	ctx := r.Context()
 	user := ctx.Value("user").(*model.User)
-	src, err = user.JoinPath(src)
+	src, err = ResolvePath(user, src)
 	if err != nil {
 		return 403, err
 	}
-	dst, err = user.JoinPath(dst)
+	dst, err = ResolvePath(user, dst)
 	if err != nil {
 		return 403, err
 	}
@@ -540,7 +540,7 @@ func (h *Handler) handleLock(w http.ResponseWriter, r *http.Request) (retStatus 
 		if err != nil {
 			return status, err
 		}
-		reqPath, err = user.JoinPath(reqPath)
+		reqPath, err = ResolvePath(user, reqPath)
 		if err != nil {
 			return 403, err
 		}
@@ -623,7 +623,7 @@ func (h *Handler) handlePropfind(w http.ResponseWriter, r *http.Request) (status
 	userAgent := r.Header.Get("User-Agent")
 	ctx = context.WithValue(ctx, "userAgent", userAgent)
 	user := ctx.Value("user").(*model.User)
-	reqPath, err = user.JoinPath(reqPath)
+	reqPath, err = ResolvePath(user, reqPath)
 	if err != nil {
 		return 403, err
 	}
@@ -801,7 +801,7 @@ func (h *Handler) handleProppatch(w http.ResponseWriter, r *http.Request) (statu
 
 	ctx := r.Context()
 	user := ctx.Value("user").(*model.User)
-	reqPath, err = user.JoinPath(reqPath)
+	reqPath, err = ResolvePath(user, reqPath)
 	if err != nil {
 		return 403, err
 	}
