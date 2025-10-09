@@ -11,6 +11,7 @@ import (
 	"github.com/go-resty/resty/v2"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 type Open123 struct {
@@ -89,8 +90,24 @@ func (d *Open123) Link(ctx context.Context, file model.Obj, args model.LinkArgs)
 		return nil, fmt.Errorf("get link failed: %s", result.Message)
 	}
 
+	linkURL := result.Data.URL
+	if d.PrivateKey != "" {
+		if d.UID == 0 {
+			return nil, fmt.Errorf("uid is required when private key is set")
+		}
+		duration := time.Duration(d.ValidDuration)
+		if duration <= 0 {
+			duration = 30
+		}
+		signedURL, err := SignURL(linkURL, d.PrivateKey, d.UID, duration*time.Minute)
+		if err != nil {
+			return nil, err
+		}
+		linkURL = signedURL
+	}
+
 	return &model.Link{
-		URL: result.Data.URL,
+		URL: linkURL,
 	}, nil
 }
 
