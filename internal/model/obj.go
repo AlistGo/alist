@@ -20,6 +20,10 @@ type ObjUnwrap interface {
 	Unwrap() Obj
 }
 
+type StorageClassProvider interface {
+	StorageClass() string
+}
+
 type Obj interface {
 	GetSize() int64
 	GetName() string
@@ -141,6 +145,13 @@ func WrapObjsName(objs []Obj) {
 	}
 }
 
+func WrapObjStorageClass(obj Obj, storageClass string) Obj {
+	if storageClass == "" {
+		return obj
+	}
+	return &ObjWrapStorageClass{Obj: obj, storageClass: storageClass}
+}
+
 func UnwrapObj(obj Obj) Obj {
 	if unwrap, ok := obj.(ObjUnwrap); ok {
 		obj = unwrap.Unwrap()
@@ -166,6 +177,20 @@ func GetUrl(obj Obj) (url string, ok bool) {
 		return GetUrl(unwrap.Unwrap())
 	}
 	return url, false
+}
+
+func GetStorageClass(obj Obj) (string, bool) {
+	if provider, ok := obj.(StorageClassProvider); ok {
+		value := provider.StorageClass()
+		if value == "" {
+			return "", false
+		}
+		return value, true
+	}
+	if unwrap, ok := obj.(ObjUnwrap); ok {
+		return GetStorageClass(unwrap.Unwrap())
+	}
+	return "", false
 }
 
 func GetRawObject(obj Obj) *Object {

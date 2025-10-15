@@ -33,18 +33,19 @@ type DirReq struct {
 }
 
 type ObjResp struct {
-	Id          string                     `json:"id"`
-	Path        string                     `json:"path"`
-	Name        string                     `json:"name"`
-	Size        int64                      `json:"size"`
-	IsDir       bool                       `json:"is_dir"`
-	Modified    time.Time                  `json:"modified"`
-	Created     time.Time                  `json:"created"`
-	Sign        string                     `json:"sign"`
-	Thumb       string                     `json:"thumb"`
-	Type        int                        `json:"type"`
-	HashInfoStr string                     `json:"hashinfo"`
-	HashInfo    map[*utils.HashType]string `json:"hash_info"`
+	Id           string                     `json:"id"`
+	Path         string                     `json:"path"`
+	Name         string                     `json:"name"`
+	Size         int64                      `json:"size"`
+	IsDir        bool                       `json:"is_dir"`
+	Modified     time.Time                  `json:"modified"`
+	Created      time.Time                  `json:"created"`
+	Sign         string                     `json:"sign"`
+	Thumb        string                     `json:"thumb"`
+	Type         int                        `json:"type"`
+	HashInfoStr  string                     `json:"hashinfo"`
+	HashInfo     map[*utils.HashType]string `json:"hash_info"`
+	StorageClass string                     `json:"storage_class,omitempty"`
 }
 
 type FsListResp struct {
@@ -57,19 +58,20 @@ type FsListResp struct {
 }
 
 type ObjLabelResp struct {
-	Id          string                     `json:"id"`
-	Path        string                     `json:"path"`
-	Name        string                     `json:"name"`
-	Size        int64                      `json:"size"`
-	IsDir       bool                       `json:"is_dir"`
-	Modified    time.Time                  `json:"modified"`
-	Created     time.Time                  `json:"created"`
-	Sign        string                     `json:"sign"`
-	Thumb       string                     `json:"thumb"`
-	Type        int                        `json:"type"`
-	HashInfoStr string                     `json:"hashinfo"`
-	HashInfo    map[*utils.HashType]string `json:"hash_info"`
-	LabelList   []model.Label              `json:"label_list"`
+	Id           string                     `json:"id"`
+	Path         string                     `json:"path"`
+	Name         string                     `json:"name"`
+	Size         int64                      `json:"size"`
+	IsDir        bool                       `json:"is_dir"`
+	Modified     time.Time                  `json:"modified"`
+	Created      time.Time                  `json:"created"`
+	Sign         string                     `json:"sign"`
+	Thumb        string                     `json:"thumb"`
+	Type         int                        `json:"type"`
+	HashInfoStr  string                     `json:"hashinfo"`
+	HashInfo     map[*utils.HashType]string `json:"hash_info"`
+	LabelList    []model.Label              `json:"label_list"`
+	StorageClass string                     `json:"storage_class,omitempty"`
 }
 
 func FsList(c *gin.Context) {
@@ -256,20 +258,22 @@ func toObjsResp(objs []model.Obj, parent string, encrypt bool) []ObjLabelResp {
 			labels = labelsByName[obj.GetName()]
 		}
 		thumb, _ := model.GetThumb(obj)
+		storageClass, _ := model.GetStorageClass(obj)
 		resp = append(resp, ObjLabelResp{
-			Id:          obj.GetID(),
-			Path:        obj.GetPath(),
-			Name:        obj.GetName(),
-			Size:        obj.GetSize(),
-			IsDir:       obj.IsDir(),
-			Modified:    obj.ModTime(),
-			Created:     obj.CreateTime(),
-			HashInfoStr: obj.GetHash().String(),
-			HashInfo:    obj.GetHash().Export(),
-			Sign:        common.Sign(obj, parent, encrypt),
-			Thumb:       thumb,
-			Type:        utils.GetObjType(obj.GetName(), obj.IsDir()),
-			LabelList:   labels,
+			Id:           obj.GetID(),
+			Path:         obj.GetPath(),
+			Name:         obj.GetName(),
+			Size:         obj.GetSize(),
+			IsDir:        obj.IsDir(),
+			Modified:     obj.ModTime(),
+			Created:      obj.CreateTime(),
+			HashInfoStr:  obj.GetHash().String(),
+			HashInfo:     obj.GetHash().Export(),
+			Sign:         common.Sign(obj, parent, encrypt),
+			Thumb:        thumb,
+			Type:         utils.GetObjType(obj.GetName(), obj.IsDir()),
+			LabelList:    labels,
+			StorageClass: storageClass,
 		})
 	}
 	return resp
@@ -374,20 +378,22 @@ func FsGet(c *gin.Context) {
 	}
 	parentMeta, _ := op.GetNearestMeta(parentPath)
 	thumb, _ := model.GetThumb(obj)
+	storageClass, _ := model.GetStorageClass(obj)
 	common.SuccessResp(c, FsGetResp{
 		ObjResp: ObjResp{
-			Id:          obj.GetID(),
-			Path:        obj.GetPath(),
-			Name:        obj.GetName(),
-			Size:        obj.GetSize(),
-			IsDir:       obj.IsDir(),
-			Modified:    obj.ModTime(),
-			Created:     obj.CreateTime(),
-			HashInfoStr: obj.GetHash().String(),
-			HashInfo:    obj.GetHash().Export(),
-			Sign:        common.Sign(obj, parentPath, isEncrypt(meta, reqPath)),
-			Type:        utils.GetFileType(obj.GetName()),
-			Thumb:       thumb,
+			Id:           obj.GetID(),
+			Path:         obj.GetPath(),
+			Name:         obj.GetName(),
+			Size:         obj.GetSize(),
+			IsDir:        obj.IsDir(),
+			Modified:     obj.ModTime(),
+			Created:      obj.CreateTime(),
+			HashInfoStr:  obj.GetHash().String(),
+			HashInfo:     obj.GetHash().Export(),
+			Sign:         common.Sign(obj, parentPath, isEncrypt(meta, reqPath)),
+			Type:         utils.GetFileType(obj.GetName()),
+			Thumb:        thumb,
+			StorageClass: storageClass,
 		},
 		RawURL:   rawURL,
 		Readme:   getReadme(meta, reqPath),

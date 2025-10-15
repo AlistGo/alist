@@ -44,17 +44,19 @@ type ArchiveContentResp struct {
 }
 
 func toObjsRespWithoutSignAndThumb(obj model.Obj) ObjResp {
+	storageClass, _ := model.GetStorageClass(obj)
 	return ObjResp{
-		Name:        obj.GetName(),
-		Size:        obj.GetSize(),
-		IsDir:       obj.IsDir(),
-		Modified:    obj.ModTime(),
-		Created:     obj.CreateTime(),
-		HashInfoStr: obj.GetHash().String(),
-		HashInfo:    obj.GetHash().Export(),
-		Sign:        "",
-		Thumb:       "",
-		Type:        utils.GetObjType(obj.GetName(), obj.IsDir()),
+		Name:         obj.GetName(),
+		Size:         obj.GetSize(),
+		IsDir:        obj.IsDir(),
+		Modified:     obj.ModTime(),
+		Created:      obj.CreateTime(),
+		HashInfoStr:  obj.GetHash().String(),
+		HashInfo:     obj.GetHash().Export(),
+		Sign:         "",
+		Thumb:        "",
+		Type:         utils.GetObjType(obj.GetName(), obj.IsDir()),
+		StorageClass: storageClass,
 	}
 }
 
