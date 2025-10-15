@@ -37,6 +37,18 @@ func InitTaskManager() {
 	if len(tool.TransferTaskManager.GetAll()) == 0 { //prevent offline downloaded files from being deleted
 		CleanTempDir()
 	}
+	workers := conf.Conf.Tasks.S3Transition.Workers
+	if workers < 0 {
+		workers = 0
+	}
+	fs.S3TransitionTaskManager = tache.NewManager[*fs.S3TransitionTask](
+		tache.WithWorks(workers),
+		tache.WithPersistFunction(
+			db.GetTaskDataFunc("s3_transition", conf.Conf.Tasks.S3Transition.TaskPersistant),
+			db.UpdateTaskDataFunc("s3_transition", conf.Conf.Tasks.S3Transition.TaskPersistant),
+		),
+		tache.WithMaxRetry(conf.Conf.Tasks.S3Transition.MaxRetry),
+	)
 	fs.ArchiveDownloadTaskManager = tache.NewManager[*fs.ArchiveDownloadTask](tache.WithWorks(setting.GetInt(conf.TaskDecompressDownloadThreadsNum, conf.Conf.Tasks.Decompress.Workers)), tache.WithPersistFunction(db.GetTaskDataFunc("decompress", conf.Conf.Tasks.Decompress.TaskPersistant), db.UpdateTaskDataFunc("decompress", conf.Conf.Tasks.Decompress.TaskPersistant)), tache.WithMaxRetry(conf.Conf.Tasks.Decompress.MaxRetry))
 	op.RegisterSettingChangingCallback(func() {
 		fs.ArchiveDownloadTaskManager.SetWorkersNumActive(taskFilterNegative(setting.GetInt(conf.TaskDecompressDownloadThreadsNum, conf.Conf.Tasks.Decompress.Workers)))

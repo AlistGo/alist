@@ -14,24 +14,31 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 )
 
-type archiveRequest struct {
+const (
+	OtherMethodArchive       = "archive"
+	OtherMethodArchiveStatus = "archive_status"
+	OtherMethodThaw          = "thaw"
+	OtherMethodThawStatus    = "thaw_status"
+)
+
+type ArchiveRequest struct {
 	StorageClass string `json:"storage_class"`
 }
 
-type thawRequest struct {
+type ThawRequest struct {
 	Days int64  `json:"days"`
 	Tier string `json:"tier"`
 }
 
-type objectDescriptor struct {
+type ObjectDescriptor struct {
 	Path   string `json:"path"`
 	Bucket string `json:"bucket"`
 	Key    string `json:"key"`
 }
 
-type archiveResponse struct {
+type ArchiveResponse struct {
 	Action       string           `json:"action"`
-	Object       objectDescriptor `json:"object"`
+	Object       ObjectDescriptor `json:"object"`
 	StorageClass string           `json:"storage_class"`
 	RequestID    string           `json:"request_id,omitempty"`
 	VersionID    string           `json:"version_id,omitempty"`
@@ -39,14 +46,14 @@ type archiveResponse struct {
 	LastModified string           `json:"last_modified,omitempty"`
 }
 
-type thawResponse struct {
+type ThawResponse struct {
 	Action    string           `json:"action"`
-	Object    objectDescriptor `json:"object"`
+	Object    ObjectDescriptor `json:"object"`
 	RequestID string           `json:"request_id,omitempty"`
-	Status    *restoreStatus   `json:"status,omitempty"`
+	Status    *RestoreStatus   `json:"status,omitempty"`
 }
 
-type restoreStatus struct {
+type RestoreStatus struct {
 	Ongoing bool   `json:"ongoing"`
 	Expiry  string `json:"expiry,omitempty"`
 	Raw     string `json:"raw"`
@@ -76,14 +83,14 @@ func (d *S3) Other(ctx context.Context, args model.OtherArgs) (interface{}, erro
 
 func (d *S3) archive(ctx context.Context, args model.OtherArgs) (interface{}, error) {
 	key := getKey(args.Obj.GetPath(), false)
-	payload := archiveRequest{}
-	if err := decodeOtherArgs(args.Data, &payload); err != nil {
+	payload := ArchiveRequest{}
+	if err := DecodeOtherArgs(args.Data, &payload); err != nil {
 		return nil, fmt.Errorf("parse archive request: %w", err)
 	}
 	if payload.StorageClass == "" {
 		return nil, fmt.Errorf("storage_class is required")
 	}
-	storageClass := normalizeStorageClass(payload.StorageClass)
+	storageClass := NormalizeStorageClass(payload.StorageClass)
 	input := &s3.CopyObjectInput{
 		Bucket:            &d.Bucket,
 		Key:               &key,
@@ -97,7 +104,7 @@ func (d *S3) archive(ctx context.Context, args model.OtherArgs) (interface{}, er
 		return nil, err
 	}
 
-	resp := archiveResponse{
+	resp := ArchiveResponse{
 		Action:       "archive",
 		Object:       d.describeObject(args.Obj, key),
 		StorageClass: storageClass,
@@ -126,7 +133,7 @@ func (d *S3) archiveStatus(ctx context.Context, args model.OtherArgs) (interface
 	if err != nil {
 		return nil, err
 	}
-	return archiveResponse{
+	return ArchiveResponse{
 		Action:       "archive_status",
 		Object:       d.describeObject(args.Obj, key),
 		StorageClass: status.StorageClass,
@@ -135,8 +142,8 @@ func (d *S3) archiveStatus(ctx context.Context, args model.OtherArgs) (interface
 
 func (d *S3) thaw(ctx context.Context, args model.OtherArgs) (interface{}, error) {
 	key := getKey(args.Obj.GetPath(), false)
-	payload := thawRequest{Days: 1}
-	if err := decodeOtherArgs(args.Data, &payload); err != nil {
+	payload := ThawRequest{Days: 1}
+	if err := DecodeOtherArgs(args.Data, &payload); err != nil {
 		return nil, fmt.Errorf("parse thaw request: %w", err)
 	}
 	if payload.Days <= 0 {
@@ -145,7 +152,7 @@ func (d *S3) thaw(ctx context.Context, args model.OtherArgs) (interface{}, error
 	restoreRequest := &s3.RestoreRequest{
 		Days: aws.Int64(payload.Days),
 	}
-	if tier := normalizeRestoreTier(payload.Tier); tier != "" {
+	if tier := NormalizeRestoreTier(payload.Tier); tier != "" {
 		restoreRequest.GlacierJobParameters = &s3.GlacierJobParameters{Tier: aws.String(tier)}
 	}
 	input := &s3.RestoreObjectInput{
@@ -159,7 +166,7 @@ func (d *S3) thaw(ctx context.Context, args model.OtherArgs) (interface{}, error
 		return nil, err
 	}
 	status, _ := d.describeObjectStatus(ctx, key)
-	resp := thawResponse{
+	resp := ThawResponse{
 		Action:    "thaw",
 		Object:    d.describeObject(args.Obj, key),
 		RequestID: restoreReq.RequestID,
@@ -176,15 +183,15 @@ func (d *S3) thawStatus(ctx context.Context, args model.OtherArgs) (interface{},
 	if err != nil {
 		return nil, err
 	}
-	return thawResponse{
+	return ThawResponse{
 		Action: "thaw_status",
 		Object: d.describeObject(args.Obj, key),
 		Status: status.Restore,
 	}, nil
 }
 
-func (d *S3) describeObject(obj model.Obj, key string) objectDescriptor {
-	return objectDescriptor{
+func (d *S3) describeObject(obj model.Obj, key string) ObjectDescriptor {
+	return ObjectDescriptor{
 		Path:   obj.GetPath(),
 		Bucket: d.Bucket,
 		Key:    key,
@@ -193,7 +200,7 @@ func (d *S3) describeObject(obj model.Obj, key string) objectDescriptor {
 
 type objectStatus struct {
 	StorageClass string
-	Restore      *restoreStatus
+	Restore      *RestoreStatus
 }
 
 func (d *S3) describeObjectStatus(ctx context.Context, key string) (*objectStatus, error) {
@@ -208,7 +215,7 @@ func (d *S3) describeObjectStatus(ctx context.Context, key string) (*objectStatu
 	return status, nil
 }
 
-func parseRestoreHeader(header *string) *restoreStatus {
+func parseRestoreHeader(header *string) *RestoreStatus {
 	if header == nil {
 		return nil
 	}
@@ -216,7 +223,7 @@ func parseRestoreHeader(header *string) *restoreStatus {
 	if value == "" {
 		return nil
 	}
-	status := &restoreStatus{Raw: value}
+	status := &RestoreStatus{Raw: value}
 	parts := strings.Split(value, ",")
 	for _, part := range parts {
 		part = strings.TrimSpace(part)
@@ -240,7 +247,7 @@ func parseRestoreHeader(header *string) *restoreStatus {
 	return status
 }
 
-func decodeOtherArgs(data interface{}, target interface{}) error {
+func DecodeOtherArgs(data interface{}, target interface{}) error {
 	if data == nil {
 		return nil
 	}
@@ -251,7 +258,7 @@ func decodeOtherArgs(data interface{}, target interface{}) error {
 	return json.Unmarshal(raw, target)
 }
 
-func normalizeStorageClass(value string) string {
+func NormalizeStorageClass(value string) string {
 	normalized := strings.ToLower(strings.TrimSpace(strings.ReplaceAll(value, "-", "_")))
 	if normalized == "" {
 		return value
@@ -262,7 +269,7 @@ func normalizeStorageClass(value string) string {
 	return value
 }
 
-func normalizeRestoreTier(value string) string {
+func NormalizeRestoreTier(value string) string {
 	normalized := strings.ToLower(strings.TrimSpace(value))
 	switch normalized {
 	case "", "default":

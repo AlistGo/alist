@@ -220,6 +220,7 @@ func SetupTaskRoute(g *gin.RouterGroup) {
 	taskRoute(g.Group("/copy"), fs.CopyTaskManager)
 	taskRoute(g.Group("/offline_download"), tool.DownloadTaskManager)
 	taskRoute(g.Group("/offline_download_transfer"), tool.TransferTaskManager)
+	taskRoute(g.Group("/s3_transition"), fs.S3TransitionTaskManager)
 	taskRoute(g.Group("/decompress"), fs.ArchiveDownloadTaskManager)
 	taskRoute(g.Group("/decompress_upload"), fs.ArchiveContentUploadTaskManager)
 }
