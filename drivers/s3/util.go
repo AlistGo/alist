@@ -202,6 +202,9 @@ func (d *S3) copyFile(ctx context.Context, src string, dst string) error {
 		CopySource: aws.String(url.PathEscape(d.Bucket + "/" + srcKey)),
 		Key:        &dstKey,
 	}
+	if storageClass := d.resolveStorageClass(); storageClass != nil {
+		input.StorageClass = storageClass
+	}
 	_, err := d.client.CopyObject(input)
 	return err
 }

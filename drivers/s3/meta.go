@@ -21,6 +21,7 @@ type Addition struct {
 	ListObjectVersion        string `json:"list_object_version" type:"select" options:"v1,v2" default:"v1"`
 	RemoveBucket             bool   `json:"remove_bucket" help:"Remove bucket name from path when using custom host."`
 	AddFilenameToDisposition bool   `json:"add_filename_to_disposition" help:"Add filename to Content-Disposition header."`
+	StorageClass             string `json:"storage_class" type:"select" options:",standard,standard_ia,onezone_ia,intelligent_tiering,glacier,glacier_ir,deep_archive,archive" help:"Storage class for new objects. AWS and Tencent COS support different subsets (COS uses ARCHIVE/DEEP_ARCHIVE)."`
 }
 
 func init() {

@@ -15,6 +15,7 @@ import (
 	"github.com/alist-org/alist/v3/internal/stream"
 	"github.com/alist-org/alist/v3/pkg/cron"
 	"github.com/alist-org/alist/v3/server/common"
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
@@ -30,6 +31,33 @@ type S3 struct {
 
 	config driver.Config
 	cron   *cron.Cron
+}
+
+var storageClassLookup = map[string]string{
+	"standard":            s3.ObjectStorageClassStandard,
+	"reduced_redundancy":  s3.ObjectStorageClassReducedRedundancy,
+	"glacier":             s3.ObjectStorageClassGlacier,
+	"standard_ia":         s3.ObjectStorageClassStandardIa,
+	"onezone_ia":          s3.ObjectStorageClassOnezoneIa,
+	"intelligent_tiering": s3.ObjectStorageClassIntelligentTiering,
+	"deep_archive":        s3.ObjectStorageClassDeepArchive,
+	"outposts":            s3.ObjectStorageClassOutposts,
+	"glacier_ir":          s3.ObjectStorageClassGlacierIr,
+	"snow":                s3.ObjectStorageClassSnow,
+	"express_onezone":     s3.ObjectStorageClassExpressOnezone,
+}
+
+func (d *S3) resolveStorageClass() *string {
+	value := strings.TrimSpace(d.StorageClass)
+	if value == "" {
+		return nil
+	}
+	normalized := strings.ToLower(strings.ReplaceAll(value, "-", "_"))
+	if v, ok := storageClassLookup[normalized]; ok {
+		return aws.String(v)
+	}
+	log.Warnf("s3: unknown storage class %q, using raw value", d.StorageClass)
+	return aws.String(value)
 }
 
 func (d *S3) Config() driver.Config {
@@ -178,6 +206,9 @@ func (d *S3) Put(ctx context.Context, dstDir model.Obj, s model.FileStreamer, up
 			UpdateProgress: up,
 		}),
 		ContentType: &contentType,
+	}
+	if storageClass := d.resolveStorageClass(); storageClass != nil {
+		input.StorageClass = storageClass
 	}
 	_, err := uploader.UploadWithContext(ctx, input)
 	return err
