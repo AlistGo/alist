@@ -214,4 +214,7 @@ func (d *S3) Put(ctx context.Context, dstDir model.Obj, s model.FileStreamer, up
 	return err
 }
 
-var _ driver.Driver = (*S3)(nil)
+var (
+	_ driver.Driver = (*S3)(nil)
+	_ driver.Other  = (*S3)(nil)
+)
