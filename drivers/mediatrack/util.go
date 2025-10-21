@@ -17,6 +17,9 @@ import (
 func (d *MediaTrack) request(url string, method string, callback base.ReqCallback, resp interface{}) ([]byte, error) {
 	req := base.RestyClient.R()
 	req.SetHeader("Authorization", "Bearer "+d.AccessToken)
+	if d.DeviceFingerprint != "" {
+		req.SetHeader("X-Device-Fingerprint", d.DeviceFingerprint)
+	}
 	if callback != nil {
 		callback(req)
 	}

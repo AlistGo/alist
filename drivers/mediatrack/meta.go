@@ -9,8 +9,9 @@ type Addition struct {
 	AccessToken string `json:"access_token" required:"true"`
 	ProjectID   string `json:"project_id"`
 	driver.RootID
-	OrderBy   string `json:"order_by" type:"select" options:"updated_at,title,size" default:"title"`
-	OrderDesc bool   `json:"order_desc"`
+	OrderBy           string `json:"order_by" type:"select" options:"updated_at,title,size" default:"title"`
+	OrderDesc         bool   `json:"order_desc"`
+	DeviceFingerprint string `json:"device_fingerprint" required:"true"`
 }
 
 var config = driver.Config{
