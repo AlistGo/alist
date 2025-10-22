@@ -21,6 +21,7 @@ import (
 	_ "github.com/alist-org/alist/v3/drivers/baidu_netdisk"
 	_ "github.com/alist-org/alist/v3/drivers/baidu_photo"
 	_ "github.com/alist-org/alist/v3/drivers/baidu_share"
+	_ "github.com/alist-org/alist/v3/drivers/bitqiu"
 	_ "github.com/alist-org/alist/v3/drivers/chaoxing"
 	_ "github.com/alist-org/alist/v3/drivers/cloudreve"
 	_ "github.com/alist-org/alist/v3/drivers/cloudreve_v4"
