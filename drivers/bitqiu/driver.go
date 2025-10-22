@@ -6,6 +6,7 @@ import (
 	"net/http/cookiejar"
 	"path"
 	"strconv"
+	"time"
 
 	"github.com/alist-org/alist/v3/drivers/base"
 	"github.com/alist-org/alist/v3/internal/driver"
@@ -26,10 +27,20 @@ const (
 	downloadURL         = baseURL + "/download/getUrl"
 	createDirURL        = baseURL + "/resource/create"
 	moveResourceURL     = baseURL + "/resource/remove"
+	renameResourceURL   = baseURL + "/resource/rename"
+	copyResourceURL     = baseURL + "/apiToken/cfi/fs/async/copy"
+	copyManagerURL      = baseURL + "/apiToken/cfi/fs/async/manager"
+	deleteResourceURL   = baseURL + "/resource/delete"
 
 	successCode       = "10200"
 	uploadSuccessCode = "30010"
+	copySubmittedCode = "10300"
 	orgChannel        = "default|default|default"
+)
+
+const (
+	copyPollInterval    = time.Second
+	copyPollMaxAttempts = 60
 )
 
 type BitQiu struct {
@@ -277,15 +288,116 @@ func (d *BitQiu) Move(ctx context.Context, srcObj, dstDir model.Obj) (model.Obj,
 }
 
 func (d *BitQiu) Rename(ctx context.Context, srcObj model.Obj, newName string) (model.Obj, error) {
-	return nil, errs.NotImplement
+	if d.userID == "" {
+		if err := d.login(ctx); err != nil {
+			return nil, err
+		}
+	}
+
+	form := map[string]string{
+		"resourceId":  srcObj.GetID(),
+		"name":        newName,
+		"type":        "0",
+		"org_channel": orgChannel,
+	}
+	if srcObj.IsDir() {
+		form["type"] = "1"
+	}
+
+	for attempt := 0; attempt < 2; attempt++ {
+		var resp Response[any]
+		if err := d.postForm(ctx, renameResourceURL, form, &resp); err != nil {
+			return nil, err
+		}
+		switch resp.Code {
+		case successCode:
+			return updateObjectName(srcObj, newName), nil
+		case "10401", "10404":
+			if err := d.login(ctx); err != nil {
+				return nil, err
+			}
+		default:
+			return nil, fmt.Errorf("rename failed: %s", resp.Message)
+		}
+	}
+	return nil, fmt.Errorf("rename failed: retry limit reached")
 }
 
 func (d *BitQiu) Copy(ctx context.Context, srcObj, dstDir model.Obj) (model.Obj, error) {
-	return nil, errs.NotImplement
+	if d.userID == "" {
+		if err := d.login(ctx); err != nil {
+			return nil, err
+		}
+	}
+
+	targetParentID := d.resolveParentID(dstDir)
+	form := map[string]string{
+		"dirIds":      "",
+		"fileIds":     "",
+		"parentId":    targetParentID,
+		"org_channel": orgChannel,
+	}
+	if srcObj.IsDir() {
+		form["dirIds"] = srcObj.GetID()
+	} else {
+		form["fileIds"] = srcObj.GetID()
+	}
+
+	for attempt := 0; attempt < 2; attempt++ {
+		var resp Response[any]
+		if err := d.postForm(ctx, copyResourceURL, form, &resp); err != nil {
+			return nil, err
+		}
+		switch resp.Code {
+		case successCode, copySubmittedCode:
+			return d.waitForCopiedObject(ctx, srcObj, dstDir)
+		case "10401", "10404":
+			if err := d.login(ctx); err != nil {
+				return nil, err
+			}
+		default:
+			return nil, fmt.Errorf("copy failed: %s", resp.Message)
+		}
+	}
+
+	return nil, fmt.Errorf("copy failed: retry limit reached")
 }
 
 func (d *BitQiu) Remove(ctx context.Context, obj model.Obj) error {
-	return errs.NotImplement
+	if d.userID == "" {
+		if err := d.login(ctx); err != nil {
+			return err
+		}
+	}
+
+	form := map[string]string{
+		"dirIds":      "",
+		"fileIds":     "",
+		"org_channel": orgChannel,
+	}
+	if obj.IsDir() {
+		form["dirIds"] = obj.GetID()
+	} else {
+		form["fileIds"] = obj.GetID()
+	}
+
+	for attempt := 0; attempt < 2; attempt++ {
+		var resp Response[any]
+		if err := d.postForm(ctx, deleteResourceURL, form, &resp); err != nil {
+			return err
+		}
+		switch resp.Code {
+		case successCode:
+			return nil
+		case "10401", "10404":
+			if err := d.login(ctx); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("remove failed: %s", resp.Message)
+		}
+	}
+	return fmt.Errorf("remove failed: retry limit reached")
 }
 
 func (d *BitQiu) Put(ctx context.Context, dstDir model.Obj, file model.FileStreamer, up driver.UpdateProgress) (model.Obj, error) {
@@ -365,6 +477,87 @@ func (d *BitQiu) postForm(ctx context.Context, url string, form map[string]strin
 	}
 	_, err := req.Post(url)
 	return err
+}
+
+func (d *BitQiu) waitForCopiedObject(ctx context.Context, srcObj, dstDir model.Obj) (model.Obj, error) {
+	expectedName := srcObj.GetName()
+	expectedIsDir := srcObj.IsDir()
+	var lastListErr error
+
+	for attempt := 0; attempt < copyPollMaxAttempts; attempt++ {
+		if attempt > 0 {
+			if err := waitWithContext(ctx, copyPollInterval); err != nil {
+				return nil, err
+			}
+		}
+
+		if err := d.checkCopyFailure(ctx); err != nil {
+			return nil, err
+		}
+
+		obj, err := d.findObjectInDir(ctx, dstDir, expectedName, expectedIsDir)
+		if err != nil {
+			lastListErr = err
+			continue
+		}
+		if obj != nil {
+			return obj, nil
+		}
+	}
+	if lastListErr != nil {
+		return nil, lastListErr
+	}
+	return nil, fmt.Errorf("copy task timed out waiting for completion")
+}
+
+func (d *BitQiu) checkCopyFailure(ctx context.Context) error {
+	form := map[string]string{
+		"org_channel": orgChannel,
+	}
+	for attempt := 0; attempt < 2; attempt++ {
+		var resp Response[AsyncManagerData]
+		if err := d.postForm(ctx, copyManagerURL, form, &resp); err != nil {
+			return err
+		}
+		switch resp.Code {
+		case successCode:
+			if len(resp.Data.FailTasks) > 0 {
+				return fmt.Errorf("copy failed: %s", resp.Data.FailTasks[0].ErrorMessage())
+			}
+			return nil
+		case "10401", "10404":
+			if err := d.login(ctx); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("query copy status failed: %s", resp.Message)
+		}
+	}
+	return fmt.Errorf("query copy status failed: retry limit reached")
+}
+
+func (d *BitQiu) findObjectInDir(ctx context.Context, dir model.Obj, name string, isDir bool) (model.Obj, error) {
+	objs, err := d.List(ctx, dir, model.ListArgs{})
+	if err != nil {
+		return nil, err
+	}
+	for _, obj := range objs {
+		if obj.GetName() == name && obj.IsDir() == isDir {
+			return obj, nil
+		}
+	}
+	return nil, nil
+}
+
+func waitWithContext(ctx context.Context, d time.Duration) error {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func (d *BitQiu) commonHeaders() map[string]string {

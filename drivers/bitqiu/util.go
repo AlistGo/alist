@@ -58,3 +58,45 @@ func parseBitQiuTime(value *string) time.Time {
 	}
 	return time.Time{}
 }
+
+func updateObjectName(obj model.Obj, newName string) model.Obj {
+	newPath := path.Join(parentPathOf(obj.GetPath()), newName)
+
+	switch o := obj.(type) {
+	case *Object:
+		o.Name = newName
+		o.Object.Name = newName
+		o.SetPath(newPath)
+		return o
+	case *model.Object:
+		o.Name = newName
+		o.SetPath(newPath)
+		return o
+	}
+
+	if setter, ok := obj.(model.SetPath); ok {
+		setter.SetPath(newPath)
+	}
+
+	return &model.Object{
+		ID:       obj.GetID(),
+		Path:     newPath,
+		Name:     newName,
+		Size:     obj.GetSize(),
+		Modified: obj.ModTime(),
+		Ctime:    obj.CreateTime(),
+		IsFolder: obj.IsDir(),
+		HashInfo: obj.GetHash(),
+	}
+}
+
+func parentPathOf(p string) string {
+	if p == "" {
+		return ""
+	}
+	dir := path.Dir(p)
+	if dir == "." {
+		return ""
+	}
+	return dir
+}

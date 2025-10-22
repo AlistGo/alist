@@ -45,3 +45,39 @@ type CreateDirData struct {
 	Name     string `json:"name"`
 	ParentID string `json:"parentId"`
 }
+
+type AsyncManagerData struct {
+	WaitTasks    []AsyncTask `json:"waitTaskList"`
+	RunningTasks []AsyncTask `json:"runningTaskList"`
+	SuccessTasks []AsyncTask `json:"successTaskList"`
+	FailTasks    []AsyncTask `json:"failTaskList"`
+	TaskList     []AsyncTask `json:"taskList"`
+}
+
+type AsyncTask struct {
+	TaskID      string         `json:"taskId"`
+	Status      int            `json:"status"`
+	ErrorMsg    string         `json:"errorMsg"`
+	Message     string         `json:"message"`
+	Result      *AsyncTaskInfo `json:"result"`
+	TargetName  string         `json:"targetName"`
+	TargetDirID string         `json:"parentId"`
+}
+
+type AsyncTaskInfo struct {
+	Resource Resource `json:"resource"`
+	DirID    string   `json:"dirId"`
+	FileID   string   `json:"fileId"`
+	Name     string   `json:"name"`
+	ParentID string   `json:"parentId"`
+}
+
+func (t AsyncTask) ErrorMessage() string {
+	if t.ErrorMsg != "" {
+		return t.ErrorMsg
+	}
+	if t.Message != "" {
+		return t.Message
+	}
+	return "unknown error"
+}
