@@ -33,3 +33,15 @@ type Resource struct {
 	UpdateTime   *string      `json:"updateTime"`
 	FileMD5      string       `json:"fileMd5"`
 }
+
+type DownloadData struct {
+	URL  string `json:"url"`
+	MD5  string `json:"md5"`
+	Size int64  `json:"size"`
+}
+
+type CreateDirData struct {
+	DirID    string `json:"dirId"`
+	Name     string `json:"name"`
+	ParentID string `json:"parentId"`
+}

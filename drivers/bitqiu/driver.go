@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http/cookiejar"
+	"path"
 	"strconv"
 
 	"github.com/alist-org/alist/v3/drivers/base"
@@ -22,6 +23,9 @@ const (
 	loginURL            = baseURL + "/loginServer/login"
 	listURL             = baseURL + "/apiToken/cfi/fs/resources/pages"
 	uploadInitializeURL = baseURL + "/apiToken/cfi/fs/upload/v2/initialize"
+	downloadURL         = baseURL + "/download/getUrl"
+	createDirURL        = baseURL + "/resource/create"
+	moveResourceURL     = baseURL + "/resource/remove"
 
 	successCode       = "10200"
 	uploadSuccessCode = "30010"
@@ -131,15 +135,145 @@ func (d *BitQiu) List(ctx context.Context, dir model.Obj, args model.ListArgs) (
 }
 
 func (d *BitQiu) Link(ctx context.Context, file model.Obj, args model.LinkArgs) (*model.Link, error) {
-	return nil, errs.NotImplement
+	if file.IsDir() {
+		return nil, errs.NotFile
+	}
+	if d.userID == "" {
+		if err := d.login(ctx); err != nil {
+			return nil, err
+		}
+	}
+
+	form := map[string]string{
+		"fileIds":     file.GetID(),
+		"org_channel": orgChannel,
+	}
+	for attempt := 0; attempt < 2; attempt++ {
+		var resp Response[DownloadData]
+		if err := d.postForm(ctx, downloadURL, form, &resp); err != nil {
+			return nil, err
+		}
+		switch resp.Code {
+		case successCode:
+			if resp.Data.URL == "" {
+				return nil, fmt.Errorf("empty download url returned")
+			}
+			return &model.Link{URL: resp.Data.URL}, nil
+		case "10401", "10404":
+			if err := d.login(ctx); err != nil {
+				return nil, err
+			}
+		default:
+			return nil, fmt.Errorf("get link failed: %s", resp.Message)
+		}
+	}
+	return nil, fmt.Errorf("get link failed: retry limit reached")
 }
 
 func (d *BitQiu) MakeDir(ctx context.Context, parentDir model.Obj, dirName string) (model.Obj, error) {
-	return nil, errs.NotImplement
+	if d.userID == "" {
+		if err := d.login(ctx); err != nil {
+			return nil, err
+		}
+	}
+
+	parentID := d.resolveParentID(parentDir)
+	parentPath := ""
+	if parentDir != nil {
+		parentPath = parentDir.GetPath()
+	}
+	form := map[string]string{
+		"parentId":    parentID,
+		"name":        dirName,
+		"org_channel": orgChannel,
+	}
+	for attempt := 0; attempt < 2; attempt++ {
+		var resp Response[CreateDirData]
+		if err := d.postForm(ctx, createDirURL, form, &resp); err != nil {
+			return nil, err
+		}
+		switch resp.Code {
+		case successCode:
+			newParentID := parentID
+			if resp.Data.ParentID != "" {
+				newParentID = resp.Data.ParentID
+			}
+			name := resp.Data.Name
+			if name == "" {
+				name = dirName
+			}
+			resource := Resource{
+				ResourceID:   resp.Data.DirID,
+				ResourceType: 1,
+				Name:         name,
+				ParentID:     newParentID,
+			}
+			obj, err := resource.toObject(newParentID, parentPath)
+			if err != nil {
+				return nil, err
+			}
+			if o, ok := obj.(*Object); ok {
+				o.ParentID = newParentID
+			}
+			return obj, nil
+		case "10401", "10404":
+			if err := d.login(ctx); err != nil {
+				return nil, err
+			}
+		default:
+			return nil, fmt.Errorf("create folder failed: %s", resp.Message)
+		}
+	}
+	return nil, fmt.Errorf("create folder failed: retry limit reached")
 }
 
 func (d *BitQiu) Move(ctx context.Context, srcObj, dstDir model.Obj) (model.Obj, error) {
-	return nil, errs.NotImplement
+	if d.userID == "" {
+		if err := d.login(ctx); err != nil {
+			return nil, err
+		}
+	}
+
+	targetParentID := d.resolveParentID(dstDir)
+	form := map[string]string{
+		"dirIds":      "",
+		"fileIds":     "",
+		"parentId":    targetParentID,
+		"org_channel": orgChannel,
+	}
+	if srcObj.IsDir() {
+		form["dirIds"] = srcObj.GetID()
+	} else {
+		form["fileIds"] = srcObj.GetID()
+	}
+
+	for attempt := 0; attempt < 2; attempt++ {
+		var resp Response[any]
+		if err := d.postForm(ctx, moveResourceURL, form, &resp); err != nil {
+			return nil, err
+		}
+		switch resp.Code {
+		case successCode:
+			dstPath := ""
+			if dstDir != nil {
+				dstPath = dstDir.GetPath()
+			}
+			if setter, ok := srcObj.(model.SetPath); ok {
+				setter.SetPath(path.Join(dstPath, srcObj.GetName()))
+			}
+			if o, ok := srcObj.(*Object); ok {
+				o.ParentID = targetParentID
+			}
+			return srcObj, nil
+		case "10401", "10404":
+			if err := d.login(ctx); err != nil {
+				return nil, err
+			}
+		default:
+			return nil, fmt.Errorf("move failed: %s", resp.Message)
+		}
+	}
+	return nil, fmt.Errorf("move failed: retry limit reached")
 }
 
 func (d *BitQiu) Rename(ctx context.Context, srcObj model.Obj, newName string) (model.Obj, error) {
@@ -241,6 +375,7 @@ func (d *BitQiu) commonHeaders() map[string]string {
 		"pragma":                 "no-cache",
 		"user-platform":          d.Addition.UserPlatform,
 		"x-kl-saas-ajax-request": "Ajax_Request",
+		"x-requested-with":       "XMLHttpRequest",
 		"referer":                baseURL + "/",
 		"origin":                 baseURL,
 	}
