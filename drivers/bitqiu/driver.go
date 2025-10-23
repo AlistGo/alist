@@ -24,6 +24,7 @@ import (
 const (
 	baseURL             = "https://pan.bitqiu.com"
 	loginURL            = baseURL + "/loginServer/login"
+	userInfoURL         = baseURL + "/user/getInfo"
 	listURL             = baseURL + "/apiToken/cfi/fs/resources/pages"
 	uploadInitializeURL = baseURL + "/apiToken/cfi/fs/upload/v2/initialize"
 	uploadCompleteURL   = baseURL + "/apiToken/cfi/fs/upload/v2/complete"
@@ -578,6 +579,32 @@ func (d *BitQiu) login(ctx context.Context) error {
 		return fmt.Errorf("login failed: %s", resp.Message)
 	}
 	d.userID = strconv.FormatInt(resp.Data.UserID, 10)
+	return d.ensureRootFolderID(ctx)
+}
+
+func (d *BitQiu) ensureRootFolderID(ctx context.Context) error {
+	rootID := d.Addition.GetRootId()
+	if rootID != "" && rootID != "0" {
+		return nil
+	}
+
+	form := map[string]string{
+		"org_channel": orgChannel,
+	}
+	var resp Response[UserInfoData]
+	if err := d.postForm(ctx, userInfoURL, form, &resp); err != nil {
+		return err
+	}
+	if resp.Code != successCode {
+		return fmt.Errorf("get user info failed: %s", resp.Message)
+	}
+	if resp.Data.RootDirID == "" {
+		return fmt.Errorf("get user info failed: empty root dir id")
+	}
+	if d.Addition.RootFolderID != resp.Data.RootDirID {
+		d.Addition.RootFolderID = resp.Data.RootDirID
+		op.MustSaveDriverStorage(d)
+	}
 	return nil
 }
 

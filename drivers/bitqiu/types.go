@@ -40,6 +40,10 @@ type DownloadData struct {
 	Size int64  `json:"size"`
 }
 
+type UserInfoData struct {
+	RootDirID string `json:"rootDirId"`
+}
+
 type CreateDirData struct {
 	DirID    string `json:"dirId"`
 	Name     string `json:"name"`
