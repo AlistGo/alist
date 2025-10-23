@@ -8,6 +8,7 @@ import (
 	"net/http/cookiejar"
 	"path"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/alist-org/alist/v3/drivers/base"
@@ -48,6 +49,8 @@ const (
 	chunkSize           = int64(1 << 20)
 )
 
+const defaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
+
 type BitQiu struct {
 	model.Storage
 	Addition
@@ -79,6 +82,7 @@ func (d *BitQiu) Init(ctx context.Context) error {
 		d.client.SetBaseURL(baseURL)
 		d.client.SetCookieJar(jar)
 	}
+	d.client.SetHeader("user-agent", d.userAgent())
 
 	return d.login(ctx)
 }
@@ -504,6 +508,7 @@ func (d *BitQiu) uploadFileInChunks(ctx context.Context, tmpFile model.File, siz
 			"hash":         md5sum,
 			"len":          strconv.FormatInt(chunkLen, 10),
 			"offset":       strconv.FormatInt(offset, 10),
+			"user-agent":   d.userAgent(),
 		}
 
 		var chunkResp ChunkUploadResponse
@@ -715,8 +720,16 @@ func (d *BitQiu) commonHeaders() map[string]string {
 		"x-requested-with":       "XMLHttpRequest",
 		"referer":                baseURL + "/",
 		"origin":                 baseURL,
+		"user-agent":             d.userAgent(),
 	}
 	return headers
+}
+
+func (d *BitQiu) userAgent() string {
+	if ua := strings.TrimSpace(d.Addition.UserAgent); ua != "" {
+		return ua
+	}
+	return defaultUserAgent
 }
 
 func (d *BitQiu) resolveParentID(dir model.Obj) string {
