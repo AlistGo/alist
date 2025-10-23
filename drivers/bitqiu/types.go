@@ -81,3 +81,23 @@ func (t AsyncTask) ErrorMessage() string {
 	}
 	return "unknown error"
 }
+
+type UploadInitData struct {
+	Name         string `json:"name"`
+	Size         int64  `json:"size"`
+	Token        string `json:"token"`
+	FileUID      string `json:"fileUid"`
+	FileSID      string `json:"fileSid"`
+	ParentID     string `json:"parentId"`
+	UserID       int64  `json:"userId"`
+	SerialNumber string `json:"serialNumber"`
+	UploadURL    string `json:"uploadUrl"`
+	AppID        string `json:"appId"`
+}
+
+type ChunkUploadResponse struct {
+	ErrCode      int    `json:"errCode"`
+	Offset       int64  `json:"offset"`
+	Finished     int    `json:"finished"`
+	FinishedFlag string `json:"finishedFlag"`
+}
