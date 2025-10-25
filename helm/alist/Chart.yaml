@@ -1,0 +1,10 @@
+name: alist
+description: A file list program that supports multiple storages, powered by Gin and Solidjs.
+version: v3.45.0
+apiVersion: v1
+keywords:
+- alist
+sources:
+- https://github.com/AlistGo/alist
+home: https://alistgo.com
+icon: https://cdn.jsdelivr.net/gh/alist-org/logo@main/logo.svg
