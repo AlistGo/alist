@@ -430,17 +430,35 @@ func (d *LanZou) getFilesByShareUrl(shareID, pwd string, sharePageData string) (
 	file.Time = timeFindReg.FindString(sharePageData)
 
 	// 重定向获取真实链接
-	res, err := base.NoRedirectClient.R().SetHeaders(map[string]string{
+	headers := map[string]string{
 		"accept-language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
-	}).Get(downloadUrl)
+	}
+	res, err := base.NoRedirectClient.R().SetHeaders(headers).Get(downloadUrl)
 	if err != nil {
 		return nil, err
+	}
+
+	rPageData := res.String()
+	if findAcwScV2Reg.MatchString(rPageData) {
+		log.Debug("lanzou: detected acw_sc__v2 challenge, recalculating cookie")
+		acwScV2, err := CalcAcwScV2(rPageData)
+		if err != nil {
+			return nil, err
+		}
+		// retry with calculated cookie to bypass anti-crawler validation
+		res, err = base.NoRedirectClient.R().
+			SetHeaders(headers).
+			SetCookie(&http.Cookie{Name: "acw_sc__v2", Value: acwScV2}).
+			Get(downloadUrl)
+		if err != nil {
+			return nil, err
+		}
+		rPageData = res.String()
 	}
 
 	file.Url = res.Header().Get("location")
 
 	// 触发验证
-	rPageData := res.String()
 	if res.StatusCode() != 302 {
 		param, err = htmlJsonToMap(rPageData)
 		if err != nil {
