@@ -12,11 +12,13 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"os"
+	"path"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"golang.org/x/sync/semaphore"
 
@@ -56,6 +58,29 @@ const (
 
 	CHANNEL_ID = "web_cloud.189.cn"
 )
+
+func (y *Cloud189PC) sanitizeName(name string) string {
+	if !y.StripEmoji {
+		return name
+	}
+	b := strings.Builder{}
+	for _, r := range name {
+		if utf8.RuneLen(r) == 4 {
+			continue
+		}
+		b.WriteRune(r)
+	}
+	sanitized := b.String()
+	if sanitized == "" {
+		ext := path.Ext(name)
+		if ext != "" {
+			sanitized = "file" + ext
+		} else {
+			sanitized = "file"
+		}
+	}
+	return sanitized
+}
 
 func (y *Cloud189PC) SignatureHeader(url, method, params string, isFamily bool) map[string]string {
 	dateOfGmt := getHttpDateStr()
@@ -475,10 +500,11 @@ func (y *Cloud189PC) refreshSession() (err error) {
 func (y *Cloud189PC) StreamUpload(ctx context.Context, dstDir model.Obj, file model.FileStreamer, up driver.UpdateProgress, isFamily bool, overwrite bool) (model.Obj, error) {
 	size := file.GetSize()
 	sliceSize := partSize(size)
+	safeName := y.sanitizeName(file.GetName())
 
 	params := Params{
 		"parentFolderId": dstDir.GetID(),
-		"fileName":       url.QueryEscape(file.GetName()),
+		"fileName":       url.QueryEscape(safeName),
 		"fileSize":       fmt.Sprint(file.GetSize()),
 		"sliceSize":      fmt.Sprint(sliceSize),
 		"lazyCheck":      "1",
@@ -596,7 +622,8 @@ func (y *Cloud189PC) RapidUpload(ctx context.Context, dstDir model.Obj, stream m
 		return nil, errors.New("invalid hash")
 	}
 
-	uploadInfo, err := y.OldUploadCreate(ctx, dstDir.GetID(), fileMd5, stream.GetName(), fmt.Sprint(stream.GetSize()), isFamily)
+	safeName := y.sanitizeName(stream.GetName())
+	uploadInfo, err := y.OldUploadCreate(ctx, dstDir.GetID(), fileMd5, safeName, fmt.Sprint(stream.GetSize()), isFamily)
 	if err != nil {
 		return nil, err
 	}
@@ -615,6 +642,7 @@ func (y *Cloud189PC) FastUpload(ctx context.Context, dstDir model.Obj, file mode
 		tmpF  *os.File
 		err   error
 	)
+	safeName := y.sanitizeName(file.GetName())
 	size := file.GetSize()
 	if _, ok := cache.(io.ReaderAt); !ok && size > 0 {
 		tmpF, err = os.CreateTemp(conf.Conf.TempDir, "file-*")
@@ -697,7 +725,7 @@ func (y *Cloud189PC) FastUpload(ctx context.Context, dstDir model.Obj, file mode
 		//step.2 预上传
 		params := Params{
 			"parentFolderId": dstDir.GetID(),
-			"fileName":       url.QueryEscape(file.GetName()),
+			"fileName":       url.QueryEscape(safeName),
 			"fileSize":       fmt.Sprint(file.GetSize()),
 			"fileMd5":        fileMd5Hex,
 			"sliceSize":      fmt.Sprint(sliceSize),
@@ -833,9 +861,10 @@ func (y *Cloud189PC) OldUpload(ctx context.Context, dstDir model.Obj, file model
 		return nil, err
 	}
 	rateLimited := driver.NewLimitedUploadStream(ctx, io.NopCloser(tempFile))
+	safeName := y.sanitizeName(file.GetName())
 
 	// 创建上传会话
-	uploadInfo, err := y.OldUploadCreate(ctx, dstDir.GetID(), fileMd5, file.GetName(), fmt.Sprint(file.GetSize()), isFamily)
+	uploadInfo, err := y.OldUploadCreate(ctx, dstDir.GetID(), fileMd5, safeName, fmt.Sprint(file.GetSize()), isFamily)
 	if err != nil {
 		return nil, err
 	}

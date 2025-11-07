@@ -11,9 +11,11 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"path"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/alist-org/alist/v3/drivers/base"
 	"github.com/alist-org/alist/v3/internal/driver"
@@ -222,13 +224,37 @@ func (d *Cloud189) getFiles(fileId string) ([]model.Obj, error) {
 	return res, nil
 }
 
+func (d *Cloud189) sanitizeName(name string) string {
+	if !d.StripEmoji {
+		return name
+	}
+	b := strings.Builder{}
+	for _, r := range name {
+		if utf8.RuneLen(r) == 4 {
+			continue
+		}
+		b.WriteRune(r)
+	}
+	sanitized := b.String()
+	if sanitized == "" {
+		ext := path.Ext(name)
+		if ext != "" {
+			sanitized = "file" + ext
+		} else {
+			sanitized = "file"
+		}
+	}
+	return sanitized
+}
+
 func (d *Cloud189) oldUpload(dstDir model.Obj, file model.FileStreamer) error {
+	safeName := d.sanitizeName(file.GetName())
 	res, err := d.client.R().SetMultipartFormData(map[string]string{
 		"parentId":   dstDir.GetID(),
 		"sessionKey": "??",
 		"opertype":   "1",
-		"fname":      file.GetName(),
-	}).SetMultipartField("Filedata", file.GetName(), file.GetMimetype(), file).Post("https://hb02.upload.cloud.189.cn/v1/DCIWebUploadAction")
+		"fname":      safeName,
+	}).SetMultipartField("Filedata", safeName, file.GetMimetype(), file).Post("https://hb02.upload.cloud.189.cn/v1/DCIWebUploadAction")
 	if err != nil {
 		return err
 	}
@@ -313,9 +339,10 @@ func (d *Cloud189) newUpload(ctx context.Context, dstDir model.Obj, file model.F
 	const DEFAULT int64 = 10485760
 	var count = int64(math.Ceil(float64(file.GetSize()) / float64(DEFAULT)))
 
+	safeName := d.sanitizeName(file.GetName())
 	res, err := d.uploadRequest("/person/initMultiUpload", map[string]string{
 		"parentFolderId": dstDir.GetID(),
-		"fileName":       encode(file.GetName()),
+		"fileName":       encode(safeName),
 		"fileSize":       strconv.FormatInt(file.GetSize(), 10),
 		"sliceSize":      strconv.FormatInt(DEFAULT, 10),
 		"lazyCheck":      "1",

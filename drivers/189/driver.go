@@ -80,9 +80,10 @@ func (d *Cloud189) Link(ctx context.Context, file model.Obj, args model.LinkArgs
 }
 
 func (d *Cloud189) MakeDir(ctx context.Context, parentDir model.Obj, dirName string) error {
+	safeName := d.sanitizeName(dirName)
 	form := map[string]string{
 		"parentFolderId": parentDir.GetID(),
-		"folderName":     dirName,
+		"folderName":     safeName,
 	}
 	_, err := d.request("https://cloud.189.cn/api/open/file/createFolder.action", http.MethodPost, func(req *resty.Request) {
 		req.SetFormData(form)
@@ -126,9 +127,10 @@ func (d *Cloud189) Rename(ctx context.Context, srcObj model.Obj, newName string)
 		idKey = "folderId"
 		nameKey = "destFolderName"
 	}
+	safeName := d.sanitizeName(newName)
 	form := map[string]string{
 		idKey:   srcObj.GetID(),
-		nameKey: newName,
+		nameKey: safeName,
 	}
 	_, err := d.request(url, http.MethodPost, func(req *resty.Request) {
 		req.SetFormData(form)
