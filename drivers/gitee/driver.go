@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	stdpath "path"
 	"strings"
@@ -103,7 +104,12 @@ func (d *Gitee) Link(ctx context.Context, file model.Obj, args model.LinkArgs) (
 		downloadURL = content.DownloadURL
 	}
 	url := d.applyProxy(downloadURL)
-	return &model.Link{URL: url}, nil
+	return &model.Link{
+		URL: url,
+		Header: http.Header{
+			"Cookie": {d.Cookie},
+		},
+	}, nil
 }
 
 func (d *Gitee) newRequest() *resty.Request {

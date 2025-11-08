@@ -13,6 +13,9 @@ func (d *Gitee) getRepo() (*Repo, error) {
 	if d.Token != "" {
 		req.SetQueryParam("access_token", d.Token)
 	}
+	if d.Cookie != "" {
+		req.SetHeader("Cookie", d.Cookie)
+	}
 	escapedOwner := url.PathEscape(d.Owner)
 	escapedRepo := url.PathEscape(d.Repo)
 	res, err := req.Get(fmt.Sprintf("/repos/%s/%s", escapedOwner, escapedRepo))

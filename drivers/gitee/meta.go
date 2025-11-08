@@ -13,6 +13,7 @@ type Addition struct {
 	Repo          string `json:"repo" type:"string" required:"true"`
 	Ref           string `json:"ref" type:"string" help:"Branch, tag or commit SHA, defaults to repository default branch"`
 	DownloadProxy string `json:"download_proxy" type:"string" help:"Prefix added before download URLs, e.g. https://mirror.example.com/"`
+	Cookie        string `json:"cookie" type:"string" help:"Cookie returned from user info request"`
 }
 
 var config = driver.Config{
