@@ -3,11 +3,14 @@ package wps
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/alist-org/alist/v3/drivers/base"
+	"github.com/alist-org/alist/v3/internal/errs"
+	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/go-resty/resty/v2"
 )
 
@@ -19,6 +22,11 @@ type resolvedNode struct {
 	file  *FileInfo
 }
 
+type apiResult struct {
+	Result string `json:"result"`
+	Msg    string `json:"msg"`
+}
+
 func (d *Wps) request(ctx context.Context) *resty.Request {
 	return base.RestyClient.R().
 		SetHeader("Cookie", d.Cookie).
@@ -26,14 +34,23 @@ func (d *Wps) request(ctx context.Context) *resty.Request {
 		SetContext(ctx)
 }
 
+func (d *Wps) jsonRequest(ctx context.Context) *resty.Request {
+	return d.request(ctx).
+		SetHeader("Content-Type", "application/json").
+		SetHeader("Origin", "https://365.kdocs.cn/")
+}
+
 func (d *Wps) ensureCompanyID(ctx context.Context) error {
 	if d.companyID != "" {
 		return nil
 	}
 	var resp workspaceResp
-	_, err := d.request(ctx).SetResult(&resp).Get(endpoint + "/3rd/plussvr/compose/v1/users/self/workspaces?fields=name&comp_status=active")
+	r, err := d.request(ctx).SetResult(&resp).SetError(&resp).Get(endpoint + "/3rd/plussvr/compose/v1/users/self/workspaces?fields=name&comp_status=active")
 	if err != nil {
 		return err
+	}
+	if r != nil && r.IsError() {
+		return fmt.Errorf("http error: %d", r.StatusCode())
 	}
 	if len(resp.Companies) == 0 {
 		return fmt.Errorf("no company id")
@@ -48,9 +65,12 @@ func (d *Wps) getGroups(ctx context.Context) ([]Group, error) {
 	}
 	var resp groupsResp
 	url := fmt.Sprintf("%s/3rd/plus/groups/v1/companies/%s/users/self/groups/private", endpoint, d.companyID)
-	_, err := d.request(ctx).SetResult(&resp).Get(url)
+	r, err := d.request(ctx).SetResult(&resp).SetError(&resp).Get(url)
 	if err != nil {
 		return nil, err
+	}
+	if r != nil && r.IsError() {
+		return nil, fmt.Errorf("http error: %d", r.StatusCode())
 	}
 	return resp.Groups, nil
 }
@@ -58,71 +78,18 @@ func (d *Wps) getGroups(ctx context.Context) ([]Group, error) {
 func (d *Wps) getFiles(ctx context.Context, groupID, parentID int64) ([]FileInfo, error) {
 	var resp filesResp
 	url := fmt.Sprintf("%s/3rd/drive/api/v5/groups/%d/files", endpoint, groupID)
-	_, err := d.request(ctx).SetQueryParam("parentid", strconv.FormatInt(parentID, 10)).SetResult(&resp).Get(url)
+	r, err := d.request(ctx).
+		SetQueryParam("parentid", strconv.FormatInt(parentID, 10)).
+		SetResult(&resp).
+		SetError(&resp).
+		Get(url)
 	if err != nil {
 		return nil, err
 	}
+	if r != nil && r.IsError() {
+		return nil, fmt.Errorf("http error: %d", r.StatusCode())
+	}
 	return resp.Files, nil
-}
-
-func checkResult(result, msg string) error {
-	if result == "" || result == "ok" {
-		return nil
-	}
-	if msg != "" {
-		return fmt.Errorf("%s: %s", result, msg)
-	}
-	return fmt.Errorf("%s", result)
-}
-
-func (d *Wps) renameFile(ctx context.Context, groupID, fileID int64, name string) error {
-	var resp opResp
-	url := fmt.Sprintf("%s/3rd/drive/api/v3/groups/%d/files/%d", endpoint, groupID, fileID)
-	_, err := d.request(ctx).SetBody(renameReq{Fname: name}).SetResult(&resp).Put(url)
-	if err != nil {
-		return err
-	}
-	return checkResult(resp.Result, resp.Msg)
-}
-
-func (d *Wps) createFolder(ctx context.Context, groupID, parentID int64, name string) error {
-	var resp opResp
-	url := endpoint + "/3rd/drive/api/v5/files/folder"
-	_, err := d.request(ctx).SetBody(mkdirReq{GroupID: groupID, Name: name, ParentID: parentID}).SetResult(&resp).Post(url)
-	if err != nil {
-		return err
-	}
-	return checkResult(resp.Result, resp.Msg)
-}
-
-func (d *Wps) moveFile(ctx context.Context, groupID, fileID, targetGroupID, targetParentID int64) error {
-	var resp opResp
-	url := fmt.Sprintf("%s/3rd/drive/api/v3/groups/%d/files/batch/move", endpoint, groupID)
-	_, err := d.request(ctx).SetBody(moveReq{FileIDs: []int64{fileID}, TargetGroupID: targetGroupID, TargetParentID: targetParentID}).SetResult(&resp).Post(url)
-	if err != nil {
-		return err
-	}
-	return checkResult(resp.Result, resp.Msg)
-}
-
-func (d *Wps) deleteFile(ctx context.Context, groupID, fileID int64) error {
-	var resp opResp
-	url := fmt.Sprintf("%s/3rd/drive/api/v3/groups/%d/files/batch/delete", endpoint, groupID)
-	_, err := d.request(ctx).SetBody(deleteReq{FileIDs: []int64{fileID}}).SetResult(&resp).Post(url)
-	if err != nil {
-		return err
-	}
-	return checkResult(resp.Result, resp.Msg)
-}
-
-func (d *Wps) copyFile(ctx context.Context, groupID, fileID, targetGroupID, targetParentID int64) error {
-	var resp opResp
-	url := fmt.Sprintf("%s/3rd/drive/api/v3/groups/%d/files/batch/copy", endpoint, groupID)
-	_, err := d.request(ctx).SetBody(copyReq{FileIDs: []int64{fileID}, GroupID: groupID, TargetGroupID: targetGroupID, TargetParentID: targetParentID, DuplicatedNameModel: 1}).SetResult(&resp).Post(url)
-	if err != nil {
-		return err
-	}
-	return checkResult(resp.Result, resp.Msg)
 }
 
 func parseTime(v int64) time.Time {
@@ -183,6 +150,9 @@ func (d *Wps) resolvePath(ctx context.Context, path string) (*resolvedNode, erro
 		if found == nil {
 			return nil, fmt.Errorf("path not found")
 		}
+		if i < len(segs)-1 && found.Type != "folder" {
+			return nil, fmt.Errorf("path not found")
+		}
 		last = *found
 		parentID = found.ID
 	}
@@ -206,4 +176,230 @@ func fileToObj(basePath string, f FileInfo) *Obj {
 		path:        path,
 		canDownload: f.FilePerms.Download != 0,
 	}
+}
+
+func (d *Wps) doJSON(ctx context.Context, method, url string, body interface{}) error {
+	var result apiResult
+	req := d.jsonRequest(ctx).SetBody(body).SetResult(&result).SetError(&result)
+	var (
+		resp *resty.Response
+		err  error
+	)
+	switch method {
+	case http.MethodPost:
+		resp, err = req.Post(url)
+	case http.MethodPut:
+		resp, err = req.Put(url)
+	default:
+		return errs.NotSupport
+	}
+	if err != nil {
+		return err
+	}
+	if result.Result != "" && result.Result != "ok" {
+		if result.Msg == "" {
+			result.Msg = "unknown error"
+		}
+		return fmt.Errorf("%s: %s", result.Result, result.Msg)
+	}
+	if resp != nil && resp.IsError() {
+		if result.Msg != "" {
+			return fmt.Errorf("%s", result.Msg)
+		}
+		return fmt.Errorf("http error: %d", resp.StatusCode())
+	}
+	return nil
+}
+
+func (d *Wps) list(ctx context.Context, basePath string) ([]model.Obj, error) {
+	if strings.TrimSpace(basePath) == "" {
+		basePath = "/"
+	}
+	node, err := d.resolvePath(ctx, basePath)
+	if err != nil {
+		return nil, err
+	}
+	if node.kind == "root" {
+		groups, err := d.getGroups(ctx)
+		if err != nil {
+			return nil, err
+		}
+		res := make([]model.Obj, 0, len(groups))
+		for _, g := range groups {
+			path := joinPath(basePath, g.Name)
+			obj := &Obj{
+				id:    path,
+				name:  g.Name,
+				ctime: parseTime(0),
+				mtime: parseTime(0),
+				isDir: true,
+				path:  path,
+			}
+			res = append(res, obj)
+		}
+		return res, nil
+	}
+	if node.kind != "group" && node.kind != "folder" {
+		return nil, nil
+	}
+	parentID := int64(0)
+	if node.file != nil && node.kind == "folder" {
+		parentID = node.file.ID
+	}
+	files, err := d.getFiles(ctx, node.group.GroupID, parentID)
+	if err != nil {
+		return nil, err
+	}
+	res := make([]model.Obj, 0, len(files))
+	for _, f := range files {
+		res = append(res, fileToObj(basePath, f))
+	}
+	return res, nil
+}
+
+func (d *Wps) link(ctx context.Context, path string) (*model.Link, error) {
+	node, err := d.resolvePath(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+	if node.kind != "file" || node.file == nil {
+		return nil, errs.NotSupport
+	}
+	if node.file.FilePerms.Download == 0 {
+		return nil, fmt.Errorf("no download permission")
+	}
+	url := fmt.Sprintf("%s/3rd/drive/api/v5/groups/%d/files/%d/download?support_checksums=sha1", endpoint, node.group.GroupID, node.file.ID)
+	var resp downloadResp
+	r, err := d.request(ctx).SetResult(&resp).SetError(&resp).Get(url)
+	if err != nil {
+		return nil, err
+	}
+	if r != nil && r.IsError() {
+		return nil, fmt.Errorf("http error: %d", r.StatusCode())
+	}
+	if resp.URL == "" {
+		return nil, fmt.Errorf("empty download url")
+	}
+	return &model.Link{URL: resp.URL, Header: http.Header{}}, nil
+}
+
+func (d *Wps) makeDir(ctx context.Context, parentDir model.Obj, dirName string) error {
+	if parentDir == nil {
+		return errs.NotSupport
+	}
+	node, err := d.resolvePath(ctx, parentDir.GetPath())
+	if err != nil {
+		return err
+	}
+	if node.kind != "group" && node.kind != "folder" {
+		return errs.NotSupport
+	}
+	parentID := int64(0)
+	if node.file != nil && node.kind == "folder" {
+		parentID = node.file.ID
+	}
+	body := map[string]interface{}{
+		"groupid":  node.group.GroupID,
+		"name":     dirName,
+		"parentid": parentID,
+	}
+	return d.doJSON(ctx, http.MethodPost, endpoint+"/3rd/drive/api/v5/files/folder", body)
+}
+
+func (d *Wps) move(ctx context.Context, srcObj, dstDir model.Obj) error {
+	if srcObj == nil || dstDir == nil {
+		return errs.NotSupport
+	}
+	nodeSrc, err := d.resolvePath(ctx, srcObj.GetPath())
+	if err != nil {
+		return err
+	}
+	nodeDst, err := d.resolvePath(ctx, dstDir.GetPath())
+	if err != nil {
+		return err
+	}
+	if nodeSrc.kind != "file" && nodeSrc.kind != "folder" {
+		return errs.NotSupport
+	}
+	if nodeDst.kind != "group" && nodeDst.kind != "folder" {
+		return errs.NotSupport
+	}
+	targetParentID := int64(0)
+	if nodeDst.file != nil && nodeDst.kind == "folder" {
+		targetParentID = nodeDst.file.ID
+	}
+	body := map[string]interface{}{
+		"fileids":         []int64{nodeSrc.file.ID},
+		"target_groupid":  nodeDst.group.GroupID,
+		"target_parentid": targetParentID,
+	}
+	url := fmt.Sprintf("%s/3rd/drive/api/v3/groups/%d/files/batch/move", endpoint, nodeSrc.group.GroupID)
+	return d.doJSON(ctx, http.MethodPost, url, body)
+}
+
+func (d *Wps) rename(ctx context.Context, srcObj model.Obj, newName string) error {
+	if srcObj == nil {
+		return errs.NotSupport
+	}
+	node, err := d.resolvePath(ctx, srcObj.GetPath())
+	if err != nil {
+		return err
+	}
+	if node.kind != "file" && node.kind != "folder" {
+		return errs.NotSupport
+	}
+	url := fmt.Sprintf("%s/3rd/drive/api/v3/groups/%d/files/%d", endpoint, node.group.GroupID, node.file.ID)
+	body := map[string]string{"fname": newName}
+	return d.doJSON(ctx, http.MethodPut, url, body)
+}
+
+func (d *Wps) copy(ctx context.Context, srcObj, dstDir model.Obj) error {
+	if srcObj == nil || dstDir == nil {
+		return errs.NotSupport
+	}
+	nodeSrc, err := d.resolvePath(ctx, srcObj.GetPath())
+	if err != nil {
+		return err
+	}
+	nodeDst, err := d.resolvePath(ctx, dstDir.GetPath())
+	if err != nil {
+		return err
+	}
+	if nodeSrc.kind != "file" && nodeSrc.kind != "folder" {
+		return errs.NotSupport
+	}
+	if nodeDst.kind != "group" && nodeDst.kind != "folder" {
+		return errs.NotSupport
+	}
+	targetParentID := int64(0)
+	if nodeDst.file != nil && nodeDst.kind == "folder" {
+		targetParentID = nodeDst.file.ID
+	}
+	body := map[string]interface{}{
+		"fileids":               []int64{nodeSrc.file.ID},
+		"groupid":               nodeSrc.group.GroupID,
+		"target_groupid":        nodeDst.group.GroupID,
+		"target_parentid":       targetParentID,
+		"duplicated_name_model": 1,
+	}
+	url := fmt.Sprintf("%s/3rd/drive/api/v3/groups/%d/files/batch/copy", endpoint, nodeSrc.group.GroupID)
+	return d.doJSON(ctx, http.MethodPost, url, body)
+}
+
+func (d *Wps) remove(ctx context.Context, obj model.Obj) error {
+	if obj == nil {
+		return errs.NotSupport
+	}
+	node, err := d.resolvePath(ctx, obj.GetPath())
+	if err != nil {
+		return err
+	}
+	if node.kind != "file" && node.kind != "folder" {
+		return errs.NotSupport
+	}
+	body := map[string]interface{}{
+		"fileids": []int64{node.file.ID},
+	}
+	url := fmt.Sprintf("%s/3rd/drive/api/v3/groups/%d/files/batch/delete", endpoint, node.group.GroupID)
+	return d.doJSON(ctx, http.MethodPost, url, body)
 }

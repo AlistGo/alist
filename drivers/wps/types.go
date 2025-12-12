@@ -49,39 +49,6 @@ type downloadResp struct {
 	Result string `json:"result"`
 }
 
-type opResp struct {
-	Result string `json:"result"`
-	Msg    string `json:"msg"`
-}
-
-type renameReq struct {
-	Fname string `json:"fname"`
-}
-
-type mkdirReq struct {
-	GroupID  int64  `json:"groupid"`
-	Name     string `json:"name"`
-	ParentID int64  `json:"parentid"`
-}
-
-type moveReq struct {
-	FileIDs        []int64 `json:"fileids"`
-	TargetGroupID  int64   `json:"target_groupid"`
-	TargetParentID int64   `json:"target_parentid"`
-}
-
-type deleteReq struct {
-	FileIDs []int64 `json:"fileids"`
-}
-
-type copyReq struct {
-	FileIDs             []int64 `json:"fileids"`
-	GroupID             int64   `json:"groupid"`
-	TargetGroupID       int64   `json:"target_groupid"`
-	TargetParentID      int64   `json:"target_parentid"`
-	DuplicatedNameModel int     `json:"duplicated_name_model"`
-}
-
 type Obj struct {
 	id          string
 	name        string
