@@ -65,6 +65,66 @@ func (d *Wps) getFiles(ctx context.Context, groupID, parentID int64) ([]FileInfo
 	return resp.Files, nil
 }
 
+func checkResult(result, msg string) error {
+	if result == "" || result == "ok" {
+		return nil
+	}
+	if msg != "" {
+		return fmt.Errorf("%s: %s", result, msg)
+	}
+	return fmt.Errorf("%s", result)
+}
+
+func (d *Wps) renameFile(ctx context.Context, groupID, fileID int64, name string) error {
+	var resp opResp
+	url := fmt.Sprintf("%s/3rd/drive/api/v3/groups/%d/files/%d", endpoint, groupID, fileID)
+	_, err := d.request(ctx).SetBody(renameReq{Fname: name}).SetResult(&resp).Put(url)
+	if err != nil {
+		return err
+	}
+	return checkResult(resp.Result, resp.Msg)
+}
+
+func (d *Wps) createFolder(ctx context.Context, groupID, parentID int64, name string) error {
+	var resp opResp
+	url := endpoint + "/3rd/drive/api/v5/files/folder"
+	_, err := d.request(ctx).SetBody(mkdirReq{GroupID: groupID, Name: name, ParentID: parentID}).SetResult(&resp).Post(url)
+	if err != nil {
+		return err
+	}
+	return checkResult(resp.Result, resp.Msg)
+}
+
+func (d *Wps) moveFile(ctx context.Context, groupID, fileID, targetGroupID, targetParentID int64) error {
+	var resp opResp
+	url := fmt.Sprintf("%s/3rd/drive/api/v3/groups/%d/files/batch/move", endpoint, groupID)
+	_, err := d.request(ctx).SetBody(moveReq{FileIDs: []int64{fileID}, TargetGroupID: targetGroupID, TargetParentID: targetParentID}).SetResult(&resp).Post(url)
+	if err != nil {
+		return err
+	}
+	return checkResult(resp.Result, resp.Msg)
+}
+
+func (d *Wps) deleteFile(ctx context.Context, groupID, fileID int64) error {
+	var resp opResp
+	url := fmt.Sprintf("%s/3rd/drive/api/v3/groups/%d/files/batch/delete", endpoint, groupID)
+	_, err := d.request(ctx).SetBody(deleteReq{FileIDs: []int64{fileID}}).SetResult(&resp).Post(url)
+	if err != nil {
+		return err
+	}
+	return checkResult(resp.Result, resp.Msg)
+}
+
+func (d *Wps) copyFile(ctx context.Context, groupID, fileID, targetGroupID, targetParentID int64) error {
+	var resp opResp
+	url := fmt.Sprintf("%s/3rd/drive/api/v3/groups/%d/files/batch/copy", endpoint, groupID)
+	_, err := d.request(ctx).SetBody(copyReq{FileIDs: []int64{fileID}, GroupID: groupID, TargetGroupID: targetGroupID, TargetParentID: targetParentID, DuplicatedNameModel: 1}).SetResult(&resp).Post(url)
+	if err != nil {
+		return err
+	}
+	return checkResult(resp.Result, resp.Msg)
+}
+
 func parseTime(v int64) time.Time {
 	if v <= 0 {
 		return time.Time{}

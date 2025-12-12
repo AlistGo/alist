@@ -113,23 +113,102 @@ func (d *Wps) Link(ctx context.Context, file model.Obj, args model.LinkArgs) (*m
 }
 
 func (d *Wps) MakeDir(ctx context.Context, parentDir model.Obj, dirName string) error {
-	return errs.NotSupport
+	basePath := "/"
+	if parentDir != nil {
+		if p := parentDir.GetPath(); p != "" {
+			basePath = p
+		}
+	}
+	node, err := d.resolvePath(ctx, basePath)
+	if err != nil {
+		return err
+	}
+	if node.kind != "group" && node.kind != "folder" {
+		return errs.NotSupport
+	}
+	parentID := int64(0)
+	if node.file != nil && node.kind == "folder" {
+		parentID = node.file.ID
+	}
+	return d.createFolder(ctx, node.group.GroupID, parentID, dirName)
 }
 
 func (d *Wps) Move(ctx context.Context, srcObj, dstDir model.Obj) error {
-	return errs.NotSupport
+	if srcObj == nil || dstDir == nil {
+		return errs.NotSupport
+	}
+	srcNode, err := d.resolvePath(ctx, srcObj.GetPath())
+	if err != nil {
+		return err
+	}
+	if (srcNode.kind != "file" && srcNode.kind != "folder") || srcNode.file == nil {
+		return errs.NotSupport
+	}
+	dstNode, err := d.resolvePath(ctx, dstDir.GetPath())
+	if err != nil {
+		return err
+	}
+	if dstNode.kind != "group" && dstNode.kind != "folder" {
+		return errs.NotSupport
+	}
+	targetParentID := int64(0)
+	if dstNode.file != nil && dstNode.kind == "folder" {
+		targetParentID = dstNode.file.ID
+	}
+	return d.moveFile(ctx, srcNode.group.GroupID, srcNode.file.ID, dstNode.group.GroupID, targetParentID)
 }
 
 func (d *Wps) Rename(ctx context.Context, srcObj model.Obj, newName string) error {
-	return errs.NotSupport
+	if srcObj == nil {
+		return errs.NotSupport
+	}
+	node, err := d.resolvePath(ctx, srcObj.GetPath())
+	if err != nil {
+		return err
+	}
+	if (node.kind != "file" && node.kind != "folder") || node.file == nil {
+		return errs.NotSupport
+	}
+	return d.renameFile(ctx, node.group.GroupID, node.file.ID, newName)
 }
 
 func (d *Wps) Copy(ctx context.Context, srcObj, dstDir model.Obj) error {
-	return errs.NotSupport
+	if srcObj == nil || dstDir == nil {
+		return errs.NotSupport
+	}
+	srcNode, err := d.resolvePath(ctx, srcObj.GetPath())
+	if err != nil {
+		return err
+	}
+	if (srcNode.kind != "file" && srcNode.kind != "folder") || srcNode.file == nil {
+		return errs.NotSupport
+	}
+	dstNode, err := d.resolvePath(ctx, dstDir.GetPath())
+	if err != nil {
+		return err
+	}
+	if dstNode.kind != "group" && dstNode.kind != "folder" {
+		return errs.NotSupport
+	}
+	targetParentID := int64(0)
+	if dstNode.file != nil && dstNode.kind == "folder" {
+		targetParentID = dstNode.file.ID
+	}
+	return d.copyFile(ctx, srcNode.group.GroupID, srcNode.file.ID, dstNode.group.GroupID, targetParentID)
 }
 
 func (d *Wps) Remove(ctx context.Context, obj model.Obj) error {
-	return errs.NotSupport
+	if obj == nil {
+		return errs.NotSupport
+	}
+	node, err := d.resolvePath(ctx, obj.GetPath())
+	if err != nil {
+		return err
+	}
+	if (node.kind != "file" && node.kind != "folder") || node.file == nil {
+		return errs.NotSupport
+	}
+	return d.deleteFile(ctx, node.group.GroupID, node.file.ID)
 }
 
 func (d *Wps) Put(ctx context.Context, dstDir model.Obj, stream model.FileStreamer, up driver.UpdateProgress) error {

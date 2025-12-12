@@ -6,6 +6,7 @@ import (
 )
 
 type Addition struct {
+	driver.RootPath
 	Cookie string `json:"cookie" required:"true" help:"kso_sid=xxxxx"`
 }
 
