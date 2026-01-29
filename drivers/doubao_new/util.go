@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/alist-org/alist/v3/drivers/base"
 	"github.com/go-resty/resty/v2"
@@ -440,6 +441,65 @@ func (d *DoubaoNew) moveObj(ctx context.Context, srcToken, destToken string) err
 	return decodeBaseResp(body, res)
 }
 
+func (d *DoubaoNew) removeObj(ctx context.Context, tokens []string) error {
+	if len(tokens) == 0 {
+		return fmt.Errorf("[doubao_new] remove missing tokens")
+	}
+	doRequest := func(csrfToken string) (*resty.Response, []byte, error) {
+		req := base.RestyClient.R()
+		req.SetContext(ctx)
+		req.SetHeader("accept", "application/json, text/plain, */*")
+		req.SetHeader("origin", "https://www.doubao.com")
+		req.SetHeader("referer", "https://www.doubao.com/")
+		req.SetHeader("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36")
+		if auth := d.resolveAuthorization(); auth != "" {
+			req.SetHeader("authorization", auth)
+		}
+		if dpop := d.resolveDpop(); dpop != "" {
+			req.SetHeader("dpop", dpop)
+		}
+		if csrfToken != "" {
+			req.SetHeader("x-csrftoken", csrfToken)
+		}
+		req.SetHeader("Content-Type", "application/json")
+		req.SetBody(base.Json{
+			"tokens": tokens,
+			"apply":  1,
+		})
+		res, err := req.Execute(http.MethodPost, BaseURL+"/space/api/explorer/v3/remove/")
+		if err != nil {
+			return nil, nil, err
+		}
+		return res, res.Body(), nil
+	}
+
+	res, body, err := doRequestWithCsrf(doRequest)
+	if err != nil {
+		return err
+	}
+	var resp RemoveResp
+	if err := json.Unmarshal(body, &resp); err != nil {
+		msg := fmt.Sprintf("[doubao_new] decode response failed (status: %s, content-type: %s, body: %s): %v",
+			res.Status(),
+			res.Header().Get("Content-Type"),
+			string(body),
+			err,
+		)
+		return fmt.Errorf(msg)
+	}
+	if resp.Code != 0 {
+		errMsg := resp.Msg
+		if errMsg == "" {
+			errMsg = resp.Message
+		}
+		return fmt.Errorf("[doubao_new] API error (code: %d): %s", resp.Code, errMsg)
+	}
+	if resp.Data.TaskID == "" {
+		return nil
+	}
+	return d.waitTask(ctx, resp.Data.TaskID)
+}
+
 func (d *DoubaoNew) getUserStorage(ctx context.Context) (UserStorageData, error) {
 	req := base.RestyClient.R()
 	req.SetContext(ctx)
@@ -485,6 +545,89 @@ func (d *DoubaoNew) getUserStorage(ctx context.Context) (UserStorageData, error)
 	}
 
 	return resp.Data, nil
+}
+
+func (d *DoubaoNew) waitTask(ctx context.Context, taskID string) error {
+	const (
+		taskPollInterval    = time.Second
+		taskPollMaxAttempts = 120
+	)
+	var lastErr error
+	for attempt := 0; attempt < taskPollMaxAttempts; attempt++ {
+		if attempt > 0 {
+			if err := waitWithContext(ctx, taskPollInterval); err != nil {
+				return err
+			}
+		}
+		status, err := d.getTaskStatus(ctx, taskID)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		if status.IsFail {
+			return fmt.Errorf("[doubao_new] remove task failed: %s", taskID)
+		}
+		if status.IsFinish {
+			return nil
+		}
+	}
+	if lastErr != nil {
+		return lastErr
+	}
+	return fmt.Errorf("[doubao_new] remove task timed out: %s", taskID)
+}
+
+func (d *DoubaoNew) getTaskStatus(ctx context.Context, taskID string) (TaskStatusData, error) {
+	if taskID == "" {
+		return TaskStatusData{}, fmt.Errorf("[doubao_new] task status missing task_id")
+	}
+	req := base.RestyClient.R()
+	req.SetContext(ctx)
+	req.SetHeader("accept", "application/json, text/plain, */*")
+	req.SetHeader("origin", "https://www.doubao.com")
+	req.SetHeader("referer", "https://www.doubao.com/")
+	req.SetHeader("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36")
+	if auth := d.resolveAuthorization(); auth != "" {
+		req.SetHeader("authorization", auth)
+	}
+	if dpop := d.resolveDpop(); dpop != "" {
+		req.SetHeader("dpop", dpop)
+	}
+	req.SetQueryParam("task_id", taskID)
+	res, err := req.Execute(http.MethodGet, BaseURL+"/space/api/explorer/v2/task/")
+	if err != nil {
+		return TaskStatusData{}, err
+	}
+	body := res.Body()
+	var resp TaskStatusResp
+	if err := json.Unmarshal(body, &resp); err != nil {
+		msg := fmt.Sprintf("[doubao_new] decode response failed (status: %s, content-type: %s, body: %s): %v",
+			res.Status(),
+			res.Header().Get("Content-Type"),
+			string(body),
+			err,
+		)
+		return TaskStatusData{}, fmt.Errorf(msg)
+	}
+	if resp.Code != 0 {
+		errMsg := resp.Msg
+		if errMsg == "" {
+			errMsg = resp.Message
+		}
+		return TaskStatusData{}, fmt.Errorf("[doubao_new] API error (code: %d): %s", resp.Code, errMsg)
+	}
+	return resp.Data, nil
+}
+
+func waitWithContext(ctx context.Context, d time.Duration) error {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func (d *DoubaoNew) prepareUpload(ctx context.Context, name string, size int64, mountNodeToken string) (UploadPrepareData, error) {

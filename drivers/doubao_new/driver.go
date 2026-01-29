@@ -199,8 +199,19 @@ func (d *DoubaoNew) Copy(ctx context.Context, srcObj, dstDir model.Obj) (model.O
 }
 
 func (d *DoubaoNew) Remove(ctx context.Context, obj model.Obj) error {
-	// TODO remove obj, optional
-	return errs.NotImplement
+	if obj == nil {
+		return errors.New("nil object")
+	}
+	token := obj.GetID()
+	if token == "" {
+		if o, ok := obj.(*Object); ok {
+			token = o.ObjToken
+		}
+	}
+	if token == "" {
+		return errors.New("missing object token")
+	}
+	return d.removeObj(ctx, []string{token})
 }
 
 func (d *DoubaoNew) Put(ctx context.Context, dstDir model.Obj, file model.FileStreamer, up driver.UpdateProgress) (model.Obj, error) {

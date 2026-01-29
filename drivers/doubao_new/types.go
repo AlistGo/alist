@@ -163,3 +163,20 @@ type UploadFinishData struct {
 	} `json:"extra"`
 	FileToken string `json:"file_token"`
 }
+
+type RemoveResp struct {
+	BaseResp
+	Data struct {
+		TaskID string `json:"task_id"`
+	} `json:"data"`
+}
+
+type TaskStatusResp struct {
+	BaseResp
+	Data TaskStatusData `json:"data"`
+}
+
+type TaskStatusData struct {
+	IsFinish bool `json:"is_finish"`
+	IsFail   bool `json:"is_fail"`
+}
