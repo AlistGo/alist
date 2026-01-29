@@ -27,6 +27,7 @@ import (
 	_ "github.com/alist-org/alist/v3/drivers/cloudreve_v4"
 	_ "github.com/alist-org/alist/v3/drivers/crypt"
 	_ "github.com/alist-org/alist/v3/drivers/doubao"
+	_ "github.com/alist-org/alist/v3/drivers/doubao_new"
 	_ "github.com/alist-org/alist/v3/drivers/doubao_share"
 	_ "github.com/alist-org/alist/v3/drivers/dropbox"
 	_ "github.com/alist-org/alist/v3/drivers/febbox"

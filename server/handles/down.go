@@ -55,6 +55,20 @@ func Proxy(c *gin.Context) {
 		common.ErrorResp(c, err, 500)
 		return
 	}
+	if c.Query("type") == "preview" && storage.GetStorage().Driver == "DoubaoNew" {
+		// Force proxy for DoubaoNew preview so headers are preserved.
+		link, file, err := fs.Link(c, rawPath, model.LinkArgs{
+			Header:  c.Request.Header,
+			Type:    c.Query("type"),
+			HttpReq: c.Request,
+		})
+		if err != nil {
+			common.ErrorResp(c, err, 500)
+			return
+		}
+		localProxy(c, link, file, storage.GetStorage().ProxyRange)
+		return
+	}
 	if canProxy(storage, filename) {
 		downProxyUrl := storage.GetStorage().DownProxyUrl
 		if downProxyUrl != "" {
