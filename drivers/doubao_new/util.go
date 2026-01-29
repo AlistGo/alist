@@ -230,18 +230,9 @@ func (d *DoubaoNew) createFolder(ctx context.Context, parentToken, name string) 
 		return res, res.Body(), nil
 	}
 
-	res, body, err := doRequest("")
+	res, body, err := doRequestWithCsrf(doRequest)
 	if err != nil {
 		return Node{}, err
-	}
-	if isCsrfTokenError(body, res) {
-		csrfToken := extractCsrfTokenFromResponse(res)
-		if csrfToken != "" {
-			res, body, err = doRequest(csrfToken)
-			if err != nil {
-				return Node{}, err
-			}
-		}
 	}
 	if err := decodeBaseResp(body, res); err != nil {
 		return Node{}, err
@@ -319,18 +310,9 @@ func (d *DoubaoNew) renameFolder(ctx context.Context, token, name string) error 
 		return res, res.Body(), nil
 	}
 
-	res, body, err := doRequest("")
+	res, body, err := doRequestWithCsrf(doRequest)
 	if err != nil {
 		return err
-	}
-	if isCsrfTokenError(body, res) {
-		csrfToken := extractCsrfTokenFromResponse(res)
-		if csrfToken != "" {
-			res, body, err = doRequest(csrfToken)
-			if err != nil {
-				return err
-			}
-		}
 	}
 	return decodeBaseResp(body, res)
 }
@@ -346,6 +328,20 @@ func isCsrfTokenError(body []byte, res *resty.Response) bool {
 		return true
 	}
 	return false
+}
+
+func doRequestWithCsrf(doRequest func(csrfToken string) (*resty.Response, []byte, error)) (*resty.Response, []byte, error) {
+	res, body, err := doRequest("")
+	if err != nil {
+		return res, body, err
+	}
+	if isCsrfTokenError(body, res) {
+		csrfToken := extractCsrfTokenFromResponse(res)
+		if csrfToken != "" {
+			return doRequest(csrfToken)
+		}
+	}
+	return res, body, err
 }
 
 func extractCsrfTokenFromResponse(res *resty.Response) string {
@@ -401,6 +397,47 @@ func (d *DoubaoNew) renameFile(ctx context.Context, fileToken, name string) erro
 		})
 	}, nil)
 	return err
+}
+
+func (d *DoubaoNew) moveObj(ctx context.Context, srcToken, destToken string) error {
+	if srcToken == "" {
+		return fmt.Errorf("[doubao_new] move missing src token")
+	}
+	data := url.Values{}
+	data.Set("src_token", srcToken)
+	if destToken != "" {
+		data.Set("dest_token", destToken)
+	}
+	doRequest := func(csrfToken string) (*resty.Response, []byte, error) {
+		req := base.RestyClient.R()
+		req.SetContext(ctx)
+		req.SetHeader("accept", "*/*")
+		req.SetHeader("origin", "https://www.doubao.com")
+		req.SetHeader("referer", "https://www.doubao.com/")
+		req.SetHeader("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36")
+		if auth := d.resolveAuthorization(); auth != "" {
+			req.SetHeader("authorization", auth)
+		}
+		if dpop := d.resolveDpop(); dpop != "" {
+			req.SetHeader("dpop", dpop)
+		}
+		if csrfToken != "" {
+			req.SetHeader("x-csrftoken", csrfToken)
+		}
+		req.SetHeader("Content-Type", "application/x-www-form-urlencoded")
+		req.SetBody(data.Encode())
+		res, err := req.Execute(http.MethodPost, BaseURL+"/space/api/explorer/v2/move/")
+		if err != nil {
+			return nil, nil, err
+		}
+		return res, res.Body(), nil
+	}
+
+	res, body, err := doRequestWithCsrf(doRequest)
+	if err != nil {
+		return err
+	}
+	return decodeBaseResp(body, res)
 }
 
 func (d *DoubaoNew) getUserStorage(ctx context.Context) (UserStorageData, error) {

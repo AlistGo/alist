@@ -138,8 +138,30 @@ func (d *DoubaoNew) MakeDir(ctx context.Context, parentDir model.Obj, dirName st
 }
 
 func (d *DoubaoNew) Move(ctx context.Context, srcObj, dstDir model.Obj) (model.Obj, error) {
-	// TODO move obj, optional
-	return nil, errs.NotImplement
+	if srcObj == nil {
+		return nil, errors.New("nil source object")
+	}
+	if dstDir == nil {
+		return nil, errors.New("nil destination dir")
+	}
+	srcToken := srcObj.GetID()
+	if srcToken == "" {
+		if obj, ok := srcObj.(*Object); ok {
+			srcToken = obj.ObjToken
+		}
+	}
+	if srcToken == "" {
+		return nil, errors.New("missing source token")
+	}
+	if err := d.moveObj(ctx, srcToken, dstDir.GetID()); err != nil {
+		return nil, err
+	}
+	if obj, ok := srcObj.(*Object); ok {
+		clone := *obj
+		clone.Path = dstDir.GetID()
+		return &clone, nil
+	}
+	return srcObj, nil
 }
 
 func (d *DoubaoNew) Rename(ctx context.Context, srcObj model.Obj, newName string) (model.Obj, error) {
