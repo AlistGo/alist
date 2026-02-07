@@ -32,6 +32,7 @@ import (
 	_ "github.com/alist-org/alist/v3/drivers/dropbox"
 	_ "github.com/alist-org/alist/v3/drivers/febbox"
 	_ "github.com/alist-org/alist/v3/drivers/ftp"
+	_ "github.com/alist-org/alist/v3/drivers/ftps"
 	_ "github.com/alist-org/alist/v3/drivers/gitee"
 	_ "github.com/alist-org/alist/v3/drivers/github"
 	_ "github.com/alist-org/alist/v3/drivers/github_releases"
