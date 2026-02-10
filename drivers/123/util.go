@@ -36,6 +36,7 @@ const (
 	Mkdir            = MainApi + "/file/upload_request"
 	Move             = MainApi + "/file/mod_pid"
 	Rename           = MainApi + "/file/rename"
+	Copy             = MainApi + "/restful/goapi/v1/file/copy/async"
 	Trash            = MainApi + "/file/trash"
 	UploadRequest    = MainApi + "/file/upload_request"
 	UploadComplete   = MainApi + "/file/upload_complete"
