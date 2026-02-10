@@ -26,8 +26,9 @@ import (
 
 var loginCache = cache.NewMemCache[int]()
 var (
-	defaultDuration = time.Minute * 5
-	defaultTimes    = 5
+	defaultDuration            = time.Minute * 5
+	defaultTimes               = 5
+	invalidLoginCredentialsMsg = "username or password is incorrect"
 )
 
 type LoginReq struct {
@@ -69,13 +70,13 @@ func loginHash(c *gin.Context, req *LoginReq) {
 	// check username
 	user, err := op.GetUserByName(req.Username)
 	if err != nil {
-		common.ErrorResp(c, err, 400)
+		common.ErrorStrResp(c, invalidLoginCredentialsMsg, 400)
 		loginCache.Set(ip, count+1)
 		return
 	}
 	// validate password hash
 	if err := user.ValidatePwdStaticHash(req.Password); err != nil {
-		common.ErrorResp(c, err, 400)
+		common.ErrorStrResp(c, invalidLoginCredentialsMsg, 400)
 		loginCache.Set(ip, count+1)
 		return
 	}
