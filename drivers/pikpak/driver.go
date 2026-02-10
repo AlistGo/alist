@@ -139,7 +139,8 @@ func (d *PikPak) Link(ctx context.Context, file model.Obj, args model.LinkArgs) 
 	}
 	_, err := d.request(fmt.Sprintf("https://api-drive.mypikpak.net/drive/v1/files/%s", file.GetID()),
 		http.MethodGet, func(req *resty.Request) {
-			req.SetQueryParams(queryParams)
+			req.SetContext(ctx).
+				SetQueryParams(queryParams)
 		}, &resp)
 	if err != nil {
 		return nil, err
@@ -158,7 +159,7 @@ func (d *PikPak) Link(ctx context.Context, file model.Obj, args model.LinkArgs) 
 
 func (d *PikPak) MakeDir(ctx context.Context, parentDir model.Obj, dirName string) error {
 	_, err := d.request("https://api-drive.mypikpak.net/drive/v1/files", http.MethodPost, func(req *resty.Request) {
-		req.SetBody(base.Json{
+		req.SetContext(ctx).SetBody(base.Json{
 			"kind":      "drive#folder",
 			"parent_id": parentDir.GetID(),
 			"name":      dirName,
@@ -169,7 +170,7 @@ func (d *PikPak) MakeDir(ctx context.Context, parentDir model.Obj, dirName strin
 
 func (d *PikPak) Move(ctx context.Context, srcObj, dstDir model.Obj) error {
 	_, err := d.request("https://api-drive.mypikpak.net/drive/v1/files:batchMove", http.MethodPost, func(req *resty.Request) {
-		req.SetBody(base.Json{
+		req.SetContext(ctx).SetBody(base.Json{
 			"ids": []string{srcObj.GetID()},
 			"to": base.Json{
 				"parent_id": dstDir.GetID(),
@@ -181,7 +182,7 @@ func (d *PikPak) Move(ctx context.Context, srcObj, dstDir model.Obj) error {
 
 func (d *PikPak) Rename(ctx context.Context, srcObj model.Obj, newName string) error {
 	_, err := d.request("https://api-drive.mypikpak.net/drive/v1/files/"+srcObj.GetID(), http.MethodPatch, func(req *resty.Request) {
-		req.SetBody(base.Json{
+		req.SetContext(ctx).SetBody(base.Json{
 			"name": newName,
 		})
 	}, nil)
@@ -190,7 +191,7 @@ func (d *PikPak) Rename(ctx context.Context, srcObj model.Obj, newName string) e
 
 func (d *PikPak) Copy(ctx context.Context, srcObj, dstDir model.Obj) error {
 	_, err := d.request("https://api-drive.mypikpak.net/drive/v1/files:batchCopy", http.MethodPost, func(req *resty.Request) {
-		req.SetBody(base.Json{
+		req.SetContext(ctx).SetBody(base.Json{
 			"ids": []string{srcObj.GetID()},
 			"to": base.Json{
 				"parent_id": dstDir.GetID(),
@@ -202,7 +203,7 @@ func (d *PikPak) Copy(ctx context.Context, srcObj, dstDir model.Obj) error {
 
 func (d *PikPak) Remove(ctx context.Context, obj model.Obj) error {
 	_, err := d.request("https://api-drive.mypikpak.net/drive/v1/files:batchTrash", http.MethodPost, func(req *resty.Request) {
-		req.SetBody(base.Json{
+		req.SetContext(ctx).SetBody(base.Json{
 			"ids": []string{obj.GetID()},
 		})
 	}, nil)
@@ -276,7 +277,8 @@ func (d *PikPak) OfflineDownload(ctx context.Context, fileUrl string, parentDir 
 
 	var resp OfflineDownloadResp
 	_, err := d.request("https://api-drive.mypikpak.net/drive/v1/files", http.MethodPost, func(req *resty.Request) {
-		req.SetBody(requestBody)
+		req.SetContext(ctx).
+			SetBody(requestBody)
 	}, &resp)
 
 	if err != nil {

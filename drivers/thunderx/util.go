@@ -19,6 +19,7 @@ import (
 const (
 	API_URL        = "https://api-pan.xunleix.com/drive/v1"
 	FILE_API_URL   = API_URL + "/files"
+	TASKS_API_URL  = API_URL + "/tasks"
 	XLUSER_API_URL = "https://xluser-ssl.xunleix.com/v1"
 )
 
