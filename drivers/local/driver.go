@@ -39,6 +39,10 @@ type Local struct {
 	// video thumb position
 	videoThumbPos             float64
 	videoThumbPosIsPercentage bool
+	thumbPixel                int
+
+	// use ffmpeg
+	useFFmpeg bool
 }
 
 func (d *Local) Config() driver.Config {
@@ -65,6 +69,9 @@ func (d *Local) Init(ctx context.Context) error {
 		}
 		d.Addition.RootFolderPath = abs
 	}
+
+	d.useFFmpeg = d.UseFFmpeg
+
 	if d.ThumbCacheFolder != "" && !utils.Exists(d.ThumbCacheFolder) {
 		err := os.MkdirAll(d.ThumbCacheFolder, os.FileMode(d.mkdirPerm))
 		if err != nil {
@@ -78,6 +85,14 @@ func (d *Local) Init(ctx context.Context) error {
 		}
 		d.thumbConcurrency = int(v)
 	}
+	if d.ThumbPixel != "" {
+		v, err := strconv.ParseUint(d.ThumbPixel, 10, 32)
+		if err != nil {
+			return err
+		}
+		d.thumbPixel = int(v)
+	}
+
 	if d.thumbConcurrency == 0 {
 		d.thumbTokenBucket = NewNopTokenBucket()
 	} else {
