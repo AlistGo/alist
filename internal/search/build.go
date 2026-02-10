@@ -4,6 +4,7 @@ import (
 	"context"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -30,12 +31,21 @@ func Running() bool {
 	return Quit.Load() != nil
 }
 
-func BuildIndex(ctx context.Context, indexPaths, ignorePaths []string, maxDepth int, count bool) error {
+func BuildIndex(ctx context.Context, indexPaths []string, maxDepth int, count bool) error {
 	var (
 		err      error
 		objCount uint64 = 0
 		fi       model.Obj
 	)
+	ignorePaths := conf.SlicesMap[conf.IgnorePaths]
+	ignoreRegs := make([]*regexp.Regexp, 0, len(ignorePaths))
+	for _, ignorePath := range ignorePaths {
+		if reg, err := regexp.Compile(ignorePath); err == nil {
+			ignoreRegs = append(ignoreRegs, reg)
+		} else {
+			return err
+		}
+	}
 	log.Infof("build index for: %+v", indexPaths)
 	log.Infof("ignore paths: %+v", ignorePaths)
 	quit := make(chan struct{}, 1)
@@ -152,8 +162,8 @@ func BuildIndex(ctx context.Context, indexPaths, ignorePaths []string, maxDepth 
 			if !running.Load() {
 				return filepath.SkipDir
 			}
-			for _, avoidPath := range ignorePaths {
-				if strings.HasPrefix(indexPath, avoidPath) {
+			for _, ignoreReg := range ignoreRegs {
+				if ignoreReg.MatchString(indexPath) {
 					return filepath.SkipDir
 				}
 			}
@@ -254,9 +264,7 @@ func Update(parent string, objs []model.Obj) {
 			} else {
 				// build index if it's a folder
 				dir := path.Join(parent, objs[i].GetName())
-				err = BuildIndex(ctx,
-					[]string{dir},
-					conf.SlicesMap[conf.IgnorePaths],
+				err = BuildIndex(ctx, []string{dir},
 					setting.GetInt(conf.MaxIndexDepth, 20)-strings.Count(dir, "/"), false)
 				if err != nil {
 					log.Errorf("update search index error while build index: %+v", err)
