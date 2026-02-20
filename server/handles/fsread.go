@@ -49,12 +49,17 @@ type ObjResp struct {
 }
 
 type FsListResp struct {
-	Content  []ObjLabelResp `json:"content"`
-	Total    int64          `json:"total"`
-	Readme   string         `json:"readme"`
-	Header   string         `json:"header"`
-	Write    bool           `json:"write"`
-	Provider string         `json:"provider"`
+	Content       []ObjLabelResp `json:"content"`
+	Total         int64          `json:"total"`
+	FilteredTotal int64          `json:"filtered_total"`
+	Page          int            `json:"page"`
+	PerPage       int            `json:"per_page"`
+	HasMore       bool           `json:"has_more"`
+	PagesTotal    int            `json:"pages_total"`
+	Readme        string         `json:"readme"`
+	Header        string         `json:"header"`
+	Write         bool           `json:"write"`
+	Provider      string         `json:"provider"`
 }
 
 type ObjLabelResp struct {
@@ -74,13 +79,20 @@ type ObjLabelResp struct {
 	StorageClass string                     `json:"storage_class,omitempty"`
 }
 
+const (
+	DefaultPerPage = 200
+	MaxPerPage     = 500
+)
+
 func FsList(c *gin.Context) {
 	var req ListReq
 	if err := c.ShouldBind(&req); err != nil {
 		common.ErrorResp(c, err, 400)
 		return
 	}
-	req.Validate()
+	effPage, effPerPage := normalizeListPage(req.Page, req.PerPage)
+	req.Page = effPage
+	req.PerPage = effPerPage
 	user := c.MustGet("user").(*model.User)
 	reqPath, err := user.JoinPath(req.Path)
 	if err != nil {
@@ -104,6 +116,11 @@ func FsList(c *gin.Context) {
 		common.ErrorStrResp(c, "Refresh without permission", 403)
 		return
 	}
+	provider := "unknown"
+	storage, storageErr := fs.GetStorage(reqPath, &fs.GetStoragesArgs{})
+	if storageErr == nil {
+		provider = storage.GetStorage().Driver
+	}
 	objs, err := fs.List(c, reqPath, &fs.ListArgs{Refresh: req.Refresh})
 	if err != nil {
 		common.ErrorResp(c, err, 500)
@@ -116,19 +133,23 @@ func FsList(c *gin.Context) {
 			filtered = append(filtered, obj)
 		}
 	}
-	total, objs := pagination(filtered, &req.PageReq)
-	provider := "unknown"
-	storage, err := fs.GetStorage(reqPath, &fs.GetStoragesArgs{})
-	if err == nil {
-		provider = storage.GetStorage().Driver
-	}
+	total, pageObjs := pagination(filtered, &req.PageReq)
+	respContent := toObjsResp(pageObjs, reqPath, isEncrypt(meta, reqPath))
+	pagesTotal := calcPagesTotal(total, req.PerPage)
+	hasMore := req.Page*req.PerPage < total
+
 	common.SuccessResp(c, FsListResp{
-		Content:  toObjsResp(objs, reqPath, isEncrypt(meta, reqPath)),
-		Total:    int64(total),
-		Readme:   getReadme(meta, reqPath),
-		Header:   getHeader(meta, reqPath),
-		Write:    common.HasPermission(perm, common.PermWrite) || common.CanWrite(meta, reqPath),
-		Provider: provider,
+		Content:       respContent,
+		Total:         int64(total),
+		FilteredTotal: int64(total),
+		Page:          req.Page,
+		PerPage:       req.PerPage,
+		HasMore:       hasMore,
+		PagesTotal:    pagesTotal,
+		Readme:        getReadme(meta, reqPath),
+		Header:        getHeader(meta, reqPath),
+		Write:         common.HasPermission(perm, common.PermWrite) || common.CanWrite(meta, reqPath),
+		Provider:      provider,
 	})
 }
 
@@ -224,6 +245,28 @@ func isEncrypt(meta *model.Meta, path string) bool {
 		return false
 	}
 	return true
+}
+
+func normalizeListPage(page, perPage int) (int, int) {
+	effPage := page
+	if effPage <= 0 {
+		effPage = 1
+	}
+	effPerPage := perPage
+	if effPerPage <= 0 {
+		effPerPage = DefaultPerPage
+	}
+	if effPerPage > MaxPerPage {
+		effPerPage = MaxPerPage
+	}
+	return effPage, effPerPage
+}
+
+func calcPagesTotal(total, perPage int) int {
+	if total <= 0 || perPage <= 0 {
+		return 0
+	}
+	return (total + perPage - 1) / perPage
 }
 
 func pagination(objs []model.Obj, req *model.PageReq) (int, []model.Obj) {
