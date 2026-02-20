@@ -1,6 +1,7 @@
 package middlewares
 
 import (
+	"net/url"
 	"strings"
 
 	"github.com/alist-org/alist/v3/internal/conf"
@@ -41,9 +42,8 @@ func Down(verifyFunc func(string, string) error) func(c *gin.Context) {
 	}
 }
 
-// TODO: implement
-// path maybe contains # ? etc.
 func parsePath(path string) string {
+	path, _ = url.PathUnescape(path)
 	return utils.FixAndCleanPath(path)
 }
 
