@@ -9,6 +9,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/alist-org/alist/v3/internal/errs"
 	"github.com/alist-org/alist/v3/internal/stream"
 	"github.com/alist-org/alist/v3/server/middlewares"
 
@@ -31,6 +32,12 @@ func WebDav(dav *gin.RouterGroup) {
 		Prefix:     path.Join(conf.URL.Path, "/dav"),
 		LockSystem: webdav.NewMemLS(),
 		Logger: func(request *http.Request, err error) {
+			// Skip logging for NotFoundError as it's not a program error
+			// but a normal case when a file doesn't exist
+			if errs.IsNotFoundError(err) {
+				log.Debugf("%s %s %v", request.Method, request.URL.Path, err)
+				return
+			}
 			log.Errorf("%s %s %+v", request.Method, request.URL.Path, err)
 		},
 	}
