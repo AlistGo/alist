@@ -30,13 +30,13 @@ jobs:
     steps:
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - uses: benjlevesque/short-sha@v3.0
         id: short-sha
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: '1.22'
 
@@ -57,7 +57,7 @@ jobs:
             github.com/alist-org/alist/v3/internal/conf.WebVersion=dev
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: alist_${{ env.SHA }}_${{ matrix.target }}
           path: build/*
