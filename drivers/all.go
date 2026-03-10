@@ -66,6 +66,7 @@ import (
 	_ "github.com/alist-org/alist/v3/drivers/seafile"
 	_ "github.com/alist-org/alist/v3/drivers/sftp"
 	_ "github.com/alist-org/alist/v3/drivers/smb"
+	_ "github.com/alist-org/alist/v3/drivers/strm"
 	_ "github.com/alist-org/alist/v3/drivers/streamtape"
 	_ "github.com/alist-org/alist/v3/drivers/teambition"
 	_ "github.com/alist-org/alist/v3/drivers/terabox"
