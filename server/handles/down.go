@@ -187,6 +187,9 @@ func canProxy(storage driver.Driver, filename string) bool {
 	if storage.Config().MustProxy() || storage.GetStorage().WebProxy || storage.GetStorage().WebdavProxy() {
 		return true
 	}
+	if storage.GetStorage().Driver == "Quark" && utils.GetFileType(filename) == conf.VIDEO {
+		return true
+	}
 	if utils.SliceContains(conf.SlicesMap[conf.ProxyTypes], utils.Ext(filename)) {
 		return true
 	}

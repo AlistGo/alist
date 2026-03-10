@@ -7,12 +7,14 @@ import (
 	"hash"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/alist-org/alist/v3/drivers/base"
 	"github.com/alist-org/alist/v3/internal/driver"
 	"github.com/alist-org/alist/v3/internal/errs"
 	"github.com/alist-org/alist/v3/internal/model"
+	"github.com/alist-org/alist/v3/internal/op"
 	streamPkg "github.com/alist-org/alist/v3/internal/stream"
 	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/go-resty/resty/v2"
@@ -36,6 +38,14 @@ func (d *QuarkOrUC) GetAddition() driver.Additional {
 
 func (d *QuarkOrUC) Init(ctx context.Context) error {
 	_, err := d.request("/config", http.MethodGet, nil, nil)
+	if err == nil && d.AdditionVersion != 2 {
+		d.AdditionVersion = 2
+		if !d.UseTransCodingAddress && len(d.DownProxyUrl) == 0 {
+			d.WebProxy = true
+			d.WebdavPolicy = "native_proxy"
+		}
+		op.MustSaveDriverStorage(d)
+	}
 	return err
 }
 
@@ -44,39 +54,23 @@ func (d *QuarkOrUC) Drop(ctx context.Context) error {
 }
 
 func (d *QuarkOrUC) List(ctx context.Context, dir model.Obj, args model.ListArgs) ([]model.Obj, error) {
-	files, err := d.GetFiles(dir.GetID())
-	if err != nil {
-		return nil, err
-	}
-	return utils.SliceConvert(files, func(src File) (model.Obj, error) {
-		return fileToObj(src), nil
-	})
+	return d.GetFiles(dir.GetID())
 }
 
 func (d *QuarkOrUC) Link(ctx context.Context, file model.Obj, args model.LinkArgs) (*model.Link, error) {
-	data := base.Json{
-		"fids": []string{file.GetID()},
-	}
-	var resp DownResp
-	ua := d.conf.ua
-	_, err := d.request("/file/download", http.MethodPost, func(req *resty.Request) {
-		req.SetHeader("User-Agent", ua).
-			SetBody(data)
-	}, &resp)
-	if err != nil {
+	f := file.(*File)
+	if d.UseTransCodingAddress && d.config.Name == "Quark" && f.Category == 1 && f.Size > 0 {
+		link, err := d.getTranscodingLink(file)
+		if err == nil {
+			return link, nil
+		}
+		if strings.Contains(err.Error(), "plf_invalid") {
+			log.Warnf("quark transcoding link invalid for %s, fallback to download link: %v", file.GetName(), err)
+			return d.getDownloadLink(file)
+		}
 		return nil, err
 	}
-
-	return &model.Link{
-		URL: resp.Data[0].DownloadUrl,
-		Header: http.Header{
-			"Cookie":     []string{d.Cookie},
-			"Referer":    []string{d.conf.referer},
-			"User-Agent": []string{ua},
-		},
-		Concurrency: 3,
-		PartSize:    10 * utils.MB,
-	}, nil
+	return d.getDownloadLink(file)
 }
 
 func (d *QuarkOrUC) MakeDir(ctx context.Context, parentDir model.Obj, dirName string) error {

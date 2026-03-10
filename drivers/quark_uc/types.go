@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/alist-org/alist/v3/internal/model"
+	"github.com/alist-org/alist/v3/pkg/utils"
 )
 
 type Resp struct {
@@ -18,13 +19,13 @@ type File struct {
 	Fid      string `json:"fid"`
 	FileName string `json:"file_name"`
 	//PdirFid      string `json:"pdir_fid"`
-	//Category     int    `json:"category"`
+	Category int `json:"category"`
 	//FileType     int    `json:"file_type"`
 	Size int64 `json:"size"`
 	//FormatType   string `json:"format_type"`
 	//Status       int    `json:"status"`
 	//Tags         string `json:"tags,omitempty"`
-	//LCreatedAt   int64  `json:"l_created_at"`
+	LCreatedAt int64 `json:"l_created_at"`
 	LUpdatedAt int64 `json:"l_updated_at"`
 	//NameSpace    int    `json:"name_space"`
 	//IncludeItems int    `json:"include_items,omitempty"`
@@ -32,8 +33,8 @@ type File struct {
 	//BackupSign   int    `json:"backup_sign"`
 	//Duration     int    `json:"duration"`
 	//FileSource   string `json:"file_source"`
-	File bool `json:"file"`
-	//CreatedAt    int64 `json:"created_at"`
+	File      bool  `json:"file"`
+	CreatedAt int64 `json:"created_at"`
 	UpdatedAt int64 `json:"updated_at"`
 	//PrivateExtra struct {} `json:"_private_extra"`
 	//ObjCategory string `json:"obj_category,omitempty"`
@@ -48,6 +49,38 @@ func fileToObj(f File) *model.Object {
 		Modified: time.UnixMilli(f.UpdatedAt),
 		IsFolder: !f.File,
 	}
+}
+
+func (f *File) GetSize() int64 {
+	return f.Size
+}
+
+func (f *File) GetName() string {
+	return f.FileName
+}
+
+func (f *File) ModTime() time.Time {
+	return time.UnixMilli(f.UpdatedAt)
+}
+
+func (f *File) CreateTime() time.Time {
+	return time.UnixMilli(f.CreatedAt)
+}
+
+func (f *File) IsDir() bool {
+	return !f.File
+}
+
+func (f *File) GetHash() utils.HashInfo {
+	return utils.HashInfo{}
+}
+
+func (f *File) GetID() string {
+	return f.Fid
+}
+
+func (f *File) GetPath() string {
+	return ""
 }
 
 type SortResp struct {
@@ -98,6 +131,39 @@ type DownResp struct {
 	//	Acc2 string `json:"acc2"`
 	//	Acc1 string `json:"acc1"`
 	//} `json:"metadata"`
+}
+
+type TranscodingResp struct {
+	Resp
+	Data struct {
+		DefaultResolution       string `json:"default_resolution"`
+		OriginDefaultResolution string `json:"origin_default_resolution"`
+		VideoList               []struct {
+			Resolution string `json:"resolution"`
+			VideoInfo  struct {
+				Duration   int     `json:"duration"`
+				Size       int64   `json:"size"`
+				Format     string  `json:"format"`
+				Width      int     `json:"width"`
+				Height     int     `json:"height"`
+				Bitrate    float64 `json:"bitrate"`
+				Codec      string  `json:"codec"`
+				Fps        float64 `json:"fps"`
+				Rotate     int     `json:"rotate"`
+				UpdateTime int64   `json:"update_time"`
+				URL        string  `json:"url"`
+				Resolution string  `json:"resolution"`
+				HlsType    string  `json:"hls_type"`
+				Finish     bool    `json:"finish"`
+				Resoultion string  `json:"resoultion"`
+				Success    bool    `json:"success"`
+			} `json:"video_info,omitempty"`
+		} `json:"video_list"`
+		FileName  string `json:"file_name"`
+		NameSpace int    `json:"name_space"`
+		Size      int64  `json:"size"`
+		Thumbnail string `json:"thumbnail"`
+	} `json:"data"`
 }
 
 type UpPreResp struct {

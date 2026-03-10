@@ -377,7 +377,8 @@ func FsGet(c *gin.Context) {
 			common.ErrorResp(c, err, 500)
 			return
 		}
-		if storage.Config().MustProxy() || storage.GetStorage().WebProxy {
+		forceProxyRawURL := storage.GetStorage().Driver == "Quark" && utils.GetFileType(obj.GetName()) == conf.VIDEO
+		if storage.Config().MustProxy() || storage.GetStorage().WebProxy || forceProxyRawURL {
 			query := ""
 			if isEncrypt(meta, reqPath) || setting.GetBool(conf.SignAll) {
 				query = "?sign=" + sign.Sign(reqPath)

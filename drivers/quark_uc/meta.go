@@ -8,8 +8,11 @@ import (
 type Addition struct {
 	Cookie string `json:"cookie" required:"true"`
 	driver.RootID
-	OrderBy        string `json:"order_by" type:"select" options:"none,file_type,file_name,updated_at" default:"none"`
-	OrderDirection string `json:"order_direction" type:"select" options:"asc,desc" default:"asc"`
+	OrderBy               string `json:"order_by" type:"select" options:"none,file_type,file_name,updated_at" default:"none"`
+	OrderDirection        string `json:"order_direction" type:"select" options:"asc,desc" default:"asc"`
+	UseTransCodingAddress bool   `json:"use_transcoding_address" help:"You can watch the transcoded video and support 302 redirection" required:"true" default:"false"`
+	OnlyListVideoFile     bool   `json:"only_list_video_file" default:"false"`
+	AdditionVersion       int
 }
 
 type Conf struct {
@@ -24,7 +27,6 @@ func init() {
 		return &QuarkOrUC{
 			config: driver.Config{
 				Name:              "Quark",
-				OnlyLocal:         true,
 				DefaultRoot:       "0",
 				NoOverwriteUpload: true,
 			},
@@ -40,7 +42,7 @@ func init() {
 		return &QuarkOrUC{
 			config: driver.Config{
 				Name:              "UC",
-				OnlyLocal:         true,
+				OnlyProxy:         true,
 				DefaultRoot:       "0",
 				NoOverwriteUpload: true,
 			},
