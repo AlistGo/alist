@@ -79,6 +79,9 @@ func UpdateRolePermissionsPathPrefix(oldPath, newPath string) ([]uint, error) {
 	}
 
 	for _, role := range roles {
+		if role.Name == "admin" || role.Name == "guest" {
+			continue
+		}
 		updated := false
 		for i, entry := range role.PermissionScopes {
 			entryPath := path.Clean(entry.Path)

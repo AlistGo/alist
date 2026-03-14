@@ -16,6 +16,25 @@ var userG singleflight.Group[*model.User]
 var guestUser *model.User
 var adminUser *model.User
 
+func enforceAdminUserDefaults(u *model.User) error {
+	if u == nil || !u.IsAdmin() {
+		return nil
+	}
+	changed := false
+	if utils.FixAndCleanPath(u.BasePath) != "/" {
+		u.BasePath = "/"
+		changed = true
+	}
+	if u.Permission != 0xFFFF {
+		u.Permission = 0xFFFF
+		changed = true
+	}
+	if !changed {
+		return nil
+	}
+	return db.UpdateUser(u)
+}
+
 func GetAdmin() (*model.User, error) {
 	if adminUser == nil {
 		role, err := GetRoleByName("admin")
@@ -26,7 +45,12 @@ func GetAdmin() (*model.User, error) {
 		if err != nil {
 			return nil, err
 		}
+		if err := enforceAdminUserDefaults(user); err != nil {
+			return nil, err
+		}
 		adminUser = user
+	} else if err := enforceAdminUserDefaults(adminUser); err != nil {
+		return nil, err
 	}
 	return adminUser, nil
 }
@@ -59,11 +83,17 @@ func GetUserByName(username string) (*model.User, error) {
 		return nil, errs.EmptyUsername
 	}
 	if user, ok := userCache.Get(username); ok {
+		if err := enforceAdminUserDefaults(user); err != nil {
+			return nil, err
+		}
 		return user, nil
 	}
 	user, err, _ := userG.Do(username, func() (*model.User, error) {
 		_user, err := db.GetUserByName(username)
 		if err != nil {
+			return nil, err
+		}
+		if err := enforceAdminUserDefaults(_user); err != nil {
 			return nil, err
 		}
 		userCache.Set(username, _user, cache.WithEx[*model.User](time.Hour))

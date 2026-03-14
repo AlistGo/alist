@@ -21,6 +21,24 @@ func init() {
 	model.FetchRole = GetRole
 }
 
+func enforceAdminRoleDefaults(r *model.Role) error {
+	if r == nil || r.Name != "admin" {
+		return nil
+	}
+	if len(r.PermissionScopes) == 1 {
+		scopePath := utils.FixAndCleanPath(r.PermissionScopes[0].Path)
+		if scopePath == "/" && r.PermissionScopes[0].Permission == 0xFFFF {
+			r.PermissionScopes[0].Path = "/"
+			return nil
+		}
+	}
+
+	r.PermissionScopes = []model.PermissionEntry{
+		{Path: "/", Permission: 0xFFFF},
+	}
+	return db.UpdateRole(r)
+}
+
 func GetRole(id uint) (*model.Role, error) {
 	key := fmt.Sprint(id)
 	if r, ok := roleCache.Get(key); ok {
@@ -31,7 +49,11 @@ func GetRole(id uint) (*model.Role, error) {
 		if err != nil {
 			return nil, err
 		}
+		if err := enforceAdminRoleDefaults(_r); err != nil {
+			return nil, err
+		}
 		roleCache.Set(key, _r, cache.WithEx[*model.Role](time.Hour))
+		roleCache.Set(_r.Name, _r, cache.WithEx[*model.Role](time.Hour))
 		return _r, nil
 	})
 	return r, err
@@ -46,7 +68,11 @@ func GetRoleByName(name string) (*model.Role, error) {
 		if err != nil {
 			return nil, err
 		}
+		if err := enforceAdminRoleDefaults(_r); err != nil {
+			return nil, err
+		}
 		roleCache.Set(name, _r, cache.WithEx[*model.Role](time.Hour))
+		roleCache.Set(fmt.Sprint(_r.ID), _r, cache.WithEx[*model.Role](time.Hour))
 		return _r, nil
 	})
 	return r, err
@@ -89,7 +115,11 @@ func GetRolesByUserID(userID uint) ([]model.Role, error) {
 			if err != nil {
 				return nil, err
 			}
+			if err := enforceAdminRoleDefaults(_r); err != nil {
+				return nil, err
+			}
 			roleCache.Set(key, _r, cache.WithEx[*model.Role](time.Hour))
+			roleCache.Set(_r.Name, _r, cache.WithEx[*model.Role](time.Hour))
 			return _r, nil
 		})
 		if err != nil {
