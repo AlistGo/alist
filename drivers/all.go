@@ -66,8 +66,8 @@ import (
 	_ "github.com/alist-org/alist/v3/drivers/seafile"
 	_ "github.com/alist-org/alist/v3/drivers/sftp"
 	_ "github.com/alist-org/alist/v3/drivers/smb"
-	_ "github.com/alist-org/alist/v3/drivers/strm"
 	_ "github.com/alist-org/alist/v3/drivers/streamtape"
+	_ "github.com/alist-org/alist/v3/drivers/strm"
 	_ "github.com/alist-org/alist/v3/drivers/teambition"
 	_ "github.com/alist-org/alist/v3/drivers/terabox"
 	_ "github.com/alist-org/alist/v3/drivers/thunder"
@@ -81,6 +81,7 @@ import (
 	_ "github.com/alist-org/alist/v3/drivers/webdav"
 	_ "github.com/alist-org/alist/v3/drivers/weiyun"
 	_ "github.com/alist-org/alist/v3/drivers/wopan"
+	_ "github.com/alist-org/alist/v3/drivers/wukong"
 	_ "github.com/alist-org/alist/v3/drivers/yandex_disk"
 )
 
