@@ -69,6 +69,9 @@ func (d *S3) GetAddition() driver.Additional {
 }
 
 func (d *S3) Init(ctx context.Context) error {
+	if !strings.Contains(d.Storage.Addition, `"use_placeholder"`) {
+		d.UsePlaceholder = true
+	}
 	if d.Region == "" {
 		d.Region = "alist"
 	}
@@ -151,16 +154,20 @@ func (d *S3) Link(ctx context.Context, file model.Obj, args model.LinkArgs) (*mo
 }
 
 func (d *S3) MakeDir(ctx context.Context, parentDir model.Obj, dirName string) error {
-	return d.Put(ctx, &model.Object{
-		Path: stdpath.Join(parentDir.GetPath(), dirName),
-	}, &stream.FileStream{
-		Obj: &model.Object{
-			Name:     getPlaceholderName(d.Placeholder),
-			Modified: time.Now(),
-		},
-		Reader:   io.NopCloser(bytes.NewReader([]byte{})),
-		Mimetype: "application/octet-stream",
-	}, func(float64) {})
+	dirPath := stdpath.Join(parentDir.GetPath(), dirName)
+	if d.UsePlaceholder {
+		return d.Put(ctx, &model.Object{
+			Path: dirPath,
+		}, &stream.FileStream{
+			Obj: &model.Object{
+				Name:     getPlaceholderName(d.Placeholder),
+				Modified: time.Now(),
+			},
+			Reader:   io.NopCloser(bytes.NewReader([]byte{})),
+			Mimetype: "application/octet-stream",
+		}, func(float64) {})
+	}
+	return d.createDirMarker(ctx, dirPath)
 }
 
 func (d *S3) Move(ctx context.Context, srcObj, dstDir model.Obj) error {
@@ -212,6 +219,26 @@ func (d *S3) Put(ctx context.Context, dstDir model.Obj, s model.FileStreamer, up
 	}
 	_, err := uploader.UploadWithContext(ctx, input)
 	return err
+}
+
+func (d *S3) putEmptyObject(ctx context.Context, key string) error {
+	uploader := s3manager.NewUploader(d.Session)
+	contentType := "application/octet-stream"
+	input := &s3manager.UploadInput{
+		Bucket:      &d.Bucket,
+		Key:         &key,
+		Body:        driver.NewLimitedUploadStream(ctx, bytes.NewReader([]byte{})),
+		ContentType: &contentType,
+	}
+	if storageClass := d.resolveStorageClass(); storageClass != nil {
+		input.StorageClass = storageClass
+	}
+	_, err := uploader.UploadWithContext(ctx, input)
+	return err
+}
+
+func (d *S3) createDirMarker(ctx context.Context, dirPath string) error {
+	return d.putEmptyObject(ctx, getKey(dirPath, true))
 }
 
 var (

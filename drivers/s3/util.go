@@ -8,6 +8,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/alist-org/alist/v3/internal/errs"
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/internal/op"
 	"github.com/alist-org/alist/v3/pkg/utils"
@@ -105,6 +106,9 @@ func (d *S3) listV1(prefix string, args model.ListArgs) ([]model.Obj, error) {
 			files = append(files, &file)
 		}
 		for _, object := range listObjectsResult.Contents {
+			if strings.HasSuffix(*object.Key, "/") {
+				continue
+			}
 			name := path.Base(*object.Key)
 			if !args.S3ShowPlaceholder && (name == getPlaceholderName(d.Placeholder) || name == d.Placeholder) {
 				continue
@@ -210,9 +214,12 @@ func (d *S3) copyFile(ctx context.Context, src string, dst string) error {
 }
 
 func (d *S3) copyDir(ctx context.Context, src string, dst string) error {
-	objs, err := op.List(ctx, d, src, model.ListArgs{S3ShowPlaceholder: true})
+	objs, err := op.List(ctx, d, src, model.ListArgs{S3ShowPlaceholder: true, Refresh: true})
 	if err != nil {
 		return err
+	}
+	if len(objs) == 0 && !d.UsePlaceholder {
+		return d.createDirMarker(ctx, dst)
 	}
 	for _, obj := range objs {
 		cSrc := path.Join(src, obj.GetName())
@@ -230,8 +237,13 @@ func (d *S3) copyDir(ctx context.Context, src string, dst string) error {
 }
 
 func (d *S3) removeDir(ctx context.Context, src string) error {
-	objs, err := op.List(ctx, d, src, model.ListArgs{})
+	d.cleanupDirArtifacts(src)
+
+	objs, err := op.List(ctx, d, src, model.ListArgs{Refresh: true})
 	if err != nil {
+		if errs.IsObjectNotFound(err) {
+			return nil
+		}
 		return err
 	}
 	for _, obj := range objs {
@@ -245,9 +257,14 @@ func (d *S3) removeDir(ctx context.Context, src string) error {
 			return err
 		}
 	}
+	d.cleanupDirArtifacts(src)
+	return nil
+}
+
+func (d *S3) cleanupDirArtifacts(src string) {
 	_ = d.removeFile(path.Join(src, getPlaceholderName(d.Placeholder)))
 	_ = d.removeFile(path.Join(src, d.Placeholder))
-	return nil
+	_ = d.removeFile(getKey(src, true))
 }
 
 func (d *S3) removeFile(src string) error {
