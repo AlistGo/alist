@@ -87,6 +87,9 @@ outer:
 	if t.tool.Name() == "Thunder" {
 		return nil
 	}
+	if t.tool.Name() == "ThunderX" {
+		return nil
+	}
 	if t.tool.Name() == "115 Cloud" {
 		// hack for 115
 		<-time.After(time.Second * 1)
@@ -159,7 +162,7 @@ func (t *DownloadTask) Update() (bool, error) {
 
 func (t *DownloadTask) Transfer() error {
 	toolName := t.tool.Name()
-	if toolName == "115 Cloud" || toolName == "PikPak" || toolName == "Thunder" {
+	if toolName == "115 Cloud" || toolName == "PikPak" || toolName == "Thunder" || toolName == "ThunderX" {
 		// 如果不是直接下载到目标路径，则进行转存
 		if t.TempDir != t.DstDirPath {
 			return transferObj(t.Ctx(), t.TempDir, t.DstDirPath, t.DeletePolicy)
