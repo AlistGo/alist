@@ -14,6 +14,7 @@ type Addition struct {
 	RangeConcurrency   int    `json:"range_concurrency" type:"number" default:"4" help:"Chunk mode concurrent upstream requests"`
 	RangePercent       int    `json:"range_percent" type:"number" default:"15" help:"Percent mode part size percentage (1-100)"`
 	EnableRangeControl bool   `json:"enable_range_control" default:"true" help:"Enable driver-level range shaping for smoother streaming"`
+	Sha256             string `json:"sha256" help:"Expected SHA256 hash for upload verification (optional)"`
 }
 
 var config = driver.Config{
@@ -26,7 +27,7 @@ var config = driver.Config{
 	NeedMs:            false,
 	DefaultRoot:       "0",
 	CheckStatus:       false,
-	Alert:             "",
+	Alert:             "warning|Moving files to root folder is not supported by Streamtape API",
 	NoOverwriteUpload: false,
 	ProxyRangeOption:  true,
 }

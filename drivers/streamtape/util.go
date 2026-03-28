@@ -144,3 +144,20 @@ func extractFileIDFromUploadBody(body []byte) string {
 	}
 	return ""
 }
+
+const remoteUploadPrefix = "ru:"
+
+func encodeRemoteUploadID(id string) string {
+	return remoteUploadPrefix + id
+}
+
+func remoteUploadIDFromObjID(id string) string {
+	if strings.HasPrefix(id, remoteUploadPrefix) {
+		return strings.TrimPrefix(id, remoteUploadPrefix)
+	}
+	return ""
+}
+
+func isRemoteUploadID(id string) bool {
+	return strings.HasPrefix(id, remoteUploadPrefix)
+}

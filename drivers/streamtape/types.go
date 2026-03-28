@@ -52,3 +52,46 @@ type createFolderResult struct {
 type uploadURLResult struct {
 	URL string `json:"url"`
 }
+
+type remoteDlAddResult struct {
+	ID       string `json:"id"`
+	FolderID string `json:"folderid"`
+}
+
+type remoteDlStatusResult map[string]remoteDlStatusItem
+
+type remoteDlStatusItem struct {
+	ID         string      `json:"id"`
+	RemoteURL  string      `json:"remoteurl"`
+	Status     string      `json:"status"`
+	BytesLoaded interface{} `json:"bytes_loaded"`
+	BytesTotal interface{} `json:"bytes_total"`
+	FolderID   string      `json:"folderid"`
+	Added      string      `json:"added"`
+	LastUpdate string      `json:"last_update"`
+	ExtID      bool        `json:"extid"`
+	URL        bool        `json:"url"`
+}
+
+type fileInfoResult map[string]fileInfoItem
+
+type fileInfoItem struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Size      int64  `json:"size"`
+	Type      string `json:"type"`
+	Converted bool   `json:"converted"`
+	Status    int    `json:"status"`
+}
+
+type conversionResult []conversionItem
+
+type conversionItem struct {
+	Name     string `json:"name"`
+	FolderID string `json:"folderid"`
+	Status   string `json:"status"`
+	Progress int    `json:"progress"`
+	Retries  int    `json:"retries"`
+	Link     string `json:"link"`
+	LinkID   string `json:"linkid"`
+}

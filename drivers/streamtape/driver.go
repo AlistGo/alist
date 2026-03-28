@@ -331,6 +331,9 @@ func (d *Streamtape) Put(ctx context.Context, dstDir model.Obj, file model.FileS
 	if folderID != "" && folderID != "0" {
 		params["folder"] = folderID
 	}
+	if d.Sha256 != "" {
+		params["sha256"] = d.Sha256
+	}
 
 	var uploadURL uploadURLResult
 	if err := d.callAPI(ctx, "/file/ul", params, &uploadURL); err != nil {
@@ -381,6 +384,35 @@ func (d *Streamtape) Put(ctx context.Context, dstDir model.Obj, file model.FileS
 	}, nil
 }
 
+// PutURL initiates a remote upload from an external URL
+func (d *Streamtape) PutURL(ctx context.Context, dstDir model.Obj, name, url string) (model.Obj, error) {
+	folderID := d.RootFolderID
+	if dstDir.GetID() != "" {
+		folderID = folderIDFromObjID(dstDir.GetID())
+	}
+
+	params := map[string]string{
+		"url": url,
+	}
+	if folderID != "" && folderID != "0" {
+		params["folder"] = folderID
+	}
+	if name != "" {
+		params["name"] = name
+	}
+
+	var result remoteDlAddResult
+	if err := d.callAPI(ctx, "/remotedl/add", params, &result); err != nil {
+		return nil, err
+	}
+
+	return &model.Object{
+		ID:       encodeRemoteUploadID(result.ID),
+		Name:     name,
+		IsFolder: false,
+	}, nil
+}
+
 func (d *Streamtape) GetArchiveMeta(ctx context.Context, obj model.Obj, args model.ArchiveArgs) (model.ArchiveMeta, error) {
 	return nil, errs.NotImplement
 }
@@ -395,6 +427,117 @@ func (d *Streamtape) Extract(ctx context.Context, obj model.Obj, args model.Arch
 
 func (d *Streamtape) ArchiveDecompress(ctx context.Context, srcObj, dstDir model.Obj, args model.ArchiveDecompressArgs) ([]model.Obj, error) {
 	return nil, errs.NotImplement
+}
+
+func (d *Streamtape) Other(ctx context.Context, args model.OtherArgs) (interface{}, error) {
+	switch strings.ToLower(args.Method) {
+	case "remotedl_status":
+		return d.remoteDlStatus(ctx, args)
+	case "remotedl_remove":
+		return d.remoteDlRemove(ctx, args)
+	case "file_info":
+		return d.fileInfo(ctx, args)
+	case "thumbnail":
+		return d.thumbnail(ctx, args)
+	case "conversion_status":
+		return d.conversionStatus(ctx, args)
+	default:
+		return nil, errs.NotSupport
+	}
+}
+
+func (d *Streamtape) extractRemoteUploadID(args model.OtherArgs) (string, error) {
+	uploadID := remoteUploadIDFromObjID(args.Obj.GetID())
+	if uploadID == "" {
+		if data, ok := args.Data.(map[string]interface{}); ok {
+			if id, ok := data["id"].(string); ok {
+				uploadID = id
+			}
+		}
+	}
+	if uploadID == "" {
+		return "", fmt.Errorf("remote upload ID required")
+	}
+	return uploadID, nil
+}
+
+func (d *Streamtape) remoteDlStatus(ctx context.Context, args model.OtherArgs) (interface{}, error) {
+	uploadID, err := d.extractRemoteUploadID(args)
+	if err != nil {
+		return nil, err
+	}
+
+	var result remoteDlStatusResult
+	if err := d.callAPI(ctx, "/remotedl/status", map[string]string{"id": uploadID}, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (d *Streamtape) remoteDlRemove(ctx context.Context, args model.OtherArgs) (interface{}, error) {
+	uploadID, err := d.extractRemoteUploadID(args)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := d.callAPI(ctx, "/remotedl/remove", map[string]string{"id": uploadID}, nil); err != nil {
+		return nil, err
+	}
+	return true, nil
+}
+
+func (d *Streamtape) fileInfo(ctx context.Context, args model.OtherArgs) (interface{}, error) {
+	var fileIDs string
+	if data, ok := args.Data.(map[string]interface{}); ok {
+		if ids, ok := data["file_ids"].(string); ok {
+			fileIDs = ids
+		}
+	}
+	if fileIDs == "" {
+		fileIDs = fileIDFromObjID(args.Obj.GetID())
+	}
+	if fileIDs == "" {
+		return nil, fmt.Errorf("file IDs required")
+	}
+
+	var result fileInfoResult
+	if err := d.callAPI(ctx, "/file/info", map[string]string{"file": fileIDs}, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (d *Streamtape) thumbnail(ctx context.Context, args model.OtherArgs) (interface{}, error) {
+	fileID := fileIDFromObjID(args.Obj.GetID())
+	if fileID == "" {
+		return nil, fmt.Errorf("file ID required")
+	}
+
+	var result string
+	if err := d.callAPI(ctx, "/file/getsplash", map[string]string{"file": fileID}, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (d *Streamtape) conversionStatus(ctx context.Context, args model.OtherArgs) (interface{}, error) {
+	isFailed := false
+	if data, ok := args.Data.(map[string]interface{}); ok {
+		if t, ok := data["type"].(string); ok && t == "failed" {
+			isFailed = true
+		}
+	}
+
+	endpoint := "/file/runningconverts"
+	if isFailed {
+		endpoint = "/file/failedconverts"
+	}
+
+	var result conversionResult
+	if err := d.callAPI(ctx, endpoint, nil, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 var _ driver.Driver = (*Streamtape)(nil)
