@@ -84,6 +84,7 @@ import (
 	_ "github.com/alist-org/alist/v3/drivers/wopan"
 	_ "github.com/alist-org/alist/v3/drivers/wukong"
 	_ "github.com/alist-org/alist/v3/drivers/yandex_disk"
+	_ "github.com/alist-org/alist/v3/drivers/yunpan360"
 )
 
 // All do nothing,just for import
