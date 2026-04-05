@@ -18,6 +18,7 @@ import (
 	"github.com/microcosm-cc/bluemonday"
 	log "github.com/sirupsen/logrus"
 	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/extension"
 )
 
 func Down(c *gin.Context) {
@@ -151,7 +152,8 @@ func localProxy(c *gin.Context, link *model.Link, file model.Obj, proxyRange boo
 			}
 
 			var html bytes.Buffer
-			if err = goldmark.Convert(buf.Bytes(), &html); err != nil {
+			md := goldmark.New(goldmark.WithExtensions(extension.GFM))
+			if err = md.Convert(buf.Bytes(), &html); err != nil {
 				err = fmt.Errorf("markdown conversion failed: %w", err)
 			} else {
 				buf.Reset()
