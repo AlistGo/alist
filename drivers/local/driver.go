@@ -47,6 +47,8 @@ type Local struct {
 	useFFmpeg bool
 }
 
+const maxLocalUploadChunkSizeMB int64 = 4096
+
 func (d *Local) Config() driver.Config {
 	return config
 }
@@ -70,6 +72,13 @@ func (d *Local) Init(ctx context.Context) error {
 			return err
 		}
 		d.Addition.RootFolderPath = abs
+	}
+	if d.UploadChunkSizeMB < 0 || d.UploadChunkSizeMB > maxLocalUploadChunkSizeMB {
+		return fmt.Errorf(
+			"invalid upload_chunk_size_mb value: %d, must be between 0 and %d",
+			d.UploadChunkSizeMB,
+			maxLocalUploadChunkSizeMB,
+		)
 	}
 
 	d.useFFmpeg = d.UseFFmpeg
