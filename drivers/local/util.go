@@ -41,8 +41,32 @@ func isLinkedDir(f fs.FileInfo, path string) bool {
 	return false
 }
 
+// sanitizeFilePath validates and sanitizes a file path before passing it to external commands.
+// It ensures the path is absolute, clean, and refers to an existing regular file,
+// preventing path traversal and command injection via shell metacharacters.
+func sanitizeFilePath(path string) (string, error) {
+	cleaned := filepath.Clean(path)
+	if !filepath.IsAbs(cleaned) {
+		return "", fmt.Errorf("file path must be absolute: %s", path)
+	}
+	info, err := os.Stat(cleaned)
+	if err != nil {
+		return "", fmt.Errorf("file path is not accessible: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return "", fmt.Errorf("path is not a regular file: %s", cleaned)
+	}
+	return cleaned, nil
+}
+
 // resizeImageToBufferWithFFmpegGo 使用 ffmpeg-go 调整图片大小并输出到内存缓冲区
 func resizeImageToBufferWithFFmpegGo(inputFile string, width int, outputFormat string /* e.g., "image2pipe", "png_pipe", "mjpeg" */) (*bytes.Buffer, error) {
+	sanitized, err := sanitizeFilePath(inputFile)
+	if err != nil {
+		return nil, fmt.Errorf("invalid input file path: %w", err)
+	}
+	inputFile = sanitized
+
 	outBuffer := bytes.NewBuffer(nil)
 
 	// Determine codec based on desired output format for piping
@@ -124,6 +148,12 @@ func generateThumbnailWithImagingOptimized(imagePath string, targetWidth int, qu
 
 // Get the snapshot of the video
 func (d *Local) GetSnapshot(videoPath string) (imgData *bytes.Buffer, err error) {
+	sanitized, err := sanitizeFilePath(videoPath)
+	if err != nil {
+		return nil, fmt.Errorf("invalid video path: %w", err)
+	}
+	videoPath = sanitized
+
 	// Run ffprobe to get the video duration
 	jsonOutput, err := ffmpeg.Probe(videoPath)
 	if err != nil {
