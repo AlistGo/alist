@@ -1,9 +1,16 @@
 package _139
 
 import (
+	"bytes"
+	"compress/gzip"
+	"context"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"path"
@@ -12,11 +19,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alist-org/alist/v3/pkg/http_range"
+
 	"github.com/alist-org/alist/v3/drivers/base"
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/internal/op"
 	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/alist-org/alist/v3/pkg/utils/random"
+	"github.com/gin-gonic/gin"
 	"github.com/go-resty/resty/v2"
 	jsoniter "github.com/json-iterator/go"
 	log "github.com/sirupsen/logrus"
@@ -665,4 +675,336 @@ func (d *Yun139) getPersonalCloudHost() string {
 		return d.ref.getPersonalCloudHost()
 	}
 	return d.PersonalCloudHost
+}
+
+func (d *Yun139) sharePost(pathname string, data interface{}, resp interface{}) ([]byte, error) {
+	crypto := NewYunCrypto()
+	encryptedBody, err := crypto.Encrypt(data)
+	if err != nil {
+		return nil, err
+	}
+
+	url := "https://share-kd-njs.yun.139.com" + pathname
+	req := base.RestyClient.R()
+
+	auth := d.getAuthorization()
+	if !strings.HasPrefix(auth, "Basic ") {
+		auth = "Basic " + auth
+	}
+	// randStr := random.String(16)
+	// ts := time.Now().Format("2006-01-02 15:04:05")
+	// body, err := utils.Json.Marshal(req.Body)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// sign := calSign(string(body), ts, randStr)
+	// svcType := "1"
+	// if d.isFamily() {
+	// 	svcType = "2"
+	// }
+	req.SetHeaders(map[string]string{
+		"User-Agent":        "Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0",
+		"Accept":            "application/json, text/plain, */*",
+		"Content-Type":      "application/json;charset=UTF-8",
+		"Authorization":     auth,
+		"X-Deviceinfo":      "||9|12.27.0|firefox|140.0|12b780037221ab547c682223327dc9cd||linux unknow|1920X526|zh-CN|||",
+		"hcy-cool-flag":     "1",
+		"CMS-DEVICE":        "default",
+		"x-m4c-caller":      "PC",
+		"X-Yun-Api-Version": "v1",
+		"Origin":            "https://yun.139.com",
+		"Referer":           "https://yun.139.com/",
+	})
+	req.SetBody(encryptedBody)
+
+	res, err := req.Post(url)
+	if err != nil {
+		return nil, err
+	}
+
+	decryptedText, err := crypto.Decrypt(res.String())
+	if err != nil {
+		log.Errorf("[139Share] Decryption failed, raw response: %s", res.String())
+		return nil, fmt.Errorf("decryption failed: %v, raw: %s", err, res.String())
+	}
+
+	if resp != nil {
+		err = utils.Json.Unmarshal([]byte(decryptedText), resp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return []byte(decryptedText), nil
+}
+
+func (d *Yun139) shareGetFiles(pCaID string) ([]model.Obj, error) {
+	if pCaID == "" {
+		pCaID = "root"
+	}
+	data := base.Json{
+		"getOutLinkInfoReq": base.Json{
+			"account": d.getAccount(),
+			"linkID":  d.LinkID,
+			"pCaID":   pCaID,
+		},
+	}
+	var resp ShareListResp
+	_, err := d.sharePost("/yun-share/richlifeApp/devapp/IOutLink/getOutLinkInfoV6", data, &resp)
+	if err != nil {
+		return nil, err
+	}
+	files := make([]model.Obj, 0)
+	// 直接从 Data 中读取 CaLst
+	for _, catalog := range resp.Data.CaLst {
+		modTime, _ := time.ParseInLocation("20060102150405", catalog.UdTime, utils.CNLoc)
+		f := model.Object{
+			ID:       catalog.CaID,
+			Name:     catalog.CaName,
+			Modified: modTime,
+			IsFolder: true,
+		}
+		files = append(files, &f)
+	}
+	for _, content := range resp.Data.CoLst {
+		name := content.CoName
+		size := content.CoSize
+		// Force .m3u8 suffix for videos and declare 1MB size for padding logic
+		if content.CoType == 3 || strings.HasSuffix(strings.ToLower(name), ".mp4") {
+			if !strings.HasSuffix(name, ".m3u8") {
+				name += ".m3u8"
+			}
+			size = 1024 * 1024 // Key: declare 1MB to match RangeReadCloser padding
+		}
+		modTime, _ := time.ParseInLocation("20060102150405", content.UdTime, utils.CNLoc)
+		f := model.Object{
+			ID:       content.CoID,
+			Name:     name,
+			Size:     size,
+			Modified: modTime,
+		}
+		files = append(files, &f)
+	}
+    
+	return files, nil
+}
+
+
+
+type YunCrypto struct {
+	Key       []byte
+	BlockSize int
+}
+
+func NewYunCrypto() *YunCrypto {
+	return &YunCrypto{
+		Key:       []byte("PVGDwmcvfs1uV3d1"),
+		BlockSize: aes.BlockSize,
+	}
+}
+
+func (y *YunCrypto) PKCS7Padding(ciphertext []byte, blockSize int) []byte {
+	padding := blockSize - len(ciphertext)%blockSize
+	padtext := bytes.Repeat([]byte{byte(padding)}, padding)
+	return append(ciphertext, padtext...)
+}
+
+func (y *YunCrypto) PKCS7UnPadding(origData []byte) ([]byte, error) {
+	length := len(origData)
+	if length == 0 {
+		return nil, errors.New("data is empty")
+	}
+	unpadding := int(origData[length-1])
+	if length < unpadding {
+		return nil, errors.New("unpadding error")
+	}
+	return origData[:(length - unpadding)], nil
+}
+
+func (y *YunCrypto) Encrypt(data interface{}) (string, error) {
+	jsonData, err := utils.Json.Marshal(data)
+	if err != nil {
+		return "", err
+	}
+	iv := make([]byte, y.BlockSize)
+	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
+		return "", err
+	}
+	block, err := aes.NewCipher(y.Key)
+	if err != nil {
+		return "", err
+	}
+	content := y.PKCS7Padding(jsonData, y.BlockSize)
+	ciphertext := make([]byte, len(content))
+	mode := cipher.NewCBCEncrypter(block, iv)
+	mode.CryptBlocks(ciphertext, content)
+	result := append(iv, ciphertext...)
+	return base64.StdEncoding.EncodeToString(result), nil
+}
+
+func (y *YunCrypto) Decrypt(b64Data string) (string, error) {
+	b64Data = strings.Join(strings.Fields(b64Data), "")
+	raw, err := base64.StdEncoding.DecodeString(b64Data)
+	if err != nil {
+		return "", err
+	}
+	if len(raw) < y.BlockSize {
+		return "", errors.New("data too short")
+	}
+	iv := raw[:y.BlockSize]
+	ciphertext := raw[y.BlockSize:]
+	block, err := aes.NewCipher(y.Key)
+	if err != nil {
+		return "", err
+	}
+	decrypted := make([]byte, len(ciphertext))
+	mode := cipher.NewCBCDecrypter(block, iv)
+	mode.CryptBlocks(decrypted, ciphertext)
+	if len(decrypted) > 2 && decrypted[0] == 0x1f && decrypted[1] == 0x8b {
+		reader, err := gzip.NewReader(bytes.NewReader(decrypted))
+		if err == nil {
+			defer reader.Close()
+			unzipped, err := io.ReadAll(reader)
+			if err == nil {
+				return string(unzipped), nil
+			}
+		}
+	}
+	unpadded, err := y.PKCS7UnPadding(decrypted)
+	if err != nil {
+		return strings.TrimSpace(string(decrypted)), nil
+	}
+	return string(unpadded), nil
+}
+
+func (d *Yun139) rewriteM3U8(masterURL string) (string, error) {
+	client := resty.New().SetTimeout(10 * time.Second)
+	headers := map[string]string{
+		"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+		"Referer":    "https://yun.139.com/",
+	}
+
+	// 1. Get Master M3U8
+	resp, err := client.R().SetHeaders(headers).Get(masterURL)
+	if err != nil {
+		return "", err
+	}
+	masterContent := resp.String()
+
+	// 2. Find sub-playlist path
+	var subRelPath string
+	lines := strings.Split(masterContent, "\n")
+	for i, line := range lines {
+		if strings.Contains(line, "RESOLUTION=") {
+			if i+1 < len(lines) {
+				subRelPath = strings.TrimSpace(lines[i+1])
+				if strings.Contains(line, "1920x1080") {
+					break
+				}
+			}
+		}
+	}
+	if subRelPath == "" {
+		for i := len(lines) - 1; i >= 0; i-- {
+			line := strings.TrimSpace(lines[i])
+			if line != "" && !strings.HasPrefix(line, "#") {
+				subRelPath = line
+				break
+			}
+		}
+	}
+	if subRelPath == "" {
+		return "", fmt.Errorf("sub playlist not found in master m3u8")
+	}
+
+	// 3. Get sub-playlist content
+	base, _ := url.Parse(masterURL)
+	ref, _ := url.Parse(subRelPath)
+	subURL := base.ResolveReference(ref).String()
+
+	resp, err = client.R().SetHeaders(headers).Get(subURL)
+	if err != nil {
+		return "", err
+	}
+	subContent := resp.String()
+
+	// 4. Resolve relative TS paths to absolute URLs
+	subBase, _ := url.Parse(subURL)
+	subLines := strings.Split(subContent, "\n")
+	var finalLines []string
+	for _, line := range subLines {
+		cleanLine := strings.TrimSpace(line)
+		if cleanLine != "" && !strings.HasPrefix(cleanLine, "#") {
+			if !strings.HasPrefix(cleanLine, "http") {
+				tsRef, _ := url.Parse(cleanLine)
+				finalLines = append(finalLines, subBase.ResolveReference(tsRef).String())
+			} else {
+				finalLines = append(finalLines, cleanLine)
+			}
+		} else {
+			finalLines = append(finalLines, line)
+		}
+	}
+
+	finalM3U8 := strings.Join(finalLines, "\n")
+
+	return finalM3U8, nil
+}
+
+func (d *Yun139) Proxy(c *gin.Context, obj model.Obj) error {
+	return nil
+}
+
+func (d *Yun139) shareGetLink(coID string) (*model.Link, error) {
+	data := base.Json{
+		"getContentInfoFromOutLinkReq": base.Json{
+			"contentId": coID,
+			"linkID":    d.LinkID,
+			"account":   d.getAccount(),
+		},
+	}
+	var resp ShareContentInfoResp
+	_, err := d.sharePost("/yun-share/richlifeApp/devapp/IOutLink/getContentInfoFromOutLink", data, &resp)
+	if err != nil {
+		return nil, err
+	}
+
+	res := resp.Data.ContentInfo
+	if res.PresentURL != "" {
+		m3u8Content, err := d.rewriteM3U8(res.PresentURL)
+		if err != nil {
+			return nil, err
+		}
+
+		// Core logic: pad to 1MB to ensure compatibility with AList's size validation
+		targetSize := int64(1024 * 1024)
+		contentBytes := []byte(m3u8Content)
+		if int64(len(contentBytes)) < targetSize {
+			padding := bytes.Repeat([]byte(" "), int(targetSize-int64(len(contentBytes))))
+			contentBytes = append(contentBytes, padding...)
+		} else {
+			// Truncate if M3U8 exceeds 1MB (extremely rare)
+			contentBytes = contentBytes[:targetSize]
+		}
+
+		return &model.Link{
+			RangeReadCloser: &model.RangeReadCloser{
+				RangeReader: func(ctx context.Context, range_ http_range.Range) (io.ReadCloser, error) {
+					reader := bytes.NewReader(contentBytes)
+					// Handle AList Range requests
+					_, _ = reader.Seek(range_.Start, io.SeekStart)
+					// Wrap as ReadCloser
+					return io.NopCloser(reader), nil
+				},
+			},
+			Header: http.Header{
+				"Content-Type": []string{"application/vnd.apple.mpegurl"},
+			},
+		}, nil
+	}
+	
+	if res.DownloadURL != "" {
+		return &model.Link{URL: res.DownloadURL}, nil
+	}
+
+	return nil, fmt.Errorf("failed to get link")
 }

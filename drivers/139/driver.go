@@ -76,6 +76,10 @@ func (d *Yun139) Init(ctx context.Context) error {
 			d.RootFolderID = d.CloudID
 		}
 	case MetaFamily:
+	case "share":
+		if len(d.Addition.RootFolderID) == 0 {
+			d.RootFolderID = "root"
+		}
 	default:
 		return errs.NotImplement
 	}
@@ -100,6 +104,7 @@ func (d *Yun139) Drop(ctx context.Context) error {
 }
 
 func (d *Yun139) List(ctx context.Context, dir model.Obj, args model.ListArgs) ([]model.Obj, error) {
+	log.Infof("[139Share-Debug] List called! Type: %s, DirID: %s", d.Addition.Type, dir.GetID())
 	switch d.Addition.Type {
 	case MetaPersonalNew:
 		return d.personalGetFiles(dir.GetID())
@@ -109,6 +114,8 @@ func (d *Yun139) List(ctx context.Context, dir model.Obj, args model.ListArgs) (
 		return d.familyGetFiles(dir.GetID())
 	case MetaGroup:
 		return d.groupGetFiles(dir.GetID())
+	case "share":
+		return d.shareGetFiles(dir.GetID())
 	default:
 		return nil, errs.NotImplement
 	}
@@ -126,6 +133,8 @@ func (d *Yun139) Link(ctx context.Context, file model.Obj, args model.LinkArgs) 
 		url, err = d.familyGetLink(file.GetID(), file.GetPath())
 	case MetaGroup:
 		url, err = d.groupGetLink(file.GetID(), file.GetPath())
+	case "share":
+		return d.shareGetLink(file.GetID())
 	default:
 		return nil, errs.NotImplement
 	}

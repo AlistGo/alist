@@ -312,3 +312,41 @@ type RefreshTokenResp struct {
 	AccessToken string   `xml:"accessToken"`
 	Desc        string   `xml:"desc"`
 }
+
+type ShareCatalog struct {
+	CaID   string `json:"caID"`
+	CaName string `json:"caName"`
+	UdTime string `json:"udTime"`
+}
+
+type ShareContent struct {
+	CoID     string `json:"coID"`
+	CoName   string `json:"coName"`
+	CoSize   int64  `json:"coSize"`
+	CoType   int    `json:"coType"`
+	UdTime   string `json:"udTime"`
+	CoSuffix string `json:"coSuffix"`
+}
+
+type ShareListResp struct {
+	Data struct {
+		CaLst []ShareCatalog `json:"caLst"`
+		CoLst []ShareContent `json:"coLst"`
+	} `json:"data"`
+}
+
+type ShareLinkResp struct {
+	DownloadURL string `json:"downloadURL"`
+}
+type ShareContentInfo struct {
+	ContentName  string `json:"contentName"`
+	ContentSize  int64  `json:"contentSize"`
+	PresentURL   string `json:"presentURL"`   // HLS 播放地址
+	DownloadURL  string `json:"cdnDownLoadUrl"` // 真正的下载直链
+}
+
+type ShareContentInfoResp struct {
+	Data struct {
+		ContentInfo ShareContentInfo `json:"contentInfo"`
+	} `json:"data"`
+}
