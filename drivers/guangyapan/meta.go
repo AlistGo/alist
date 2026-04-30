@@ -6,7 +6,7 @@ import (
 )
 
 type Addition struct {
-	driver.RootID
+	RootPath       string `json:"root_path" help:"光鸭云盘中的完整路径"`
 	PhoneNumber    string `json:"phone_number" type:"text" help:"Phone number for SMS login, e.g. +86 13800000000"`
 	CaptchaToken   string `json:"captcha_token" type:"text" help:"Captcha token required by /v1/auth/verification"`
 	SendCode       bool   `json:"send_code" type:"bool" help:"Set true and save to send SMS code, it auto-resets to false after sending"`
