@@ -2,6 +2,7 @@ package handles
 
 import (
 	_115 "github.com/alist-org/alist/v3/drivers/115"
+	guangyapandriver "github.com/alist-org/alist/v3/drivers/guangyapan"
 	"github.com/alist-org/alist/v3/drivers/pikpak"
 	"github.com/alist-org/alist/v3/drivers/thunder"
 	"github.com/alist-org/alist/v3/internal/conf"
@@ -229,6 +230,50 @@ func SetThunder(c *gin.Context) {
 		return
 	}
 	_tool, err := tool.Tools.Get("Thunder")
+	if err != nil {
+		common.ErrorResp(c, err, 500)
+		return
+	}
+	if _, err := _tool.Init(); err != nil {
+		common.ErrorResp(c, err, 500)
+		return
+	}
+	common.SuccessResp(c, "ok")
+}
+
+type SetGuangYaPanReq struct {
+	TempDir string `json:"temp_dir" form:"temp_dir"`
+}
+
+func SetGuangYaPan(c *gin.Context) {
+	var req SetGuangYaPanReq
+	if err := c.ShouldBind(&req); err != nil {
+		common.ErrorResp(c, err, 400)
+		return
+	}
+	if req.TempDir != "" {
+		storage, _, err := op.GetStorageAndActualPath(req.TempDir)
+		if err != nil {
+			common.ErrorStrResp(c, "storage does not exists", 400)
+			return
+		}
+		if storage.Config().CheckStatus && storage.GetStorage().Status != op.WORK {
+			common.ErrorStrResp(c, "storage not init: "+storage.GetStorage().Status, 400)
+			return
+		}
+		if _, ok := storage.(*guangyapandriver.GuangYaPan); !ok {
+			common.ErrorStrResp(c, "unsupported storage driver for offline download, only GuangYaPan is supported", 400)
+			return
+		}
+	}
+	items := []model.SettingItem{
+		{Key: conf.GuangYaPanTempDir, Value: req.TempDir, Type: conf.TypeString, Group: model.OFFLINE_DOWNLOAD, Flag: model.PRIVATE},
+	}
+	if err := op.SaveSettingItems(items); err != nil {
+		common.ErrorResp(c, err, 500)
+		return
+	}
+	_tool, err := tool.Tools.Get("GuangYaPan")
 	if err != nil {
 		common.ErrorResp(c, err, 500)
 		return

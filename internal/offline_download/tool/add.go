@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	_115 "github.com/alist-org/alist/v3/drivers/115"
+	"github.com/alist-org/alist/v3/drivers/guangyapan"
 	"github.com/alist-org/alist/v3/drivers/pikpak"
 	"github.com/alist-org/alist/v3/drivers/thunder"
 	"github.com/alist-org/alist/v3/internal/conf"
@@ -102,6 +103,16 @@ func AddURL(ctx context.Context, args *AddURLArgs) (task.TaskExtensionInfo, erro
 			tempDir = args.DstDirPath
 		} else {
 			tempDir = filepath.Join(setting.GetStr(conf.ThunderTempDir), uid)
+		}
+	case "GuangYaPan":
+		if _, ok := storage.(*guangyapan.GuangYaPan); ok {
+			tempDir = args.DstDirPath
+		} else {
+			tempBase := setting.GetStr(conf.GuangYaPanTempDir)
+			if tempBase == "" {
+				return nil, errors.New("GuangYaPan temp dir is not set")
+			}
+			tempDir = filepath.Join(tempBase, uid)
 		}
 	}
 

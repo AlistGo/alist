@@ -181,6 +181,7 @@ func admin(g *gin.RouterGroup) {
 	setting.POST("/set_115", handles.Set115)
 	setting.POST("/set_pikpak", handles.SetPikPak)
 	setting.POST("/set_thunder", handles.SetThunder)
+	setting.POST("/set_guangyapan", handles.SetGuangYaPan)
 	setting.POST("/set_frp", handles.SetFRP)
 	setting.POST("/stop_frp", handles.StopFRP)
 	setting.GET("/frp_runtime", handles.GetFRPRuntime)

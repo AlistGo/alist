@@ -133,6 +133,79 @@ type taskInfoResp struct {
 	} `json:"data"`
 }
 
+type offlineResolveResp struct {
+	Code int                `json:"code"`
+	Msg  string             `json:"msg"`
+	Data OfflineResolveData `json:"data"`
+}
+
+type OfflineResolveData struct {
+	ResType   int               `json:"resType"`
+	BTResInfo *OfflineBTResInfo `json:"btResInfo"`
+	URL       string            `json:"url"`
+}
+
+type OfflineBTResInfo struct {
+	InfoHash       string           `json:"infoHash"`
+	FileName       string           `json:"fileName"`
+	FileSize       int64            `json:"fileSize"`
+	SubfilesNum    int              `json:"subfilesNum"`
+	Subfiles       []OfflineSubfile `json:"subfiles"`
+	CreateTime     int64            `json:"createTime"`
+	ExcludeIndices []int            `json:"excludeIndices"`
+}
+
+type OfflineSubfile struct {
+	FileName  string `json:"fileName"`
+	FileIndex *int   `json:"fileIndex"`
+	FileSize  int64  `json:"fileSize"`
+}
+
+type offlineCreateResp struct {
+	Code int    `json:"code"`
+	Msg  string `json:"msg"`
+	Data struct {
+		TaskID string `json:"taskId"`
+		URL    string `json:"url"`
+	} `json:"data"`
+}
+
+type offlineDeleteResp struct {
+	Code int    `json:"code"`
+	Msg  string `json:"msg"`
+	Data struct {
+		TaskIDs []string `json:"taskIds"`
+	} `json:"data"`
+}
+
+type offlineListResp struct {
+	Code int    `json:"code"`
+	Msg  string `json:"msg"`
+	Data struct {
+		StatusCounts []struct {
+			Status int `json:"status"`
+			Count  int `json:"count"`
+		} `json:"statusCounts"`
+		Cursor string        `json:"cursor"`
+		List   []OfflineTask `json:"list"`
+		Total  int           `json:"total"`
+	} `json:"data"`
+}
+
+type OfflineTask struct {
+	TaskID     string `json:"taskId"`
+	FileName   string `json:"fileName"`
+	TotalSize  int64  `json:"totalSize"`
+	Status     int    `json:"status"`
+	CreateTime int64  `json:"createTime"`
+	Res        string `json:"res"`
+	ResType    int    `json:"resType"`
+	Progress   int    `json:"progress"`
+	FileID     string `json:"fileId"`
+	IsDir      bool   `json:"isDir"`
+	Exist      bool   `json:"exist"`
+}
+
 func unixOrZero(v int64) time.Time {
 	if v <= 0 {
 		return time.Time{}

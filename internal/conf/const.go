@@ -76,6 +76,9 @@ const (
 	// thunder
 	ThunderTempDir = "thunder_temp_dir"
 
+	// guangyapan
+	GuangYaPanTempDir = "guangyapan_temp_dir"
+
 	// single
 	Token         = "token"
 	IndexProgress = "index_progress"
@@ -126,19 +129,19 @@ const (
 	FTPTLSPublicCertPath = "ftp_tls_public_cert_path"
 
 	// frp
-	FRPEnabled      = "frp_enabled"
-	FRPServerAddr   = "frp_server_addr"
-	FRPServerPort   = "frp_server_port"
-	FRPAuthToken    = "frp_auth_token"
-	FRPProxyName    = "frp_proxy_name"
-	FRPProxyType    = "frp_proxy_type"
-	FRPCustomDomain = "frp_custom_domain"
-	FRPSubdomain    = "frp_subdomain"
-	FRPRemotePort   = "frp_remote_port"
-	FRPLocalPort    = "frp_local_port"
-	FRPTLSEnable    = "frp_tls_enable"
+	FRPEnabled       = "frp_enabled"
+	FRPServerAddr    = "frp_server_addr"
+	FRPServerPort    = "frp_server_port"
+	FRPAuthToken     = "frp_auth_token"
+	FRPProxyName     = "frp_proxy_name"
+	FRPProxyType     = "frp_proxy_type"
+	FRPCustomDomain  = "frp_custom_domain"
+	FRPSubdomain     = "frp_subdomain"
+	FRPRemotePort    = "frp_remote_port"
+	FRPLocalPort     = "frp_local_port"
+	FRPTLSEnable     = "frp_tls_enable"
 	FRPSTCPSecretKey = "frp_stcp_secret_key"
-	FRPStatus       = "frp_status"
+	FRPStatus        = "frp_status"
 
 	// traffic
 	TaskOfflineDownloadThreadsNum         = "offline_download_task_threads_num"
