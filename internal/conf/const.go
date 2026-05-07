@@ -52,6 +52,7 @@ const (
 	MaxDevices              = "max_devices"
 	DeviceEvictPolicy       = "device_evict_policy"
 	DeviceSessionTTL        = "device_session_ttl"
+	MetaNotFoundCacheExpire = "meta_not_found_cache_expire"
 
 	// index
 	SearchIndex     = "search_index"

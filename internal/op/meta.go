@@ -2,9 +2,11 @@ package op
 
 import (
 	stdpath "path"
+	"strconv"
 	"time"
 
 	"github.com/Xhofe/go-cache"
+	"github.com/alist-org/alist/v3/internal/conf"
 	"github.com/alist-org/alist/v3/internal/db"
 	"github.com/alist-org/alist/v3/internal/errs"
 	"github.com/alist-org/alist/v3/internal/model"
@@ -18,6 +20,17 @@ var metaCache = cache.NewMemCache(cache.WithShards[*model.Meta](2))
 
 // metaG maybe not needed
 var metaG singleflight.Group[*model.Meta]
+
+const (
+	metaCacheExpiration         = time.Hour
+	defaultMetaNotFoundCacheSec = 60
+)
+
+func init() {
+	RegisterSettingChangingCallback(func() {
+		metaCache.Clear()
+	})
+}
 
 func GetNearestMeta(path string) (*model.Meta, error) {
 	return getNearestMeta(utils.FixAndCleanPath(path))
@@ -51,15 +64,32 @@ func getMetaByPath(path string) (*model.Meta, error) {
 		_meta, err := db.GetMetaByPath(path)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				metaCache.Set(path, nil)
+				if ex := metaNotFoundCacheExpiration(); ex > 0 {
+					metaCache.Set(path, nil, cache.WithEx[*model.Meta](ex))
+				}
 				return nil, errs.MetaNotFound
 			}
 			return nil, err
 		}
-		metaCache.Set(path, _meta, cache.WithEx[*model.Meta](time.Hour))
+		metaCache.Set(path, _meta, cache.WithEx[*model.Meta](metaCacheExpiration))
 		return _meta, nil
 	})
 	return meta, err
+}
+
+func metaNotFoundCacheExpiration() time.Duration {
+	item, err := GetSettingItemByKey(conf.MetaNotFoundCacheExpire)
+	if err != nil || item == nil {
+		return time.Second * defaultMetaNotFoundCacheSec
+	}
+	seconds, err := strconv.Atoi(item.Value)
+	if err != nil {
+		return time.Second * defaultMetaNotFoundCacheSec
+	}
+	if seconds <= 0 {
+		return 0
+	}
+	return time.Second * time.Duration(seconds)
 }
 
 func DeleteMetaById(id uint) error {
@@ -78,6 +108,7 @@ func UpdateMeta(u *model.Meta) error {
 		return err
 	}
 	metaCache.Del(old.Path)
+	metaCache.Del(u.Path)
 	return db.UpdateMeta(u)
 }
 
