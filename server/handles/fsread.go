@@ -333,6 +333,7 @@ type FsGetResp struct {
 	Readme   string         `json:"readme"`
 	Header   string         `json:"header"`
 	Provider string         `json:"provider"`
+	WebProxy bool           `json:"web_proxy"`
 	Related  []ObjLabelResp `json:"related"`
 }
 
@@ -367,14 +368,14 @@ func FsGet(c *gin.Context) {
 	}
 	var rawURL string
 
-	storage, err := fs.GetStorage(reqPath, &fs.GetStoragesArgs{})
+	storage, storageErr := fs.GetStorage(reqPath, &fs.GetStoragesArgs{})
 	provider := "unknown"
-	if err == nil {
+	if storageErr == nil {
 		provider = storage.Config().Name
 	}
 	if !obj.IsDir() {
-		if err != nil {
-			common.ErrorResp(c, err, 500)
+		if storageErr != nil {
+			common.ErrorResp(c, storageErr, 500)
 			return
 		}
 		query := ""
@@ -382,6 +383,7 @@ func FsGet(c *gin.Context) {
 			query = "?sign=" + sign.Sign(reqPath)
 		}
 		forceRedirectRawURL := storage.GetStorage().Driver == "BaiduYouth"
+		forcePreviewRawURL := storage.GetStorage().Driver == "Lark" && isLarkCloudDocName(obj.GetName())
 		forceProxyRawURL := storage.GetStorage().Driver == "Quark" && utils.GetFileType(obj.GetName()) == conf.VIDEO
 		if forceRedirectRawURL {
 			// Baidu Youth direct links are minted per request and are not stable enough
@@ -391,7 +393,7 @@ func FsGet(c *gin.Context) {
 				common.GetApiUrl(c.Request),
 				utils.EncodePath(reqPath, true),
 				query)
-		} else if storage.Config().MustProxy() || storage.GetStorage().WebProxy || forceProxyRawURL {
+		} else if !forcePreviewRawURL && (storage.Config().MustProxy() || storage.GetStorage().WebProxy || forceProxyRawURL) {
 			if storage.GetStorage().DownProxyUrl != "" {
 				rawURL = common.BuildDownProxyURL(
 					storage.GetStorage().DownProxyUrl,
@@ -453,6 +455,7 @@ func FsGet(c *gin.Context) {
 		Readme:   getReadme(meta, reqPath),
 		Header:   getHeader(meta, reqPath),
 		Provider: provider,
+		WebProxy: storageErr == nil && storage.GetStorage().WebProxy,
 		Related:  toObjsResp(related, parentPath, isEncrypt(parentMeta, parentPath)),
 	})
 }
@@ -469,6 +472,22 @@ func filterRelated(objs []model.Obj, obj model.Obj) []model.Obj {
 		}
 	}
 	return related
+}
+
+func isLarkCloudDocName(name string) bool {
+	for _, suffix := range []string{
+		".lark-doc",
+		".lark-docx",
+		".lark-sheet",
+		".lark-bitable",
+		".lark-mindnote",
+		".lark-slides",
+	} {
+		if strings.HasSuffix(name, suffix) {
+			return true
+		}
+	}
+	return false
 }
 
 type FsOtherReq struct {

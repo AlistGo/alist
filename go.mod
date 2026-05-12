@@ -47,7 +47,7 @@ require (
 	github.com/jlaffaye/ftp v0.2.0
 	github.com/json-iterator/go v1.1.12
 	github.com/kdomanski/iso9660 v0.4.0
-	github.com/larksuite/oapi-sdk-go/v3 v3.3.1
+	github.com/larksuite/oapi-sdk-go/v3 v3.6.1
 	github.com/mark3labs/mcp-go v0.48.0
 	github.com/maruel/natural v1.1.1
 	github.com/meilisearch/meilisearch-go v0.27.2
@@ -104,6 +104,7 @@ require (
 	github.com/emersion/go-vcard v0.0.0-20230815062825-8fda7d206ec9 // indirect
 	github.com/fatedier/golib v0.5.1 // indirect
 	github.com/go-jose/go-jose/v4 v4.0.5 // indirect
+	github.com/google/jsonschema-go v0.4.2 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/hashicorp/yamux v0.1.1 // indirect
 	github.com/klauspost/reedsolomon v1.12.0 // indirect
@@ -117,12 +118,14 @@ require (
 	github.com/relvacode/iso8601 v1.3.0 // indirect
 	github.com/samber/lo v1.47.0 // indirect
 	github.com/songgao/water v0.0.0-20200317203138-2b4b6d7c09d8 // indirect
+	github.com/spf13/cast v1.7.1 // indirect
 	github.com/templexxx/cpu v0.1.1 // indirect
 	github.com/templexxx/xorsimd v0.4.3 // indirect
 	github.com/tjfoc/gmsm v1.4.1 // indirect
 	github.com/vishvananda/netlink v1.3.0 // indirect
 	github.com/vishvananda/netns v0.0.4 // indirect
 	github.com/xtaci/kcp-go/v5 v5.6.13 // indirect
+	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	golang.org/x/mod v0.27.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173 // indirect
@@ -132,10 +135,6 @@ require (
 	k8s.io/utils v0.0.0-20230406110748-d93618cff8a2 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
-	github.com/google/jsonschema-go v0.4.2 // indirect
-	github.com/relvacode/iso8601 v1.3.0 // indirect
-	github.com/spf13/cast v1.7.1 // indirect
-	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 )
 
 require (

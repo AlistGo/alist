@@ -80,6 +80,9 @@ func Proxy(w http.ResponseWriter, r *http.Request, link *model.Link, file model.
 		defer res.Body.Close()
 
 		maps.Copy(w.Header(), res.Header)
+		if r.URL.Query().Get("type") == "preview" {
+			w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename="%s"; filename*=UTF-8''%s`, file.GetName(), url.PathEscape(file.GetName())))
+		}
 		w.WriteHeader(res.StatusCode)
 		if r.Method == http.MethodHead {
 			return nil

@@ -3,9 +3,9 @@ package lark
 import (
 	"context"
 	"github.com/Xhofe/go-cache"
-	larkdrive "github.com/larksuite/oapi-sdk-go/v3/service/drive/v1"
 	log "github.com/sirupsen/logrus"
 	"path"
+	"strings"
 	"time"
 )
 
@@ -36,31 +36,47 @@ func (c *Lark) getObjToken(ctx context.Context, folderPath string) (string, bool
 		return emptyFolderToken, false
 	}
 
-	req := larkdrive.NewListFileReqBuilder().FolderToken(parentToken).Build()
-	resp, err := c.client.Drive.File.ListByIterator(ctx, req)
-
+	files, err := c.listFiles(ctx, parentToken)
 	if err != nil {
 		log.WithError(err).Error("failed to list files")
 		return emptyFolderToken, false
 	}
 
-	var file *larkdrive.File
-	for {
-		found, file, err = resp.Next()
-		if !found {
-			break
-		}
-
-		if err != nil {
-			log.WithError(err).Error("failed to get next file")
-			break
-		}
-
-		if *file.Name == name {
+	for _, file := range files {
+		if *file.Name == name || *file.Name == trimLarkDisplayExt(name) {
 			objTokenCache.Set(folderPath, *file.Token, exOpts)
 			return *file.Token, true
 		}
 	}
 
 	return emptyFolderToken, false
+}
+
+func trimLarkDisplayExt(name string) string {
+	for _, suffix := range larkCloudDocSuffixes() {
+		if strings.HasSuffix(name, suffix) {
+			return strings.TrimSuffix(name, suffix)
+		}
+	}
+	return name
+}
+
+func isLarkCloudDocName(name string) bool {
+	for _, suffix := range larkCloudDocSuffixes() {
+		if strings.HasSuffix(name, suffix) {
+			return true
+		}
+	}
+	return false
+}
+
+func larkCloudDocSuffixes() []string {
+	return []string{
+		".lark-doc",
+		".lark-docx",
+		".lark-sheet",
+		".lark-bitable",
+		".lark-mindnote",
+		".lark-slides",
+	}
 }
