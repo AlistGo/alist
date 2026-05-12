@@ -82,6 +82,7 @@ type ObjLabelResp struct {
 const (
 	DefaultPerPage = 200
 	MaxPerPage     = 500
+	AllPerPage     = -1
 )
 
 func FsList(c *gin.Context) {
@@ -136,7 +137,7 @@ func FsList(c *gin.Context) {
 	total, pageObjs := pagination(filtered, &req.PageReq)
 	respContent := toObjsResp(pageObjs, reqPath, isEncrypt(meta, reqPath))
 	pagesTotal := calcPagesTotal(total, req.PerPage)
-	hasMore := req.Page*req.PerPage < total
+	hasMore := req.PerPage != AllPerPage && req.Page*req.PerPage < total
 
 	common.SuccessResp(c, FsListResp{
 		Content:       respContent,
@@ -253,7 +254,10 @@ func normalizeListPage(page, perPage int) (int, int) {
 		effPage = 1
 	}
 	effPerPage := perPage
-	if effPerPage <= 0 {
+	if effPerPage < 0 {
+		return effPage, AllPerPage
+	}
+	if effPerPage == 0 {
 		effPerPage = DefaultPerPage
 	}
 	if effPerPage > MaxPerPage {
@@ -263,6 +267,12 @@ func normalizeListPage(page, perPage int) (int, int) {
 }
 
 func calcPagesTotal(total, perPage int) int {
+	if perPage == AllPerPage {
+		if total > 0 {
+			return 1
+		}
+		return 0
+	}
 	if total <= 0 || perPage <= 0 {
 		return 0
 	}
@@ -272,6 +282,9 @@ func calcPagesTotal(total, perPage int) int {
 func pagination(objs []model.Obj, req *model.PageReq) (int, []model.Obj) {
 	pageIndex, pageSize := req.Page, req.PerPage
 	total := len(objs)
+	if pageSize == AllPerPage {
+		return total, objs
+	}
 	start := (pageIndex - 1) * pageSize
 	if start > total {
 		return total, []model.Obj{}

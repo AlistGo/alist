@@ -147,7 +147,7 @@ func ListPublicShare(c *gin.Context) {
 		Total:      int64(total),
 		Page:       req.Page,
 		PerPage:    req.PerPage,
-		HasMore:    req.Page*req.PerPage < total,
+		HasMore:    req.PerPage != AllPerPage && req.Page*req.PerPage < total,
 		PagesTotal: calcPagesTotal(total, req.PerPage),
 	})
 }
