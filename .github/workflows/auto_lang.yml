@@ -20,7 +20,7 @@ jobs:
     strategy:
       matrix:
         platform: [ ubuntu-latest ]
-        go-version: [ '1.21' ]
+        go-version: [ '1.25' ]
     name: auto generate lang.json
     runs-on: ${{ matrix.platform }}
     steps:
