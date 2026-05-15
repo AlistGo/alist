@@ -93,7 +93,7 @@ func resizeImageToBufferWithFFmpegGo(inputFile string, width int, outputFormat s
 		outputArgs["q:v"] = "3"
 	}
 
-	err := ffmpeg.Input(inputFile).
+	err = ffmpeg.Input(inputFile).
 		Output("pipe:", outputArgs). // Output to pipe (stdout)
 		GlobalArgs("-loglevel", "error").
 		Silent(true).                     // Suppress ffmpeg's own console output
