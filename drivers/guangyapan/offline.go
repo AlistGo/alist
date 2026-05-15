@@ -39,7 +39,11 @@ func (d *GuangYaPan) OfflineDownload(ctx context.Context, fileURL string, parent
 	}
 
 	parentID := parentDir.GetID()
-	if parentID == d.RootFolderID {
+	rootID, err := d.getRootFolderID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if parentID == rootID {
 		parentID = ""
 	}
 
