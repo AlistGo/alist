@@ -20,8 +20,8 @@ func (Zip) AcceptedExtensions() []string {
 
 func (Zip) AcceptedMultipartExtensions() map[string]tool.MultipartExtension {
 	return map[string]tool.MultipartExtension{
-		".zip":     {".z%.2d", 1},
-		".zip.001": {".zip.%.3d", 2},
+		".zip":     {PartFileFormat: ".z%.2d", SecondPartIndex: 1},
+		".zip.001": {PartFileFormat: ".zip.%.3d", SecondPartIndex: 2},
 	}
 }
 

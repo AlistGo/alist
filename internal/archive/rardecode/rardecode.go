@@ -23,7 +23,7 @@ func (RarDecoder) AcceptedExtensions() []string {
 
 func (RarDecoder) AcceptedMultipartExtensions() map[string]tool.MultipartExtension {
 	return map[string]tool.MultipartExtension{
-		".part1.rar": {".part%d.rar", 2},
+		".part1.rar": {PartFileFormat: ".part%d.rar", SecondPartIndex: 2},
 	}
 }
 

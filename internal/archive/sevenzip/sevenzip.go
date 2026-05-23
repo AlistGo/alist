@@ -18,7 +18,7 @@ func (SevenZip) AcceptedExtensions() []string {
 
 func (SevenZip) AcceptedMultipartExtensions() map[string]tool.MultipartExtension {
 	return map[string]tool.MultipartExtension{
-		".7z.001": {".7z.%.3d", 2},
+		".7z.001": {PartFileFormat: ".7z.%.3d", SecondPartIndex: 2},
 	}
 }
 
