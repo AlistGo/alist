@@ -214,7 +214,7 @@ func FromString(str string) HashInfo {
 	} else {
 		for k, v := range tmp {
 			if name2hash[k] != nil && len(v) > 0 {
-				hi.h[name2hash[k]] = v
+				hi.H[name2hash[k]] = v
 			}
 		}
 	}
@@ -222,16 +222,16 @@ func FromString(str string) HashInfo {
 	return hi
 }
 func (hi HashInfo) GetHash(ht *HashType) string {
-	return hi.h[ht]
+	return hi.H[ht]
 }
 
 func (hi HashInfo) Export() map[*HashType]string {
-	return hi.h
+	return hi.H
 }
 
 func (hi HashInfo) All() iter.Seq2[*HashType, string] {
 	return func(yield func(*HashType, string) bool) {
-		for hashType, hashValue := range hi.h {
+		for hashType, hashValue := range hi.H {
 			if !yield(hashType, hashValue) {
 				return
 			}
