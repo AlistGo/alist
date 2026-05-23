@@ -25,6 +25,6 @@ func LoadStorages() {
 					storages[i].MountPath, storages[i].Driver, storages[i].Order)
 			}
 		}
-		conf.StoragesLoaded = true
+		conf.StoragesLoaded.Store(true)
 	}(storages)
 }

@@ -3,6 +3,7 @@ package conf
 import (
 	"net/url"
 	"regexp"
+	"sync/atomic"
 )
 
 var (
@@ -24,7 +25,7 @@ var PrivacyReg []*regexp.Regexp
 
 var (
 	// StoragesLoaded loaded success if empty
-	StoragesLoaded = false
+	StoragesLoaded atomic.Bool
 )
 var (
 	RawIndexHtml string
