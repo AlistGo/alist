@@ -160,15 +160,16 @@ func (m *MultiHasher) Write(p []byte) (n int, err error) {
 
 func (m *MultiHasher) GetHashInfo() *HashInfo {
 	dst := make(map[*HashType]string)
-	for k, v := range m.h {
-		dst[k] = hex.EncodeToString(v.Sum(nil))
+	for k, v := range m.H {
+		dst[k] = v
 	}
-	return &HashInfo{h: dst}
+
+	return &HashInfo{H: dst}
 }
 
 // Sum returns the specified hash from the multihasher
 func (m *MultiHasher) Sum(hashType *HashType) ([]byte, error) {
-	h, ok := m.h[hashType]
+	h, ok := m.H[hashType]
 	if !ok {
 		return nil, ErrUnsupported
 	}
@@ -182,7 +183,7 @@ func (m *MultiHasher) Size() int64 {
 
 // A HashInfo contains hash string for one or more hashType
 type HashInfo struct {
-	h map[*HashType]string `json:"hashInfo"`
+	H map[*HashType]string `json:"hashInfo"`
 }
 
 func NewHashInfoByMap(h map[*HashType]string) HashInfo {
@@ -194,11 +195,11 @@ func NewHashInfo(ht *HashType, str string) HashInfo {
 	if ht != nil {
 		m[ht] = str
 	}
-	return HashInfo{h: m}
+	return HashInfo{H: m}
 }
 
 func (hi HashInfo) String() string {
-	result, err := json.Marshal(hi.h)
+	result, err := json.Marshal(hi.H)
 	if err != nil {
 		return ""
 	}
