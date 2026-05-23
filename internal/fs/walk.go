@@ -30,7 +30,7 @@ func WalkFS(ctx context.Context, depth int, name string, info model.Obj, walkFn 
 	// Read directory names.
 	objs, err := List(context.WithValue(ctx, "meta", meta), name, &ListArgs{})
 	if err != nil {
-		return walkFnErr
+		return err
 	}
 	for _, fileInfo := range objs {
 		filename := path.Join(name, fileInfo.GetName())
