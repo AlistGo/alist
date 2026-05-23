@@ -32,7 +32,7 @@ func (d *GooglePhoto) refreshToken() error {
 		return err
 	}
 	if e.Error != "" {
-		return fmt.Errorf(e.Error)
+		return fmt.Errorf("%s", e.Error)
 	}
 	d.AccessToken = resp.AccessToken
 	return nil

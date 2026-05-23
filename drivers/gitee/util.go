@@ -40,5 +40,5 @@ func toErr(res *resty.Response) error {
 	if err := utils.Json.Unmarshal(res.Body(), &errMsg); err == nil && errMsg.Message != "" {
 		return fmt.Errorf("%s: %s", res.Status(), errMsg.Message)
 	}
-	return fmt.Errorf(res.Status())
+	return fmt.Errorf("%s", res.Status())
 }

@@ -90,7 +90,7 @@ func (d *LanZou) _post(url string, callback base.ReqCallback, resp interface{}, 
 		if info == "" {
 			info = utils.Json.Get(data, "info").ToString()
 		}
-		return data, fmt.Errorf(info)
+		return data, fmt.Errorf("%s", info)
 	}
 }
 

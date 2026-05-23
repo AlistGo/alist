@@ -64,7 +64,7 @@ func (d *DoubaoNew) request(ctx context.Context, path string, method string, cal
 			string(body),
 			err,
 		)
-		return body, fmt.Errorf(msg)
+		return body, fmt.Errorf("%s", msg)
 	}
 	if common.Code != 0 {
 		errMsg := common.Msg
@@ -247,7 +247,7 @@ func (d *DoubaoNew) createFolder(ctx context.Context, parentToken, name string) 
 			string(body),
 			err,
 		)
-		return Node{}, fmt.Errorf(msg)
+		return Node{}, fmt.Errorf("%s", msg)
 	}
 
 	var node Node
@@ -374,7 +374,7 @@ func decodeBaseResp(body []byte, res *resty.Response) error {
 			string(body),
 			err,
 		)
-		return fmt.Errorf(msg)
+		return fmt.Errorf("%s", msg)
 	}
 	if common.Code != 0 {
 		errMsg := common.Msg
@@ -485,7 +485,7 @@ func (d *DoubaoNew) removeObj(ctx context.Context, tokens []string) error {
 			string(body),
 			err,
 		)
-		return fmt.Errorf(msg)
+		return fmt.Errorf("%s", msg)
 	}
 	if resp.Code != 0 {
 		errMsg := resp.Msg
@@ -534,7 +534,7 @@ func (d *DoubaoNew) getUserStorage(ctx context.Context) (UserStorageData, error)
 			string(body),
 			err,
 		)
-		return UserStorageData{}, fmt.Errorf(msg)
+		return UserStorageData{}, fmt.Errorf("%s", msg)
 	}
 	if resp.Code != 0 {
 		errMsg := resp.Msg
@@ -607,7 +607,7 @@ func (d *DoubaoNew) getTaskStatus(ctx context.Context, taskID string) (TaskStatu
 			string(body),
 			err,
 		)
-		return TaskStatusData{}, fmt.Errorf(msg)
+		return TaskStatusData{}, fmt.Errorf("%s", msg)
 	}
 	if resp.Code != 0 {
 		errMsg := resp.Msg
@@ -778,7 +778,7 @@ func (d *DoubaoNew) mergeUploadBlocks(ctx context.Context, uploadID string, seqL
 			string(body),
 			err,
 		)
-		return UploadMergeData{}, fmt.Errorf(msg)
+		return UploadMergeData{}, fmt.Errorf("%s", msg)
 	}
 	if resp.Code != 0 {
 		if res != nil && res.StatusCode() == http.StatusBadRequest && resp.Code == 2 {

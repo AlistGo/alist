@@ -261,7 +261,7 @@ func (d *Cloud189) oldUpload(dstDir model.Obj, file model.FileStreamer) error {
 	if utils.Json.Get(res.Body(), "MD5").ToString() != "" {
 		return nil
 	}
-	log.Debugf(res.String())
+	log.Debugf("%s", res.String())
 	return errors.New(res.String())
 }
 

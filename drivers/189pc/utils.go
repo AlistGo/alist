@@ -359,7 +359,7 @@ func (y *Cloud189PC) login() (err error) {
 		return &erron
 	}
 	if tokenInfo.ResCode != 0 {
-		err = fmt.Errorf(tokenInfo.ResMessage)
+		err = fmt.Errorf("%s", tokenInfo.ResMessage)
 		return
 	}
 	y.tokenInfo = &tokenInfo

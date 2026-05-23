@@ -54,13 +54,13 @@ func (d *ChaoXing) refreshCookie() error {
 func (d *ChaoXing) Init(ctx context.Context) error {
 	err := d.refreshCookie()
 	if err != nil {
-		log.Errorf(ctx, err.Error())
+		log.Errorf(ctx, "%s", err.Error())
 	}
 	d.cron = cron.NewCron(time.Hour * 12)
 	d.cron.Do(func() {
 		err = d.refreshCookie()
 		if err != nil {
-			log.Errorf(ctx, err.Error())
+log.Errorf(ctx, "%s", err.Error())
 		}
 	})
 	return nil

@@ -128,7 +128,7 @@ func (p *PikPak) Status(task *tool.DownloadTask) (*tool.Status, error) {
 				s.TotalBytes = 0
 			}
 			if t.Phase == "PHASE_TYPE_ERROR" {
-				s.Err = fmt.Errorf(t.Message)
+				s.Err = fmt.Errorf("%s", t.Message)
 			}
 			return s, nil
 		}
