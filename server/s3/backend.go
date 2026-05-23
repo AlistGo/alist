@@ -328,7 +328,7 @@ func (b *s3Backend) PutObject(
 func (b *s3Backend) DeleteMulti(ctx context.Context, bucketName string, objects ...string) (result gofakes3.MultiDeleteResult, rerr error) {
 	for _, object := range objects {
 		if err := b.deleteObject(ctx, bucketName, object); err != nil {
-			utils.Log.Errorf("serve s3", "delete object failed: %v", err)
+			utils.Log.Errorf("serve s3: delete object failed: %v", err)
 			result.Error = append(result.Error, gofakes3.ErrorResult{
 				Code:    gofakes3.ErrInternal,
 				Message: gofakes3.ErrInternal.Message(),
