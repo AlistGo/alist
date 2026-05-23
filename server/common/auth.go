@@ -34,7 +34,7 @@ func GenerateToken(user *model.User) (tokenString string, err error) {
 	if err != nil {
 		return "", err
 	}
-	validTokenCache.Set(tokenString, true)
+	validTokenCache.Set(tokenString, true, cache.WithEx[bool](time.Duration(conf.Conf.TokenExpiresIn)*time.Hour))
 	return tokenString, err
 }
 
