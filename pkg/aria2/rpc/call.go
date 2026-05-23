@@ -120,7 +120,7 @@ func (h *httpCaller) setNotifier(ctx context.Context, u url.URL, notifier Notifi
 	return
 }
 
-func (h httpCaller) Call(method string, params, reply interface{}) (err error) {
+func (h *httpCaller) Call(method string, params, reply interface{}) (err error) {
 	payload, err := EncodeClientRequest(method, params)
 	if err != nil {
 		return
@@ -236,7 +236,7 @@ func (w *websocketCaller) Close() (err error) {
 	return
 }
 
-func (w websocketCaller) Call(method string, params, reply interface{}) (err error) {
+func (w *websocketCaller) Call(method string, params, reply interface{}) (err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), w.timeout)
 	defer cancel()
 	select {
