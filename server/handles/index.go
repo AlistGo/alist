@@ -2,7 +2,6 @@ package handles
 
 import (
 	"context"
-
 	"github.com/alist-org/alist/v3/internal/conf"
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/internal/search"
@@ -31,7 +30,7 @@ func BuildIndex(c *gin.Context) {
 			return
 		}
 		err = search.BuildIndex(context.Background(), []string{"/"},
-			conf.SlicesMap[conf.IgnorePaths], setting.GetInt(conf.MaxIndexDepth, 20), true)
+			setting.GetInt(conf.MaxIndexDepth, 20), true)
 		if err != nil {
 			log.Errorf("build index error: %+v", err)
 		}
@@ -62,8 +61,7 @@ func UpdateIndex(c *gin.Context) {
 				return
 			}
 		}
-		err := search.BuildIndex(context.Background(), req.Paths,
-			conf.SlicesMap[conf.IgnorePaths], req.MaxDepth, false)
+		err := search.BuildIndex(context.Background(), req.Paths, req.MaxDepth, false)
 		if err != nil {
 			log.Errorf("update index error: %+v", err)
 		}
