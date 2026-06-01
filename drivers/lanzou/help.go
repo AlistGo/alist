@@ -1,7 +1,6 @@
 package lanzou
 
 import (
-	"bytes"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -144,11 +143,13 @@ func Unbox(hex string) string {
 }
 
 func HexXor(hex1, hex2 string) string {
-	out := bytes.NewBuffer(make([]byte, len(hex1)))
-	for i := 0; i < len(hex1) && i < len(hex2); i += 2 {
+	var out strings.Builder
+	out.Grow(len(hex1))
+	for i := 0; i+2 <= len(hex1) && i+2 <= len(hex2); i += 2 {
 		v1, _ := strconv.ParseInt(hex1[i:i+2], 16, 64)
 		v2, _ := strconv.ParseInt(hex2[i:i+2], 16, 64)
-		out.WriteString(strconv.FormatInt(v1^v2, 16))
+		// 必须补足前导 0,否则异或结果 < 0x10 时只输出一个字符,导致整个 hex 串错位
+		fmt.Fprintf(&out, "%02x", v1^v2)
 	}
 	return out.String()
 }
