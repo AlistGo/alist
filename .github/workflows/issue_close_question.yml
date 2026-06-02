@@ -5,18 +5,42 @@ on:
     - cron: "0 0 */1 * *"
   workflow_dispatch:
 
+permissions:
+  issues: write
+
 jobs:
   close-need-info:
     runs-on: ubuntu-latest
     steps:
-      - name: close-issues
-        uses: actions-cool/issues-helper@v3
+      - name: Close inactive question issues
+        uses: actions/github-script@v7
         with:
-          actions: 'close-issues'
-          token: ${{ secrets.GITHUB_TOKEN }}
-          labels: 'question'
-          inactive-day: 3
-          close-reason: 'not_planned'
-          body: |
-            Hello @${{ github.event.issue.user.login }}, this issue was closed due to no activities in 3 days.
-            你好 @${{ github.event.issue.user.login }}，此issue因超过3天未回复被关闭。
+          script: |
+            const label = 'question';
+            const inactiveDays = 3;
+            const cutoff = Date.now() - inactiveDays * 24 * 60 * 60 * 1000;
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: label,
+              per_page: 100,
+            });
+            for (const issue of issues) {
+              if (issue.pull_request) continue;
+              if (new Date(issue.updated_at).getTime() > cutoff) continue;
+              const user = issue.user.login;
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: `Hello @${user}, this issue was closed due to no activities in 3 days.\n你好 @${user}，此issue因超过3天未回复被关闭。`,
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                state: 'closed',
+                state_reason: 'not_planned',
+              });
+            }
