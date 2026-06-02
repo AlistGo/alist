@@ -5,17 +5,42 @@ on:
     - cron: "0 0 */7 * *"
   workflow_dispatch:
 
+permissions:
+  issues: write
+
 jobs:
   close-inactive:
     runs-on: ubuntu-latest
     steps:
-      - name: close-issues
-        uses: actions-cool/issues-helper@v3
+      - name: Close inactive stale issues
+        uses: actions/github-script@v7
         with:
-          actions: 'close-issues'
-          token: ${{ secrets.GITHUB_TOKEN }}
-          labels: 'stale'
-          inactive-day: 8
-          close-reason: 'not_planned'
-          body: |
-            Hello @${{ github.event.issue.user.login }}, this issue was closed due to inactive more than 52 days. You can reopen or recreate it if you think it should continue. Thank you for your contributions again.
+          script: |
+            const label = 'stale';
+            const inactiveDays = 8;
+            const cutoff = Date.now() - inactiveDays * 24 * 60 * 60 * 1000;
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: label,
+              per_page: 100,
+            });
+            for (const issue of issues) {
+              if (issue.pull_request) continue;
+              if (new Date(issue.updated_at).getTime() > cutoff) continue;
+              const user = issue.user.login;
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: `Hello @${user}, this issue was closed due to inactive more than 52 days. You can reopen or recreate it if you think it should continue. Thank you for your contributions again.`,
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                state: 'closed',
+                state_reason: 'not_planned',
+              });
+            }
