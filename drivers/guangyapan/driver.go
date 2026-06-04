@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/alist-org/alist/v3/drivers/base"
@@ -19,6 +20,7 @@ import (
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
 	"github.com/go-resty/resty/v2"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/time/rate"
 )
 
 const (
@@ -36,7 +38,14 @@ type GuangYaPan struct {
 
 	resolvedRootFolderID string
 	rootFolderResolved   bool
+
+	// apiRateLimit throttles requests per API endpoint so that batch operations
+	// (e.g. copying many files cross-storage) don't flood the upstream API.
+	apiRateLimit sync.Map
 }
+
+// apiRateInterval is the minimum gap between two requests to the same endpoint.
+const apiRateInterval = 500 * time.Millisecond
 
 func (d *GuangYaPan) Config() driver.Config {
 	return config
@@ -793,9 +802,17 @@ func (d *GuangYaPan) accountErr(desc, short string, resp *resty.Response) string
 	return msg
 }
 
+func (d *GuangYaPan) apiRateLimitWait(ctx context.Context, path string) error {
+	value, _ := d.apiRateLimit.LoadOrStore(path, rate.NewLimiter(rate.Every(apiRateInterval), 1))
+	return value.(*rate.Limiter).Wait(ctx)
+}
+
 func (d *GuangYaPan) postAPI(ctx context.Context, path string, body any, out any) error {
 	if strings.TrimSpace(d.AccessToken) == "" {
 		return errors.New("access token is empty")
+	}
+	if err := d.apiRateLimitWait(ctx, path); err != nil {
+		return err
 	}
 	resp, err := d.apiClient.R().
 		SetContext(ctx).
