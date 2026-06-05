@@ -175,34 +175,15 @@ func (d *Strm) listVirtualRoots() []model.Obj {
 	return objs
 }
 
+// rotateAllLocal rewrites every local STRM under all aliases (used by
+// RotateSignNow). It reuses the same two-phase walk as GenerateLocal, forcing
+// update mode so rotated signs always overwrite existing files.
 func (d *Strm) rotateAllLocal(ctx context.Context) {
-	for alias, roots := range d.aliases {
-		virtualRoot := "/"
-		if !d.autoFlatten {
-			virtualRoot = "/" + alias
-		}
-		for _, realRoot := range roots {
-			d.walkAndSync(ctx, virtualRoot, realRoot)
-		}
+	var units []strmDirUnit
+	for _, s := range d.resolveStarts("/") {
+		d.collectUnits(ctx, s.virtualDir, s.realDir, &units)
 	}
-}
-
-func (d *Strm) walkAndSync(ctx context.Context, virtualDir, realDir string) {
-	objs, err := fs.List(ctx, realDir, &fs.ListArgs{NoLog: true, Refresh: true})
-	if err != nil {
-		log.Warnf("strm: rotate list failed %s: %v", realDir, err)
-		return
-	}
-	mapped := d.mapListedObjects(ctx, realDir, objs)
-	d.syncLocalDirWithMode(ctx, virtualDir, mapped, SaveLocalUpdateMode)
-	for _, obj := range objs {
-		if !obj.IsDir() {
-			continue
-		}
-		childVirtual := stdpath.Join(virtualDir, obj.GetName())
-		childReal := stdpath.Join(realDir, obj.GetName())
-		d.walkAndSync(ctx, childVirtual, childReal)
-	}
+	d.generateUnits(ctx, units, SaveLocalUpdateMode, nil)
 }
 
 func (d *Strm) mapListedObjects(ctx context.Context, realDir string, listed []model.Obj) []model.Obj {
