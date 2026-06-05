@@ -321,6 +321,9 @@ func (d *Strm) resolveStarts(virtualPath string) []strmDirStart {
 }
 
 func (d *Strm) collectUnits(ctx context.Context, virtualDir, realDir string, units *[]strmDirUnit) {
+	if ctx.Err() != nil {
+		return
+	}
 	objs, err := fs.List(ctx, realDir, &fs.ListArgs{NoLog: true, Refresh: true})
 	if err != nil {
 		log.Warnf("strm: generate list failed %s: %v", realDir, err)
@@ -352,6 +355,9 @@ func (d *Strm) generateUnits(ctx context.Context, units []strmDirUnit, mode stri
 	}
 	done := 0
 	for _, u := range units {
+		if ctx.Err() != nil {
+			return
+		}
 		d.syncLocalDirWithMode(ctx, u.virtualDir, u.objs, mode)
 		for _, o := range u.objs {
 			if !o.IsDir() {
@@ -378,7 +384,7 @@ func (d *Strm) GenerateLocal(ctx context.Context, virtualPath string, up func(pe
 		d.collectUnits(ctx, s.virtualDir, s.realDir, &units)
 	}
 	d.generateUnits(ctx, units, d.normalizedMode, up)
-	return nil
+	return ctx.Err()
 }
 
 var _ driver.StrmGenerator = (*Strm)(nil)
