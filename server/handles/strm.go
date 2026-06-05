@@ -11,7 +11,7 @@ import (
 )
 
 type GenerateStrmReq struct {
-	Path string `json:"path"`
+	Path string `json:"path" form:"path"`
 }
 
 // GenerateStrm enqueues a strm generation task for the given path (which must be
