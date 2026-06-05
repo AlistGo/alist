@@ -281,3 +281,104 @@ func wrapObj(path string, src model.Obj, size int64) model.Obj {
 }
 
 var _ driver.Driver = (*Strm)(nil)
+
+type strmDirUnit struct {
+	virtualDir string
+	objs       []model.Obj
+}
+
+type strmDirStart struct {
+	virtualDir string
+	realDir    string
+}
+
+// resolveStarts maps a strm-internal virtual path to walk start points.
+// virtualPath "/" expands to all aliases.
+func (d *Strm) resolveStarts(virtualPath string) []strmDirStart {
+	virtualPath = cleanPath(virtualPath)
+	var starts []strmDirStart
+	if virtualPath == "/" {
+		for alias, roots := range d.aliases {
+			vroot := "/"
+			if !d.autoFlatten {
+				vroot = "/" + alias
+			}
+			for _, r := range roots {
+				starts = append(starts, strmDirStart{virtualDir: vroot, realDir: r})
+			}
+		}
+		return starts
+	}
+	root, sub := d.splitVirtualPath(virtualPath)
+	roots, ok := d.aliases[root]
+	if !ok {
+		return nil
+	}
+	for _, r := range roots {
+		starts = append(starts, strmDirStart{virtualDir: virtualPath, realDir: stdpath.Join(r, sub)})
+	}
+	return starts
+}
+
+func (d *Strm) collectUnits(ctx context.Context, virtualDir, realDir string, units *[]strmDirUnit) {
+	objs, err := fs.List(ctx, realDir, &fs.ListArgs{NoLog: true, Refresh: true})
+	if err != nil {
+		log.Warnf("strm: generate list failed %s: %v", realDir, err)
+		return
+	}
+	mapped := d.mapListedObjects(ctx, realDir, objs)
+	*units = append(*units, strmDirUnit{virtualDir: virtualDir, objs: mapped})
+	for _, obj := range objs {
+		if obj.IsDir() {
+			d.collectUnits(ctx, stdpath.Join(virtualDir, obj.GetName()), stdpath.Join(realDir, obj.GetName()), units)
+		}
+	}
+}
+
+func (d *Strm) generateUnits(ctx context.Context, units []strmDirUnit, mode string, up func(percent float64)) {
+	total := 0
+	for _, u := range units {
+		for _, o := range u.objs {
+			if !o.IsDir() {
+				total++
+			}
+		}
+	}
+	if total == 0 {
+		if up != nil {
+			up(100)
+		}
+		return
+	}
+	done := 0
+	for _, u := range units {
+		d.syncLocalDirWithMode(ctx, u.virtualDir, u.objs, mode)
+		for _, o := range u.objs {
+			if !o.IsDir() {
+				done++
+			}
+		}
+		if up != nil {
+			up(float64(done) / float64(total) * 100)
+		}
+	}
+}
+
+// GenerateLocal implements driver.StrmGenerator.
+func (d *Strm) GenerateLocal(ctx context.Context, virtualPath string, up func(percent float64)) error {
+	if strings.TrimSpace(d.SaveStrmLocalPath) == "" {
+		return errors.New("SaveStrmLocalPath is required")
+	}
+	starts := d.resolveStarts(virtualPath)
+	if len(starts) == 0 {
+		return errs.ObjectNotFound
+	}
+	var units []strmDirUnit
+	for _, s := range starts {
+		d.collectUnits(ctx, s.virtualDir, s.realDir, &units)
+	}
+	d.generateUnits(ctx, units, d.normalizedMode, up)
+	return nil
+}
+
+var _ driver.StrmGenerator = (*Strm)(nil)
