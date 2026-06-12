@@ -25,17 +25,17 @@ jobs:
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Setup go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.go-version }}
 
       - name: Checkout alist
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: alist
 
       - name: Checkout alist-web
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: 'alist-org/alist-web'
           ref: main
