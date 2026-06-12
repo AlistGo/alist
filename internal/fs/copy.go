@@ -28,6 +28,7 @@ type CopyTask struct {
 	dstStorage   driver.Driver `json:"-"`
 	SrcStorageMp string        `json:"src_storage_mp"`
 	DstStorageMp string        `json:"dst_storage_mp"`
+	SkipExisting bool          `json:"skip_existing"`
 }
 
 func (t *CopyTask) GetName() string {
@@ -69,8 +70,18 @@ func _copy(ctx context.Context, srcObjPath, dstDirPath string, lazyCache ...bool
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed get dst storage")
 	}
+	skipExisting := ctx.Value(conf.SkipExistingKey) != nil
 	// copy if in the same storage, just call driver.Copy
 	if srcStorage.GetStorage() == dstStorage.GetStorage() {
+		if skipExisting {
+			if srcObj, err := op.Get(ctx, srcStorage, srcObjActualPath); err == nil && !srcObj.IsDir() {
+				dstFilePath := stdpath.Join(dstDirActualPath, srcObj.GetName())
+				if dstFile, err := op.Get(ctx, dstStorage, dstFilePath); err == nil &&
+					!dstFile.IsDir() && dstFile.GetSize() == srcObj.GetSize() {
+					return nil, nil
+				}
+			}
+		}
 		err = op.Copy(ctx, srcStorage, srcObjActualPath, dstDirActualPath, lazyCache...)
 		if !errors.Is(err, errs.NotImplement) && !errors.Is(err, errs.NotSupport) {
 			return nil, err
@@ -113,6 +124,7 @@ func _copy(ctx context.Context, srcObjPath, dstDirPath string, lazyCache ...bool
 		DstDirPath:   dstDirActualPath,
 		SrcStorageMp: srcStorage.GetStorage().MountPath,
 		DstStorageMp: dstStorage.GetStorage().MountPath,
+		SkipExisting: skipExisting,
 	}
 	CopyTaskManager.Add(t)
 	return t, nil
@@ -146,6 +158,7 @@ func copyBetween2Storages(t *CopyTask, srcStorage, dstStorage driver.Driver, src
 				DstDirPath:   dstObjPath,
 				SrcStorageMp: srcStorage.GetStorage().MountPath,
 				DstStorageMp: dstStorage.GetStorage().MountPath,
+				SkipExisting: t.SkipExisting,
 			})
 		}
 		t.Status = "src object is dir, added all copy tasks of objs"
@@ -160,6 +173,16 @@ func copyFileBetween2Storages(tsk *CopyTask, srcStorage, dstStorage driver.Drive
 		return errors.WithMessagef(err, "failed get src [%s] file", srcFilePath)
 	}
 	tsk.SetTotalBytes(srcFile.GetSize())
+	if tsk.SkipExisting {
+		dstFilePath := stdpath.Join(dstDirPath, srcFile.GetName())
+		// a failed probe falls through to a normal copy, worst case is a redundant transfer
+		if dstFile, err := op.Get(tsk.Ctx(), dstStorage, dstFilePath); err == nil &&
+			!dstFile.IsDir() && dstFile.GetSize() == srcFile.GetSize() {
+			tsk.Status = "skipped: destination file already exists"
+			tsk.SetProgress(100)
+			return nil
+		}
+	}
 	link, _, err := op.Link(tsk.Ctx(), srcStorage, srcFilePath, model.LinkArgs{
 		Header: http.Header{},
 	})
