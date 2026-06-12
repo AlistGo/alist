@@ -170,5 +170,6 @@ const (
 
 // ContextKey is the type of context keys.
 const (
-	NoTaskKey = "no_task"
+	NoTaskKey       = "no_task"
+	SkipExistingKey = "skip_existing"
 )
