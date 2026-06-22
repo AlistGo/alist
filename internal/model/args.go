@@ -14,6 +14,12 @@ type ListArgs struct {
 	ReqPath           string
 	S3ShowPlaceholder bool
 	Refresh           bool
+	// NoUpdateIndex skips the objs-update hook (used to auto-build the search
+	// index) for this listing. Wrapper drivers (alias, crypt, strm, chunker)
+	// set it when listing their underlying storage so the real path is not
+	// auto-indexed alongside the wrapper's own mount path, which would create
+	// duplicate search entries.
+	NoUpdateIndex bool
 }
 
 type LinkArgs struct {

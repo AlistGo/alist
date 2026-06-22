@@ -24,8 +24,9 @@ func list(ctx context.Context, path string, args *ListArgs) ([]model.Obj, error)
 	var _objs []model.Obj
 	if storage != nil {
 		_objs, err = op.List(ctx, storage, actualPath, model.ListArgs{
-			ReqPath: path,
-			Refresh: args.Refresh,
+			ReqPath:       path,
+			Refresh:       args.Refresh,
+			NoUpdateIndex: args.NoUpdateIndex,
 		})
 		if err != nil {
 			if !args.NoLog {

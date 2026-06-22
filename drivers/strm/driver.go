@@ -143,7 +143,7 @@ func (d *Strm) List(ctx context.Context, dir model.Obj, args model.ListArgs) ([]
 	out := make([]model.Obj, 0)
 	for _, targetRoot := range targets {
 		realDir := stdpath.Join(targetRoot, sub)
-		objs, err := fs.List(ctx, realDir, &fs.ListArgs{NoLog: true, Refresh: args.Refresh})
+		objs, err := fs.List(ctx, realDir, &fs.ListArgs{NoLog: true, Refresh: args.Refresh, NoUpdateIndex: true})
 		if err != nil {
 			continue
 		}
@@ -188,7 +188,7 @@ func (d *Strm) rotateAllLocal(ctx context.Context) {
 }
 
 func (d *Strm) walkAndSync(ctx context.Context, virtualDir, realDir string) {
-	objs, err := fs.List(ctx, realDir, &fs.ListArgs{NoLog: true, Refresh: true})
+	objs, err := fs.List(ctx, realDir, &fs.ListArgs{NoLog: true, Refresh: true, NoUpdateIndex: true})
 	if err != nil {
 		log.Warnf("strm: rotate list failed %s: %v", realDir, err)
 		return

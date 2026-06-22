@@ -92,7 +92,7 @@ func (d *Alias) List(ctx context.Context, dir model.Obj, args model.ListArgs) ([
 		return nil, errs.ObjectNotFound
 	}
 	var objs []model.Obj
-	fsArgs := &fs.ListArgs{NoLog: true, Refresh: args.Refresh}
+	fsArgs := &fs.ListArgs{NoLog: true, Refresh: args.Refresh, NoUpdateIndex: true}
 	for _, dst := range dsts {
 		tmp, err := d.list(ctx, dst, sub, fsArgs)
 		if err == nil {

@@ -20,6 +20,10 @@ import (
 type ListArgs struct {
 	Refresh bool
 	NoLog   bool
+	// NoUpdateIndex skips the auto search-index update hook for this listing.
+	// Wrapper drivers set it when listing their underlying storage so the real
+	// path is not auto-indexed alongside the wrapper's mount path.
+	NoUpdateIndex bool
 }
 
 func List(ctx context.Context, path string, args *ListArgs) ([]model.Obj, error) {

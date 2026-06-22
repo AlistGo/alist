@@ -110,7 +110,7 @@ func (d *Crypt) List(ctx context.Context, dir model.Obj, args model.ListArgs) ([
 	//return d.list(ctx, d.RemotePath, path)
 	//remoteFull
 
-	objs, err := fs.List(ctx, d.getPathForRemote(path, true), &fs.ListArgs{NoLog: true})
+	objs, err := fs.List(ctx, d.getPathForRemote(path, true), &fs.ListArgs{NoLog: true, NoUpdateIndex: true})
 	// the obj must implement the model.SetPath interface
 	// return objs, err
 	if err != nil {
