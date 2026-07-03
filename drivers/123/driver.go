@@ -122,7 +122,7 @@ func (d *Pan123) Link(ctx context.Context, file model.Obj, args model.LinkArgs) 
 		}
 		u_ := u.String()
 		log.Debug("download url: ", u_)
-		res, err := base.NoRedirectClient.R().SetHeader("Referer", "https://www.123pan.com/").Get(u_)
+		res, err := base.NoRedirectClient.R().SetHeader("Referer", "https://yun.123pan.com/").Get(u_)
 		if err != nil {
 			return nil, err
 		}
@@ -137,7 +137,7 @@ func (d *Pan123) Link(ctx context.Context, file model.Obj, args model.LinkArgs) 
 			link.URL = utils.Json.Get(res.Body(), "data", "redirect_url").ToString()
 		}
 		link.Header = http.Header{
-			"Referer": []string{"https://www.123pan.com/"},
+			"Referer": []string{"https://yun.123pan.com/"},
 		}
 		return &link, nil
 	} else {
