@@ -33,6 +33,7 @@ import (
 	_ "github.com/alist-org/alist/v3/drivers/doubao_new"
 	_ "github.com/alist-org/alist/v3/drivers/doubao_share"
 	_ "github.com/alist-org/alist/v3/drivers/dropbox"
+	_ "github.com/alist-org/alist/v3/drivers/emby"
 	_ "github.com/alist-org/alist/v3/drivers/febbox"
 	_ "github.com/alist-org/alist/v3/drivers/ftp"
 	_ "github.com/alist-org/alist/v3/drivers/ftps"
