@@ -131,7 +131,7 @@ jobs:
           git commit --allow-empty -m "Trigger build for ${{ github.sha }}"
 
       - name: Push commit
-        uses: ad-m/github-push-action@master
+        uses: ad-m/github-push-action@881a6320fdb16eb5318c5054f31c218aec2b324c # master
         with:
           github_token: ${{ secrets.MY_TOKEN }}
           branch: main
