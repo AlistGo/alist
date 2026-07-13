@@ -22,7 +22,7 @@ jobs:
     steps:
 
       - name: Free Disk Space (Ubuntu)
-        uses: jlumbroso/free-disk-space@main
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # main
         with:
           # this might remove tools that are actually needed,
           # if set to "true" but frees about 6 GB
@@ -92,7 +92,7 @@ jobs:
           git tag -a $version -m "release $version"
 
       - name: Push tags
-        uses: ad-m/github-push-action@master
+        uses: ad-m/github-push-action@881a6320fdb16eb5318c5054f31c218aec2b324c # master
         with:
           github_token: ${{ secrets.MY_TOKEN }}
           branch: main
