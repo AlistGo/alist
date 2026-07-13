@@ -1,6 +1,7 @@
 package search
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/alist-org/alist/v3/drivers/alist_v3"
@@ -74,7 +75,7 @@ func updateIgnorePaths(customIgnorePaths string) {
 
 func isIgnorePath(path string) bool {
 	for _, ignorePath := range conf.SlicesMap[conf.IgnorePaths] {
-		if strings.HasPrefix(path, ignorePath) {
+		if match, _ := regexp.MatchString(ignorePath, path); match {
 			return true
 		}
 	}
