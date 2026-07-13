@@ -6,6 +6,11 @@ import (
 	"github.com/alist-org/alist/v3/internal/model"
 )
 
+const (
+	MetadataUploadSessionID = "sys:upload_session_id"
+	MetadataThumbDisabled   = "thumb:disabled"
+)
+
 type Object struct {
 	model.Object
 	StoragePolicy StoragePolicy
@@ -88,7 +93,7 @@ type File struct {
 	CreatedAt     time.Time   `json:"created_at"`
 	UpdatedAt     time.Time   `json:"updated_at"`
 	Size          int64       `json:"size"`
-	Metadata      interface{} `json:"metadata"`
+	Metadata      map[any]any `json:"metadata"`
 	Path          string      `json:"path"`
 	Capability    string      `json:"capability"`
 	Owned         bool        `json:"owned"`
@@ -145,6 +150,15 @@ type FileUploadResp struct {
 	CallbackSecret string        `json:"callback_secret,omitempty"` // for S3-like, OneDrive
 	UploadUrls     []string      `json:"upload_urls,omitempty"`     // for not-local
 	Credential     string        `json:"credential,omitempty"`      // for local
+}
+
+type FileDeleteResp struct {
+	Resp
+	Data []struct {
+		Path  string `json:"path"`
+		Token string `json:"token"`
+		Type  int    `json:"type"`
+	} `json:"data,omitempty"`
 }
 
 type FileThumbResp struct {
