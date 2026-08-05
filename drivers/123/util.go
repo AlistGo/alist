@@ -174,7 +174,7 @@ func (d *Pan123) login() error {
 		return err
 	}
 	if utils.Json.Get(res.Body(), "code").ToInt() != 200 {
-		err = fmt.Errorf(utils.Json.Get(res.Body(), "message").ToString())
+		err = errors.New(utils.Json.Get(res.Body(), "message").ToString())
 	} else {
 		d.AccessToken = utils.Json.Get(res.Body(), "data", "token").ToString()
 	}
