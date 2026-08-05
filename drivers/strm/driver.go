@@ -143,7 +143,7 @@ func (d *Strm) List(ctx context.Context, dir model.Obj, args model.ListArgs) ([]
 	out := make([]model.Obj, 0)
 	for _, targetRoot := range targets {
 		realDir := stdpath.Join(targetRoot, sub)
-		objs, err := fs.List(ctx, realDir, &fs.ListArgs{NoLog: true, Refresh: args.Refresh})
+		objs, err := fs.List(ctx, realDir, &fs.ListArgs{NoLog: true, Refresh: args.Refresh, NoUpdateIndex: true})
 		if err != nil {
 			continue
 		}
@@ -305,7 +305,7 @@ func (d *Strm) collectUnits(ctx context.Context, virtualDir, realDir string, uni
 	if ctx.Err() != nil {
 		return
 	}
-	objs, err := fs.List(ctx, realDir, &fs.ListArgs{NoLog: true, Refresh: true})
+	objs, err := fs.List(ctx, realDir, &fs.ListArgs{NoLog: true, Refresh: true, NoUpdateIndex: true})
 	if err != nil {
 		log.Warnf("strm: generate list failed %s: %v", realDir, err)
 		return

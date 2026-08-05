@@ -49,6 +49,9 @@ func sanitizeFilePath(path string) (string, error) {
 	if !filepath.IsAbs(cleaned) {
 		return "", fmt.Errorf("file path must be absolute: %s", path)
 	}
+	if strings.ContainsAny(cleaned, ";&|`$<>!\n\r\x00") {
+		return "", fmt.Errorf("file path contains invalid characters: %s", path)
+	}
 	info, err := os.Stat(cleaned)
 	if err != nil {
 		return "", fmt.Errorf("file path is not accessible: %w", err)

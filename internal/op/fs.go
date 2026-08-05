@@ -143,9 +143,11 @@ func List(ctx context.Context, storage driver.Driver, path string, args model.Li
 		// warp obj name
 		model.WrapObjsName(files)
 		// call hooks
-		go func(reqPath string, files []model.Obj) {
-			HandleObjsUpdateHook(reqPath, files)
-		}(utils.GetFullPath(storage.GetStorage().MountPath, path), files)
+		if !args.NoUpdateIndex {
+			go func(reqPath string, files []model.Obj) {
+				HandleObjsUpdateHook(reqPath, files)
+			}(utils.GetFullPath(storage.GetStorage().MountPath, path), files)
+		}
 
 		// sort objs
 		if storage.Config().LocalSort {

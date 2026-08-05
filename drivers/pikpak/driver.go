@@ -95,7 +95,7 @@ func (d *PikPak) Init(ctx context.Context) (err error) {
 	}
 
 	// 获取CaptchaToken
-	err = d.RefreshCaptchaTokenAtLogin(GetAction(http.MethodGet, "https://api-drive.mypikpak.net/drive/v1/files"), d.Common.GetUserID())
+	err = d.RefreshCaptchaTokenAtLogin(GetAction(http.MethodGet, d.apiURL("/drive/v1/files")), d.Common.GetUserID())
 	if err != nil {
 		return err
 	}
@@ -137,7 +137,7 @@ func (d *PikPak) Link(ctx context.Context, file model.Obj, args model.LinkArgs) 
 	if !d.DisableMediaLink {
 		queryParams["usage"] = "CACHE"
 	}
-	_, err := d.request(fmt.Sprintf("https://api-drive.mypikpak.net/drive/v1/files/%s", file.GetID()),
+	_, err := d.request(fmt.Sprintf(d.apiURL("/drive/v1/files/%s"), file.GetID()),
 		http.MethodGet, func(req *resty.Request) {
 			req.SetQueryParams(queryParams)
 		}, &resp)
@@ -151,13 +151,16 @@ func (d *PikPak) Link(ctx context.Context, file model.Obj, args model.LinkArgs) 
 		url = resp.Medias[0].Link.Url
 	}
 
+	// 按需把直链域名重写为用户选择的 PikPak 域名以提升播放/下载速度
+	url = d.rewriteDownloadURL(url)
+
 	return &model.Link{
 		URL: url,
 	}, nil
 }
 
 func (d *PikPak) MakeDir(ctx context.Context, parentDir model.Obj, dirName string) error {
-	_, err := d.request("https://api-drive.mypikpak.net/drive/v1/files", http.MethodPost, func(req *resty.Request) {
+	_, err := d.request(d.apiURL("/drive/v1/files"), http.MethodPost, func(req *resty.Request) {
 		req.SetBody(base.Json{
 			"kind":      "drive#folder",
 			"parent_id": parentDir.GetID(),
@@ -168,7 +171,7 @@ func (d *PikPak) MakeDir(ctx context.Context, parentDir model.Obj, dirName strin
 }
 
 func (d *PikPak) Move(ctx context.Context, srcObj, dstDir model.Obj) error {
-	_, err := d.request("https://api-drive.mypikpak.net/drive/v1/files:batchMove", http.MethodPost, func(req *resty.Request) {
+	_, err := d.request(d.apiURL("/drive/v1/files:batchMove"), http.MethodPost, func(req *resty.Request) {
 		req.SetBody(base.Json{
 			"ids": []string{srcObj.GetID()},
 			"to": base.Json{
@@ -180,7 +183,7 @@ func (d *PikPak) Move(ctx context.Context, srcObj, dstDir model.Obj) error {
 }
 
 func (d *PikPak) Rename(ctx context.Context, srcObj model.Obj, newName string) error {
-	_, err := d.request("https://api-drive.mypikpak.net/drive/v1/files/"+srcObj.GetID(), http.MethodPatch, func(req *resty.Request) {
+	_, err := d.request(d.apiURL("/drive/v1/files/")+srcObj.GetID(), http.MethodPatch, func(req *resty.Request) {
 		req.SetBody(base.Json{
 			"name": newName,
 		})
@@ -189,7 +192,7 @@ func (d *PikPak) Rename(ctx context.Context, srcObj model.Obj, newName string) e
 }
 
 func (d *PikPak) Copy(ctx context.Context, srcObj, dstDir model.Obj) error {
-	_, err := d.request("https://api-drive.mypikpak.net/drive/v1/files:batchCopy", http.MethodPost, func(req *resty.Request) {
+	_, err := d.request(d.apiURL("/drive/v1/files:batchCopy"), http.MethodPost, func(req *resty.Request) {
 		req.SetBody(base.Json{
 			"ids": []string{srcObj.GetID()},
 			"to": base.Json{
@@ -201,7 +204,7 @@ func (d *PikPak) Copy(ctx context.Context, srcObj, dstDir model.Obj) error {
 }
 
 func (d *PikPak) Remove(ctx context.Context, obj model.Obj) error {
-	_, err := d.request("https://api-drive.mypikpak.net/drive/v1/files:batchTrash", http.MethodPost, func(req *resty.Request) {
+	_, err := d.request(d.apiURL("/drive/v1/files:batchTrash"), http.MethodPost, func(req *resty.Request) {
 		req.SetBody(base.Json{
 			"ids": []string{obj.GetID()},
 		})
@@ -225,7 +228,7 @@ func (d *PikPak) Put(ctx context.Context, dstDir model.Obj, stream model.FileStr
 	}
 
 	var resp UploadTaskData
-	res, err := d.request("https://api-drive.mypikpak.net/drive/v1/files", http.MethodPost, func(req *resty.Request) {
+	res, err := d.request(d.apiURL("/drive/v1/files"), http.MethodPost, func(req *resty.Request) {
 		req.SetBody(base.Json{
 			"kind":        "drive#file",
 			"name":        stream.GetName(),
@@ -275,7 +278,7 @@ func (d *PikPak) OfflineDownload(ctx context.Context, fileUrl string, parentDir 
 	}
 
 	var resp OfflineDownloadResp
-	_, err := d.request("https://api-drive.mypikpak.net/drive/v1/files", http.MethodPost, func(req *resty.Request) {
+	_, err := d.request(d.apiURL("/drive/v1/files"), http.MethodPost, func(req *resty.Request) {
 		req.SetBody(requestBody)
 	}, &resp)
 
@@ -293,7 +296,7 @@ PHASE_TYPE_RUNNING, PHASE_TYPE_ERROR, PHASE_TYPE_COMPLETE, PHASE_TYPE_PENDING
 */
 func (d *PikPak) OfflineList(ctx context.Context, nextPageToken string, phase []string) ([]OfflineTask, error) {
 	res := make([]OfflineTask, 0)
-	url := "https://api-drive.mypikpak.net/drive/v1/tasks"
+	url := d.apiURL("/drive/v1/tasks")
 
 	if len(phase) == 0 {
 		phase = []string{"PHASE_TYPE_RUNNING", "PHASE_TYPE_ERROR", "PHASE_TYPE_COMPLETE", "PHASE_TYPE_PENDING"}
@@ -334,7 +337,7 @@ func (d *PikPak) OfflineList(ctx context.Context, nextPageToken string, phase []
 }
 
 func (d *PikPak) DeleteOfflineTasks(ctx context.Context, taskIDs []string, deleteFiles bool) error {
-	url := "https://api-drive.mypikpak.net/drive/v1/tasks"
+	url := d.apiURL("/drive/v1/tasks")
 	params := map[string]string{
 		"task_ids":     strings.Join(taskIDs, ","),
 		"delete_files": strconv.FormatBool(deleteFiles),

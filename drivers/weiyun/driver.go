@@ -67,7 +67,7 @@ func (d *WeiYun) Init(ctx context.Context) error {
 	})
 
 	// qqCookie保活
-	if d.client.LoginType() == 1 {
+	if d.client.LoginType() == weiyunsdkgo.AccountTypeQQ {
 		d.cron = cron.NewCron(time.Minute * 5)
 		d.cron.Do(func() {
 			_ = d.client.KeepAlive()

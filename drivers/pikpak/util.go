@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -93,13 +94,101 @@ const (
 	PCSdkVersion         = "8.0.3"
 )
 
+// defaultPikPakDomain is the API domain used when api_domain is left empty.
+const defaultPikPakDomain = "mypikpak.net"
+
+// pikPakDomains is the list of known PikPak domains whose host can be swapped
+// on download/play links. See issue #9559.
+var pikPakDomains = []string{"mypikpak.com", "mypikpak.net", "pikpak.me", "pikpakdrive.com"}
+
+// domainOptionMap maps the built-in select option keys (which avoid dots so the
+// web UI renders readable labels) to the real domains.
+var domainOptionMap = map[string]string{
+	"mypikpak_net":    "mypikpak.net",
+	"mypikpak_com":    "mypikpak.com",
+	"pikpak_me":       "pikpak.me",
+	"pikpakdrive_com": "pikpakdrive.com",
+}
+
+// resolveDomainOption turns a built-in option key into its real domain, while
+// passing through any value already in domain form (manual entry / legacy).
+func resolveDomainOption(v string) string {
+	if domain, ok := domainOptionMap[v]; ok {
+		return domain
+	}
+	return v
+}
+
+// getApiDomain returns the API domain to use: the manually entered
+// custom_api_domain takes precedence over the selected api_domain, and falls
+// back to the default when both are empty.
+func (d *PikPak) getApiDomain() string {
+	if domain := strings.TrimSpace(d.CustomApiDomain); domain != "" {
+		return domain
+	}
+	if domain := strings.TrimSpace(d.ApiDomain); domain != "" {
+		return resolveDomainOption(domain)
+	}
+	return defaultPikPakDomain
+}
+
+// getDownloadDomain returns the domain that download/play links should be
+// rewritten to, or "" when links should be kept unchanged. The manually
+// entered custom_download_domain takes precedence over the selected
+// download_domain; the sentinel "original" means "do not rewrite".
+func (d *PikPak) getDownloadDomain() string {
+	if domain := strings.TrimSpace(d.CustomDownloadDomain); domain != "" {
+		return domain
+	}
+	if domain := strings.TrimSpace(d.DownloadDomain); domain != "" && domain != "original" {
+		return resolveDomainOption(domain)
+	}
+	return ""
+}
+
+// apiURL builds an api-drive.<domain> URL for the given path (path starts with "/").
+func (d *PikPak) apiURL(path string) string {
+	return "https://api-drive." + d.getApiDomain() + path
+}
+
+// userURL builds a user.<domain> URL for the given path (path starts with "/").
+func (d *PikPak) userURL(path string) string {
+	return "https://user." + d.getApiDomain() + path
+}
+
+// rewriteDownloadURL rewrites the host of a download/play link to the configured
+// download_domain, keeping the original subdomain prefix (e.g. dl-a.mypikpak.com
+// -> dl-a.mypikpak.net). It is a no-op when download_domain is empty or the link
+// host is not a known PikPak domain.
+func (d *PikPak) rewriteDownloadURL(rawURL string) string {
+	domain := d.getDownloadDomain()
+	if domain == "" || rawURL == "" {
+		return rawURL
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Host == "" {
+		return rawURL
+	}
+	for _, base := range pikPakDomains {
+		if u.Host == base {
+			u.Host = domain
+			return u.String()
+		}
+		if strings.HasSuffix(u.Host, "."+base) {
+			u.Host = strings.TrimSuffix(u.Host, base) + domain
+			return u.String()
+		}
+	}
+	return rawURL
+}
+
 func (d *PikPak) login() error {
 	// 检查用户名和密码是否为空
 	if d.Addition.Username == "" || d.Addition.Password == "" {
 		return errors.New("username or password is empty")
 	}
 
-	url := "https://user.mypikpak.net/v1/auth/signin"
+	url := d.userURL("/v1/auth/signin")
 	// 使用 用户填写的 CaptchaToken —————— (验证后的captcha_token)
 	if d.GetCaptchaToken() == "" {
 		if err := d.RefreshCaptchaTokenInLogin(GetAction(http.MethodPost, url), d.Username); err != nil {
@@ -129,7 +218,7 @@ func (d *PikPak) login() error {
 }
 
 func (d *PikPak) refreshToken(refreshToken string) error {
-	url := "https://user.mypikpak.net/v1/auth/token"
+	url := d.userURL("/v1/auth/token")
 	var e ErrResp
 	res, err := base.RestyClient.SetRetryCount(1).R().SetError(&e).
 		SetHeader("user-agent", "").SetBody(base.Json{
@@ -229,7 +318,7 @@ func (d *PikPak) getFiles(id string) ([]File, error) {
 			"page_token":     pageToken,
 		}
 		var resp Files
-		_, err := d.request("https://api-drive.mypikpak.net/drive/v1/files", http.MethodGet, func(req *resty.Request) {
+		_, err := d.request(d.apiURL("/drive/v1/files"), http.MethodGet, func(req *resty.Request) {
 			req.SetQueryParams(query)
 		}, &resp)
 		if err != nil {
@@ -394,7 +483,7 @@ func (d *PikPak) refreshCaptchaToken(action string, metas map[string]string) err
 	}
 	var e ErrResp
 	var resp CaptchaTokenResponse
-	_, err := d.request("https://user.mypikpak.net/v1/shield/captcha/init", http.MethodPost, func(req *resty.Request) {
+	_, err := d.request(d.userURL("/v1/shield/captcha/init"), http.MethodPost, func(req *resty.Request) {
 		req.SetError(&e).SetBody(param).SetQueryParam("client_id", d.ClientID)
 	}, &resp)
 

@@ -4,14 +4,28 @@ on:
   issues:
     types: [closed]
 
+permissions:
+  issues: write
+
 jobs:
   rm-working:
     runs-on: ubuntu-latest
     steps:
       - name: Remove working label
-        uses: actions-cool/issues-helper@v3
+        uses: actions/github-script@v7
         with:
-          actions: 'remove-labels'
-          token: ${{ secrets.GITHUB_TOKEN }}
-          issue-number: ${{ github.event.issue.number }}
-          labels: 'working,pr-welcome'
+          script: |
+            const labels = ['working', 'pr-welcome'];
+            for (const name of labels) {
+              try {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  name,
+                });
+              } catch (e) {
+                // 404 means the label was not present on the issue; ignore it.
+                if (e.status !== 404) throw e;
+              }
+            }

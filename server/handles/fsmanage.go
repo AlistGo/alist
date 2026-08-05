@@ -1,12 +1,14 @@
 package handles
 
 import (
+	"context"
 	"fmt"
 	"io"
 	stdpath "path"
 
 	"github.com/alist-org/alist/v3/internal/task"
 
+	"github.com/alist-org/alist/v3/internal/conf"
 	"github.com/alist-org/alist/v3/internal/errs"
 	"github.com/alist-org/alist/v3/internal/fs"
 	"github.com/alist-org/alist/v3/internal/model"
@@ -66,6 +68,9 @@ type MoveCopyReq struct {
 	DstDir    string   `json:"dst_dir"`
 	Names     []string `json:"names"`
 	Overwrite bool     `json:"overwrite"`
+	// SkipExisting only takes effect on copy: existing destination files
+	// with the same size are skipped instead of failing the request
+	SkipExisting bool `json:"skip_existing"`
 }
 
 func FsMove(c *gin.Context) {
@@ -169,7 +174,7 @@ func FsCopy(c *gin.Context) {
 		common.ErrorResp(c, errs.PermissionDenied, 403)
 		return
 	}
-	if !req.Overwrite {
+	if !req.Overwrite && !req.SkipExisting {
 		for _, name := range req.Names {
 			dstPath, err := utils.JoinUnderBase(dstDir, name)
 			if err != nil {
@@ -181,6 +186,10 @@ func FsCopy(c *gin.Context) {
 				return
 			}
 		}
+	}
+	var ctx context.Context = c
+	if req.SkipExisting {
+		ctx = context.WithValue(ctx, conf.SkipExistingKey, struct{}{})
 	}
 	var addedTasks []task.TaskExtensionInfo
 	for i, name := range req.Names {
@@ -194,7 +203,7 @@ func FsCopy(c *gin.Context) {
 			common.ErrorResp(c, err, 400)
 			return
 		}
-		t, err := fs.Copy(c, srcPath, dstDir, len(req.Names) > i+1)
+		t, err := fs.Copy(ctx, srcPath, dstDir, len(req.Names) > i+1)
 		if t != nil {
 			addedTasks = append(addedTasks, t)
 		}

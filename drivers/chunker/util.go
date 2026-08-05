@@ -900,5 +900,5 @@ func (d *Chunker) openPartRange(ctx context.Context, link *model.Link, size, off
 }
 
 func fsList(ctx context.Context, remotePath string, refresh bool) ([]model.Obj, error) {
-	return fs.List(ctx, remotePath, &fs.ListArgs{NoLog: true, Refresh: refresh})
+	return fs.List(ctx, remotePath, &fs.ListArgs{NoLog: true, Refresh: refresh, NoUpdateIndex: true})
 }

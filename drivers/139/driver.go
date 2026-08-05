@@ -40,9 +40,10 @@ func (d *Yun139) GetAddition() driver.Additional {
 
 func (d *Yun139) Init(ctx context.Context) error {
 	if d.ref == nil {
-		if len(d.Authorization) == 0 {
-			return fmt.Errorf("authorization is empty")
+		if err := d.validateAndInitCredentials(); err != nil {
+			return err
 		}
+
 		err := d.refreshToken()
 		if err != nil {
 			return err

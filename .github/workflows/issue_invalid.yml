@@ -4,22 +4,29 @@ on:
   issues:
     types: [labeled]
 
+permissions:
+  issues: write
+
 jobs:
   create-comment:
     runs-on: ubuntu-latest
     if: github.event.label.name == 'invalid'
     steps:
-      - name: Create comment
-        uses: actions-cool/issues-helper@v3
+      - name: Comment and close
+        uses: actions/github-script@v7
         with:
-          actions: 'create-comment'
-          token: ${{ secrets.GITHUB_TOKEN }}
-          issue-number: ${{ github.event.issue.number }}
-          body: |
-            Hello @${{ github.event.issue.user.login }}, your issue is invalid and will be closed.
-            你好 @${{ github.event.issue.user.login }}，你的issue无效，将被关闭。
-      - name: Close issue
-        uses: actions-cool/issues-helper@v3
-        with:
-          actions: 'close-issue'
-          token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const user = context.payload.issue.user.login;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `Hello @${user}, your issue is invalid and will be closed.\n你好 @${user}，你的issue无效，将被关闭。`,
+            });
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              state: 'closed',
+              state_reason: 'not_planned',
+            });

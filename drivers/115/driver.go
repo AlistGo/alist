@@ -2,6 +2,7 @@ package _115
 
 import (
 	"context"
+	"net/http"
 	"strings"
 	"sync"
 
@@ -77,6 +78,16 @@ func (d *Pan115) Link(ctx context.Context, file model.Obj, args model.LinkArgs) 
 	link := &model.Link{
 		URL:    downloadInfo.Url.Url,
 		Header: downloadInfo.Header,
+	}
+	// The 115 CDN requires the account Cookie on the download request, but the
+	// SDK sends cookies at the transport layer so they are absent from
+	// downloadInfo.Header. Without it, proxied downloads fail with
+	// 403 "no cookie value". Restore the Cookie so proxy mode works.
+	if link.Header == nil {
+		link.Header = http.Header{}
+	}
+	if link.Header.Get("Cookie") == "" {
+		link.Header.Set("Cookie", d.Cookie)
 	}
 	return link, nil
 }

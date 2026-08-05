@@ -7,13 +7,16 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha1"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"path"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -24,12 +27,53 @@ import (
 	"github.com/alist-org/alist/v3/drivers/base"
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/internal/op"
+	cookiepkg "github.com/alist-org/alist/v3/pkg/cookie"
 	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/alist-org/alist/v3/pkg/utils/random"
 	"github.com/gin-gonic/gin"
 	"github.com/go-resty/resty/v2"
 	jsoniter "github.com/json-iterator/go"
 	log "github.com/sirupsen/logrus"
+)
+
+const (
+	KEY_HEX_1 = "73634235495062495331515373756c734e7253306c673d3d"
+	KEY_HEX_2 = "7150714477323633586746674c337538"
+)
+
+var mailLoginCookieOrder = []string{
+	"behaviorid",
+	"Os_SSo_Sid",
+	"_139_index_isLoginType",
+	"_139_login_version",
+	"Login_UserNumber",
+	"cookiepartid8011",
+	"_139_login_agreement",
+	"UserData",
+	"rmUin8011",
+	"cookiepartid",
+	"UUIDToken",
+	"SkinPath28011",
+	"cbauto",
+	"areaCode8011",
+	"cookieLen",
+	"DEVICE_INFO_DIGEST",
+	"JSESSIONID",
+	"loginProcessFlag",
+	"provCode8011",
+	"S_DEVICE_TOKEN",
+	"taskIdCloud",
+	"UserNowState",
+	"UserNowState8011",
+	"ut8011",
+}
+
+type credentialState int
+
+const (
+	credentialStateAuthorization credentialState = iota
+	credentialStateFullLogin
+	credentialStateCookiesOnly
 )
 
 // do others that not defined in Driver interface
@@ -103,10 +147,19 @@ func (d *Yun139) refreshToken() error {
 		SetBody(reqBody).
 		SetResult(&resp).
 		Post(url)
-	if err != nil {
-		return err
-	}
-	if resp.Return != "0" {
+	if err != nil || resp.Return != "0" {
+		state, stateErr := d.credentialState()
+		if stateErr == nil && state == credentialStateFullLogin {
+			log.Warnf("139yun: failed to refresh token with old token: %v, desc: %s. trying to login with password.", err, resp.Desc)
+			_, loginErr := d.loginWithPassword()
+			if loginErr != nil {
+				return fmt.Errorf("failed to login with password after refresh failed: %w", loginErr)
+			}
+			return nil
+		}
+		if err != nil {
+			return err
+		}
 		return fmt.Errorf("failed to refresh token: %s", resp.Desc)
 	}
 	d.Authorization = base64.StdEncoding.EncodeToString([]byte(splits[0] + ":" + splits[1] + ":" + resp.Token))
@@ -314,8 +367,7 @@ func (d *Yun139) getFiles(catalogID string) ([]model.Obj, error) {
 					Modified: getTime(content.UpdateTime),
 					HashInfo: utils.NewHashInfo(utils.MD5, content.Digest),
 				},
-				Thumbnail: model.Thumbnail{Thumbnail: content.ThumbnailURL},
-				//Thumbnail: content.BigthumbnailURL,
+				Thumbnail: model.Thumbnail{Thumbnail: d.pickThumbnail(content.ThumbnailURL, content.BigthumbnailURL)},
 			}
 			files = append(files, &f)
 		}
@@ -325,6 +377,16 @@ func (d *Yun139) getFiles(catalogID string) ([]model.Obj, error) {
 		start += limit
 	}
 	return files, nil
+}
+
+// pickThumbnail returns the large thumbnail URL when UseLargeThumbnail is
+// enabled and the API provided one, otherwise it falls back to the regular
+// thumbnail URL.
+func (d *Yun139) pickThumbnail(thumbnailURL, bigThumbnailURL string) string {
+	if d.UseLargeThumbnail && bigThumbnailURL != "" {
+		return bigThumbnailURL
+	}
+	return thumbnailURL
 }
 
 func (d *Yun139) newJson(data map[string]interface{}) base.Json {
@@ -381,8 +443,7 @@ func (d *Yun139) familyGetFiles(catalogID string) ([]model.Obj, error) {
 					Ctime:    getTime(content.CreateTime),
 					Path:     path, // 文件所在目录的Path
 				},
-				Thumbnail: model.Thumbnail{Thumbnail: content.ThumbnailURL},
-				//Thumbnail: content.BigthumbnailURL,
+				Thumbnail: model.Thumbnail{Thumbnail: d.pickThumbnail(content.ThumbnailURL, content.BigthumbnailURL)},
 			}
 			files = append(files, &f)
 		}
@@ -436,8 +497,7 @@ func (d *Yun139) groupGetFiles(catalogID string) ([]model.Obj, error) {
 					Ctime:    getTime(content.CreateTime),
 					Path:     path, // 文件所在目录的Path
 				},
-				Thumbnail: model.Thumbnail{Thumbnail: content.ThumbnailURL},
-				//Thumbnail: content.BigthumbnailURL,
+				Thumbnail: model.Thumbnail{Thumbnail: d.pickThumbnail(content.ThumbnailURL, content.BigthumbnailURL)},
 			}
 			files = append(files, &f)
 		}
@@ -677,6 +737,628 @@ func (d *Yun139) getPersonalCloudHost() string {
 	return d.PersonalCloudHost
 }
 
+func parseCookieMap(raw string) map[string]string {
+	cookies := make(map[string]string)
+	for _, c := range cookiepkg.Parse(raw) {
+		if c.Name != "" {
+			cookies[c.Name] = c.Value
+		}
+	}
+	return cookies
+}
+
+func formatCookiesByOrder(cookies map[string]string, orderedNames []string, includeExtraNames bool) string {
+	if len(cookies) == 0 {
+		return ""
+	}
+
+	seen := make(map[string]struct{}, len(orderedNames))
+	parts := make([]string, 0, len(cookies))
+	for _, name := range orderedNames {
+		seen[name] = struct{}{}
+		if value, ok := cookies[name]; ok {
+			parts = append(parts, name+"="+value)
+		}
+	}
+
+	if includeExtraNames {
+		extraNames := make([]string, 0, len(cookies))
+		for name := range cookies {
+			if _, ok := seen[name]; !ok {
+				extraNames = append(extraNames, name)
+			}
+		}
+		sort.Strings(extraNames)
+		for _, name := range extraNames {
+			parts = append(parts, name+"="+cookies[name])
+		}
+	}
+
+	return strings.Join(parts, "; ")
+}
+
+func sanitizeLoginCookies(existingCookies string, newJSessionID string) string {
+	cookies := parseCookieMap(existingCookies)
+	delete(cookies, "JSESSIONID")
+	if newJSessionID != "" {
+		cookies["JSESSIONID"] = newJSessionID
+	}
+	return formatCookiesByOrder(cookies, mailLoginCookieOrder, false)
+}
+
+func mergeMailCookies(existingCookies string, responseCookies []*http.Cookie) string {
+	cookies := parseCookieMap(existingCookies)
+	for _, c := range responseCookies {
+		if c.Name != "" {
+			cookies[c.Name] = c.Value
+		}
+	}
+	return formatCookiesByOrder(cookies, mailLoginCookieOrder, true)
+}
+
+func extractFastLoginCookies(mailCookies string) (sid string, rmkey string) {
+	for _, c := range cookiepkg.Parse(mailCookies) {
+		switch c.Name {
+		case "Os_SSo_Sid":
+			sid = c.Value
+		case "RMKEY":
+			rmkey = c.Value
+		}
+		if sid != "" && rmkey != "" {
+			return sid, rmkey
+		}
+	}
+	return sid, rmkey
+}
+
+func isRedirectStatus(statusCode int) bool {
+	return statusCode >= 300 && statusCode <= 399
+}
+
+func hasCookiePair(raw string) bool {
+	for _, part := range strings.Split(raw, ";") {
+		name, value, ok := strings.Cut(strings.TrimSpace(part), "=")
+		if ok && strings.TrimSpace(name) != "" && value != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func (d *Yun139) step1_password_login() (string, error) {
+	log.Debugf("--- 执行步骤 1: 登录 API ---")
+	loginURL := "https://mail.10086.cn/Login/Login.ashx"
+
+	getResp, err := base.RestyClient.R().Get(loginURL)
+	if err != nil {
+		return "", fmt.Errorf("step1 get jsessionid failed: %w", err)
+	}
+	var jsessionid string
+	for _, cookie := range getResp.Cookies() {
+		if cookie.Name == "JSESSIONID" {
+			jsessionid = cookie.Value
+			break
+		}
+	}
+	if jsessionid == "" {
+		log.Warnf("139yun: failed to get JSESSIONID from GET request.")
+	}
+
+	hashedPassword := sha1Hash(fmt.Sprintf("fetion.com.cn:%s", d.Password))
+	cguid := strconv.FormatInt(time.Now().UnixMilli(), 10)
+	sanitizedCookie := sanitizeLoginCookies(d.MailCookies, jsessionid)
+
+	loginHeaders := map[string]string{
+		"accept":                    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+		"accept-language":           "zh-CN,zh;q=0.9,zh-TW;q=0.8,en-US;q=0.7,en;q=0.6,en-GB;q=0.5",
+		"cache-control":             "max-age=0",
+		"content-type":              "application/x-www-form-urlencoded",
+		"dnt":                       "1",
+		"origin":                    "https://mail.10086.cn",
+		"priority":                  "u=0, i",
+		"referer":                   fmt.Sprintf("https://mail.10086.cn/default.html?&s=1&v=0&u=%s&m=1&ec=S001&resource=indexLogin&clientid=1003&auto=on&cguid=%s&mtime=45", base64.StdEncoding.EncodeToString([]byte(d.Username)), cguid),
+		"sec-ch-ua":                 "\"Microsoft Edge\";v=\"141\", \"Not?A_Brand\";v=\"8\", \"Chromium\";v=\"141\"",
+		"sec-ch-ua-mobile":          "?0",
+		"sec-ch-ua-platform":        "\"Windows\"",
+		"sec-fetch-dest":            "document",
+		"sec-fetch-mode":            "navigate",
+		"sec-fetch-site":            "same-origin",
+		"sec-fetch-user":            "?1",
+		"upgrade-insecure-requests": "1",
+		"user-agent":                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0",
+		"Cookie":                    sanitizedCookie,
+	}
+
+	loginData := url.Values{}
+	loginData.Set("UserName", d.Username)
+	loginData.Set("passOld", "")
+	loginData.Set("auto", "on")
+	loginData.Set("Password", hashedPassword)
+	loginData.Set("webIndexPagePwdLogin", "1")
+	loginData.Set("pwdType", "1")
+	loginData.Set("clientId", "1003")
+	loginData.Set("authType", "2")
+
+	log.Debugf("DEBUG: 登录请求已准备，cookie_count=%d", len(cookiepkg.Parse(sanitizedCookie)))
+
+	client := resty.New().SetRedirectPolicy(resty.NoRedirectPolicy())
+	res, err := client.R().
+		SetHeaders(loginHeaders).
+		SetFormDataFromValues(loginData).
+		Post(loginURL)
+
+	if res == nil {
+		return "", fmt.Errorf("step1 login request failed: response is nil (error: %v)", err)
+	}
+	if err != nil && !isRedirectStatus(res.StatusCode()) {
+		return "", fmt.Errorf("step1 login request failed: status %d: %w", res.StatusCode(), err)
+	}
+	log.Debugf("DEBUG: 登录响应 Status Code: %d", res.StatusCode())
+	log.Debugf("DEBUG: 登录响应 Location present: %t", res.Header().Get("Location") != "")
+
+	var sid, extractedCguid string
+	locationHeader := res.Header().Get("Location")
+	if locationHeader != "" {
+		if ecMatch := regexp.MustCompile(`ec=([^&]+)`).FindStringSubmatch(locationHeader); len(ecMatch) > 1 {
+			return "", fmt.Errorf("risk control triggered: %s", ecMatch[0])
+		}
+
+		sidMatch := regexp.MustCompile(`sid=([^&]+)`).FindStringSubmatch(locationHeader)
+		cguidMatch := regexp.MustCompile(`cguid=([^&]+)`).FindStringSubmatch(locationHeader)
+
+		if len(sidMatch) > 1 {
+			sid = sidMatch[1]
+			log.Debugf("DEBUG: 从 Location 提取到 sid.")
+		} else if strings.Contains(locationHeader, "default.html") {
+			return "", errors.New("authentication failed: sid is missing in default.html redirect")
+		}
+
+		if len(cguidMatch) > 1 {
+			extractedCguid = cguidMatch[1]
+			log.Debugf("DEBUG: 从 Location 提取到 cguid.")
+		}
+	}
+
+	if sid == "" || extractedCguid == "" {
+		for _, cookieStr := range res.Header().Values("Set-Cookie") {
+			ssoSidMatch := regexp.MustCompile(`Os_SSo_Sid=([^;]+)`).FindStringSubmatch(cookieStr)
+			cookieCguidMatch := regexp.MustCompile(`cguid=([^;]+)`).FindStringSubmatch(cookieStr)
+			if len(ssoSidMatch) > 1 && sid == "" {
+				sid = ssoSidMatch[1]
+				log.Debugf("DEBUG: 从 Set-Cookie 提取到 sid.")
+			}
+			if len(cookieCguidMatch) > 1 && extractedCguid == "" {
+				extractedCguid = cookieCguidMatch[1]
+				log.Debugf("DEBUG: 从 Set-Cookie 提取到 cguid.")
+			}
+		}
+	}
+
+	if sid == "" || extractedCguid == "" {
+		return "", errors.New("failed to extract sid or cguid from login response")
+	}
+
+	d.MailCookies = mergeMailCookies(d.MailCookies, res.Cookies())
+	log.Debugf("DEBUG: 更新后的 Cookies 数量: %d", len(cookiepkg.Parse(d.MailCookies)))
+
+	return sid, nil
+}
+
+func (d *Yun139) step2_get_single_token(sid string) (string, error) {
+	log.Debugf("\n--- 执行步骤 2: 换artifact API ---")
+	cguid := strconv.FormatInt(time.Now().UnixMilli(), 10)
+	exchangeArtifactURL := fmt.Sprintf("https://smsrebuild1.mail.10086.cn/setting/s?func=%s&sid=%s&cguid=%s", url.QueryEscape("umc:getArtifact"), sid, cguid)
+
+	_, rmkey := extractFastLoginCookies(d.MailCookies)
+	if rmkey == "" {
+		return "", errors.New("RMKEY not found in MailCookies")
+	}
+
+	res, err := base.RestyClient.R().
+		SetHeaders(map[string]string{
+			"Host":            "smsrebuild1.mail.10086.cn",
+			"Cookie":          "RMKEY=" + rmkey,
+			"Content-Type":    "text/xml; charset=utf-8",
+			"Accept-Encoding": "gzip",
+			"User-Agent":      "okhttp/4.12.0",
+		}).
+		Post(exchangeArtifactURL)
+	if err != nil {
+		return "", fmt.Errorf("step2 exchange artifact request failed: %w", err)
+	}
+
+	log.Debugf("DEBUG: 换passid 响应 Status Code: %d", res.StatusCode())
+	log.Debugf("DEBUG: 换passid 响应 Body length: %d", len(res.Body()))
+
+	dycpwd := jsoniter.Get(res.Body(), "var", "artifact").ToString()
+	if dycpwd == "" {
+		code := jsoniter.Get(res.Body(), "code").ToString()
+		summary := jsoniter.Get(res.Body(), "summary").ToString()
+		if code == "" {
+			if match := regexp.MustCompile(`['"]code['"]\s*:\s*['"]([^'"]+)['"]`).FindSubmatch(res.Body()); len(match) == 2 {
+				code = string(match[1])
+			}
+		}
+		if summary == "" {
+			if match := regexp.MustCompile(`['"]summary['"]\s*:\s*['"]([^'"]+)['"]`).FindSubmatch(res.Body()); len(match) == 2 {
+				summary = string(match[1])
+			}
+		}
+		if code != "" || summary != "" {
+			return "", fmt.Errorf("failed to extract dycpwd from artifact exchange response: code=%s summary=%s", code, summary)
+		}
+		return "", errors.New("failed to extract dycpwd from artifact exchange response")
+	}
+	log.Debugf("DEBUG: dycpwd extracted from artifact exchange response.")
+	return dycpwd, nil
+}
+
+func sha1Hash(data string) string {
+	h := sha1.New()
+	h.Write([]byte(data))
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+func pkcs7Pad(data []byte, blockSize int) []byte {
+	padding := blockSize - len(data)%blockSize
+	return append(data, bytes.Repeat([]byte{byte(padding)}, padding)...)
+}
+
+func pkcs7Unpad(data []byte) ([]byte, error) {
+	length := len(data)
+	if length == 0 {
+		return nil, errors.New("pkcs7: data is empty")
+	}
+	unpadding := int(data[length-1])
+	if unpadding > length {
+		return nil, errors.New("pkcs7: invalid padding")
+	}
+	return data[:length-unpadding], nil
+}
+
+func aesEcbDecrypt(ciphertext []byte, key []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	if len(ciphertext)%block.BlockSize() != 0 {
+		return nil, errors.New("AES ECB decrypt: ciphertext is not a multiple of the block size")
+	}
+
+	decrypted := make([]byte, len(ciphertext))
+	blockSize := block.BlockSize()
+	for bs, be := 0, blockSize; bs < len(ciphertext); bs, be = bs+blockSize, be+blockSize {
+		block.Decrypt(decrypted[bs:be], ciphertext[bs:be])
+	}
+	return pkcs7Unpad(decrypted)
+}
+
+func aesCbcEncrypt(plaintext []byte, key []byte, iv []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	if len(iv) != block.BlockSize() {
+		return nil, fmt.Errorf("aesCbcEncrypt: iv length %d does not match block size %d", len(iv), block.BlockSize())
+	}
+	padded := pkcs7Pad(plaintext, block.BlockSize())
+	ciphertext := make([]byte, len(padded))
+	mode := cipher.NewCBCEncrypter(block, iv)
+	mode.CryptBlocks(ciphertext, padded)
+	return ciphertext, nil
+}
+
+func aesCbcDecrypt(ciphertext []byte, key []byte, iv []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	if len(iv) != block.BlockSize() {
+		return nil, fmt.Errorf("aesCbcDecrypt: iv length %d does not match block size %d", len(iv), block.BlockSize())
+	}
+	if len(ciphertext)%block.BlockSize() != 0 {
+		return nil, errors.New("aesCbcDecrypt: ciphertext is not a multiple of the block size")
+	}
+	decrypted := make([]byte, len(ciphertext))
+	mode := cipher.NewCBCDecrypter(block, iv)
+	mode.CryptBlocks(decrypted, ciphertext)
+	return pkcs7Unpad(decrypted)
+}
+
+func sortedJsonStringify(obj interface{}) (string, error) {
+	if obj == nil {
+		return "null", nil
+	}
+
+	switch v := obj.(type) {
+	case string:
+		var parsed interface{}
+		if err := jsoniter.Unmarshal([]byte(v), &parsed); err == nil {
+			return sortedJsonStringify(parsed)
+		}
+		return jsoniter.MarshalToString(v)
+	case int, float64, bool:
+		return fmt.Sprintf("%v", v), nil
+	case []interface{}:
+		items := make([]string, 0, len(v))
+		for _, item := range v {
+			s, err := sortedJsonStringify(item)
+			if err != nil {
+				return "", err
+			}
+			items = append(items, s)
+		}
+		return fmt.Sprintf("[%s]", strings.Join(items, ",")), nil
+	case map[string]interface{}:
+		sortedKeys := make([]string, 0, len(v))
+		for key := range v {
+			sortedKeys = append(sortedKeys, key)
+		}
+		sort.Strings(sortedKeys)
+
+		pairs := make([]string, 0, len(v))
+		for _, key := range sortedKeys {
+			value, err := sortedJsonStringify(v[key])
+			if err != nil {
+				return "", err
+			}
+			keyStr, err := jsoniter.MarshalToString(key)
+			if err != nil {
+				return "", err
+			}
+			pairs = append(pairs, fmt.Sprintf("%s:%s", keyStr, value))
+		}
+		return fmt.Sprintf("{%s}", strings.Join(pairs, ",")), nil
+	default:
+		return jsoniter.MarshalToString(v)
+	}
+}
+
+func (d *Yun139) yun139EncryptedRequest(url string, body interface{}, headers map[string]string, aesKeyHex string, resp interface{}) ([]byte, error) {
+	aesKey, err := hex.DecodeString(aesKeyHex)
+	if err != nil {
+		return nil, fmt.Errorf("yun139EncryptedRequest: failed to decode AES key: %w", err)
+	}
+
+	sortedJson, err := sortedJsonStringify(body)
+	if err != nil {
+		return nil, fmt.Errorf("yun139EncryptedRequest: failed to marshal and sort body: %w", err)
+	}
+	log.Debugf("yun139EncryptedRequest: plaintext request body prepared, length=%d", len(sortedJson))
+
+	iv := make([]byte, 16)
+	if _, err := rand.Read(iv); err != nil {
+		return nil, fmt.Errorf("yun139EncryptedRequest: failed to generate IV: %w", err)
+	}
+	encryptedBody, err := aesCbcEncrypt([]byte(sortedJson), aesKey, iv)
+	if err != nil {
+		return nil, fmt.Errorf("yun139EncryptedRequest: failed to encrypt body: %w", err)
+	}
+	payload := base64.StdEncoding.EncodeToString(append(iv, encryptedBody...))
+
+	res, err := base.RestyClient.R().
+		SetHeaders(headers).
+		SetBody(payload).
+		Post(url)
+	if err != nil {
+		return nil, fmt.Errorf("yun139EncryptedRequest: http request failed: %w", err)
+	}
+	if res.StatusCode() != http.StatusOK {
+		return nil, fmt.Errorf("yun139EncryptedRequest: unexpected status code %d: %s", res.StatusCode(), res.String())
+	}
+
+	respBody := res.Body()
+	var decryptedBytes []byte
+	if len(respBody) > 0 && respBody[0] == '{' {
+		log.Warnf("yun139EncryptedRequest: received a plain JSON response, not an encrypted string, length=%d", len(respBody))
+		decryptedBytes = respBody
+	} else {
+		decodedResp, err := base64.StdEncoding.DecodeString(string(respBody))
+		if err != nil {
+			return nil, fmt.Errorf("yun139EncryptedRequest: response base64 decode failed: %w. Body: '%s'", err, string(respBody))
+		}
+		if len(decodedResp) < 16 {
+			return nil, fmt.Errorf("yun139EncryptedRequest: decoded response is too short to be encrypted. Length: %d", len(decodedResp))
+		}
+		decryptedBytes, err = aesCbcDecrypt(decodedResp[16:], aesKey, decodedResp[:16])
+		if err != nil {
+			return nil, fmt.Errorf("yun139EncryptedRequest: response aes decrypt failed: %w", err)
+		}
+	}
+	log.Debugf("yun139EncryptedRequest: decrypted response body received, length=%d", len(decryptedBytes))
+
+	if resp != nil {
+		if err := utils.Json.Unmarshal(decryptedBytes, resp); err != nil {
+			return nil, fmt.Errorf("yun139EncryptedRequest: failed to unmarshal decrypted response: %w", err)
+		}
+	}
+	return decryptedBytes, nil
+}
+
+func (d *Yun139) step3_third_party_login(dycpwd string) (string, error) {
+	log.Debugf("\n--- 执行步骤 3: 单点登录 API ---")
+	ssoLoginURL := "https://user-njs.yun.139.com/user/thirdlogin"
+
+	decryptedLayer1StrBytes, err := d.yun139EncryptedRequest(ssoLoginURL, base.Json{
+		"clientkey_decrypt": "l3TryM&Q+X7@dzwk)qP",
+		"clienttype":        "886",
+		"cpid":              "507",
+		"dycpwd":            dycpwd,
+		"extInfo":           base.Json{"ifOpenAccount": "0"},
+		"loginMode":         "0",
+		"msisdn":            d.Username,
+		"pintype":           "13",
+		"secinfo":           strings.ToUpper(sha1Hash(fmt.Sprintf("fetion.com.cn:%s", dycpwd))),
+		"version":           "20250901",
+	}, map[string]string{
+		"hcy-cool-flag":       "1",
+		"x-huawei-channelSrc": "10246600",
+		"x-sdk-channelSrc":    "",
+		"x-MM-Source":         "0",
+		"x-UserAgent":         "android|23116PN5BC|android15|1.2.6|||1440x3200|10246600",
+		"x-DeviceInfo":        "4|127.0.0.1|5|1.2.6|Xiaomi|23116PN5BC||02-00-00-00-00-00|android 15|1440x3200|android|||",
+		"Content-Type":        "text/plain;charset=UTF-8",
+		"Host":                "user-njs.yun.139.com",
+		"Accept-Encoding":     "gzip",
+		"User-Agent":          "okhttp/3.12.2",
+	}, KEY_HEX_1, nil)
+	if err != nil {
+		return "", fmt.Errorf("step3 encrypted request failed: %w", err)
+	}
+
+	hexInner := jsoniter.Get(decryptedLayer1StrBytes, "data").ToString()
+	if hexInner == "" {
+		return "", errors.New("missing data field in first layer decryption result")
+	}
+	log.Debugf("DEBUG: 第一层解密提取到 hex_inner, length=%d", len(hexInner))
+
+	key2, err := hex.DecodeString(KEY_HEX_2)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode KEY_HEX_2: %w", err)
+	}
+	hexInnerBytes, err := hex.DecodeString(hexInner)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode hex_inner: %w", err)
+	}
+	finalJsonStrBytes, err := aesEcbDecrypt(hexInnerBytes, key2)
+	if err != nil {
+		return "", fmt.Errorf("step3 response layer2 aes ecb decrypt failed: %w", err)
+	}
+	log.Debugf("DEBUG: third party login response decrypted.")
+
+	authToken := jsoniter.Get(finalJsonStrBytes, "authToken").ToString()
+	if authToken == "" {
+		return "", errors.New("failed to extract authToken from final decryption result")
+	}
+
+	account := jsoniter.Get(finalJsonStrBytes, "account").ToString()
+	userDomainId := jsoniter.Get(finalJsonStrBytes, "userDomainId").ToString()
+	if account == "" || userDomainId == "" {
+		return "", errors.New("failed to extract account or userDomainId from final decryption result")
+	}
+
+	d.Account = account
+	d.UserDomainID = userDomainId
+	return base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("pc:%s:%s", account, authToken))), nil
+}
+
+func (d *Yun139) validateAndInitCredentials() error {
+	state, err := d.credentialState()
+	if err != nil {
+		return err
+	}
+
+	switch state {
+	case credentialStateAuthorization:
+		log.Debugf("139yun: Authorization exists, skipping initialization login.")
+		return nil
+	case credentialStateFullLogin, credentialStateCookiesOnly:
+		log.Infof("139yun: Authorization missing, attempting login...")
+		if d.tryFastLoginWithCookies() {
+			return nil
+		}
+		if state == credentialStateCookiesOnly {
+			return fmt.Errorf("fast login with cookies failed, and cannot fallback to password login (missing username/password)")
+		}
+		log.Infof("139yun: fast login failed or not possible, performing full password login (Step 1).")
+		_, err := d.loginWithPassword()
+		if err != nil {
+			return fmt.Errorf("login with password failed: %w", err)
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported credential state: %d", state)
+	}
+}
+
+func (d *Yun139) credentialState() (credentialState, error) {
+	d.Authorization = strings.TrimSpace(d.Authorization)
+	d.Username = strings.TrimSpace(d.Username)
+	d.MailCookies = strings.TrimSpace(d.MailCookies)
+
+	if d.Authorization != "" {
+		if strings.HasPrefix(strings.ToLower(d.Authorization), "basic ") {
+			return 0, fmt.Errorf("authorization should not include Basic prefix")
+		}
+		return credentialStateAuthorization, nil
+	}
+
+	if d.MailCookies != "" && !hasCookiePair(d.MailCookies) {
+		return 0, fmt.Errorf("MailCookies format is invalid, please check your configuration")
+	}
+
+	hasUsername := d.Username != ""
+	hasPassword := strings.TrimSpace(d.Password) != ""
+	hasCookies := d.MailCookies != ""
+	if hasUsername || hasPassword {
+		if !hasUsername || !hasPassword || !hasCookies {
+			return 0, fmt.Errorf("if username or password is provided, all three (mail_cookies, username, password) must be provided")
+		}
+		return credentialStateFullLogin, nil
+	}
+
+	if hasCookies {
+		return credentialStateCookiesOnly, nil
+	}
+
+	return 0, fmt.Errorf("authorization is empty and credentials are not provided")
+}
+
+func (d *Yun139) tryFastLoginWithCookies() bool {
+	sid, rmkey := extractFastLoginCookies(d.MailCookies)
+	if sid == "" || rmkey == "" {
+		log.Warnf("139yun: fast login skipped, required cookies missing: Os_SSo_Sid=%t RMKEY=%t", sid != "", rmkey != "")
+		return false
+	}
+
+	log.Infof("139yun: attempting fast login using existing SID/Cookies (Step 2).")
+	token, err := d.step2_get_single_token(sid)
+	if err != nil || token == "" {
+		log.Warnf("139yun: fast login Step 2 failed: %v", err)
+		return false
+	}
+
+	log.Infof("139yun: Step 2 success. Proceeding to Step 3.")
+	auth, err := d.step3_third_party_login(token)
+	if err != nil {
+		log.Warnf("139yun: fast login Step 3 failed: %v", err)
+		return false
+	}
+
+	d.Authorization = auth
+	op.MustSaveDriverStorage(d)
+	log.Infof("139yun: fast login success (Step 2 -> Step 3).")
+	return true
+}
+
+func (d *Yun139) loginWithPassword() (string, error) {
+	if d.Username == "" || d.Password == "" || d.MailCookies == "" {
+		return "", errors.New("username, password or mail_cookies is empty")
+	}
+
+	passId, err := d.step1_password_login()
+	if err != nil {
+		return "", err
+	}
+	log.Infof("Step 1 success.")
+
+	token, err := d.step2_get_single_token(passId)
+	if err != nil {
+		return "", err
+	}
+	log.Infof("Step 2 success.")
+
+	newAuth, err := d.step3_third_party_login(token)
+	if err != nil {
+		return "", err
+	}
+	log.Infof("Step 3 success, new authorization generated.")
+
+	d.Authorization = newAuth
+	op.MustSaveDriverStorage(d)
+	return newAuth, nil
+}
+
 func (d *Yun139) sharePost(pathname string, data interface{}, resp interface{}) ([]byte, error) {
 	crypto := NewYunCrypto()
 	encryptedBody, err := crypto.Encrypt(data)
@@ -784,11 +1466,9 @@ func (d *Yun139) shareGetFiles(pCaID string) ([]model.Obj, error) {
 		}
 		files = append(files, &f)
 	}
-    
+
 	return files, nil
 }
-
-
 
 type YunCrypto struct {
 	Key       []byte
@@ -1001,7 +1681,7 @@ func (d *Yun139) shareGetLink(coID string) (*model.Link, error) {
 			},
 		}, nil
 	}
-	
+
 	if res.DownloadURL != "" {
 		return &model.Link{URL: res.DownloadURL}, nil
 	}
