@@ -17,6 +17,36 @@ import (
 
 var initialSettingItems []model.SettingItem
 
+// legacyDefaults lists values a setting shipped as its default in versions
+// older than the one PreDefault records. Keeping the whole chain matters
+// because an install only ever carries the default of the version it was set
+// up with: matching just the newest one leaves older installs pinned to a
+// default they never chose.
+var legacyDefaults = map[string][]string{
+	// The original polyfill.io domain changed hands in 2024 and served
+	// malware to visitors. It is no longer needed either: the frontend's
+	// legacy bundle carries the String.prototype.replaceAll polyfill itself.
+	conf.CustomizeHead: {
+		`<script src="https://polyfill.io/v3/polyfill.min.js?features=String.prototype.replaceAll"></script>`,
+	},
+}
+
+// isShippedDefault reports whether value is one of the defaults this setting
+// was seeded with, in this or an earlier version. Such a value was never
+// chosen by the user, so an upgrade is free to replace it with the current
+// default; anything else is treated as a customisation and preserved.
+func isShippedDefault(item *model.SettingItem, value string) bool {
+	if value == item.PreDefault {
+		return true
+	}
+	for _, legacy := range legacyDefaults[item.Key] {
+		if value == legacy {
+			return true
+		}
+	}
+	return false
+}
+
 func initSettings() {
 	InitialSettings()
 	// check deprecated
@@ -52,7 +82,7 @@ func initSettings() {
 				continue
 			}
 		}
-		if stored != nil && item.Key != conf.VERSION && stored.Value != item.PreDefault {
+		if stored != nil && item.Key != conf.VERSION && !isShippedDefault(item, stored.Value) {
 			item.Value = stored.Value
 		}
 		_, err = op.HandleSettingItemHook(item)
