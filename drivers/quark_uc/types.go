@@ -3,7 +3,6 @@ package quark
 import (
 	"time"
 
-	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/pkg/utils"
 )
 
@@ -16,39 +15,20 @@ type Resp struct {
 }
 
 type File struct {
-	Fid      string `json:"fid"`
-	FileName string `json:"file_name"`
-	//PdirFid      string `json:"pdir_fid"`
-	Category int `json:"category"`
-	//FileType     int    `json:"file_type"`
-	Size int64 `json:"size"`
-	//FormatType   string `json:"format_type"`
-	//Status       int    `json:"status"`
-	//Tags         string `json:"tags,omitempty"`
-	LCreatedAt int64 `json:"l_created_at"`
-	LUpdatedAt int64 `json:"l_updated_at"`
-	//NameSpace    int    `json:"name_space"`
-	//IncludeItems int    `json:"include_items,omitempty"`
-	//RiskType     int    `json:"risk_type"`
-	//BackupSign   int    `json:"backup_sign"`
-	//Duration     int    `json:"duration"`
-	//FileSource   string `json:"file_source"`
-	File      bool  `json:"file"`
-	CreatedAt int64 `json:"created_at"`
-	UpdatedAt int64 `json:"updated_at"`
-	//PrivateExtra struct {} `json:"_private_extra"`
-	//ObjCategory string `json:"obj_category,omitempty"`
-	//Thumbnail string `json:"thumbnail,omitempty"`
+	Fid        string `json:"fid"`
+	FileName   string `json:"file_name"`
+	Category   int    `json:"category"`
+	Size       int64  `json:"size"`
+	LCreatedAt int64  `json:"l_created_at"`
+	LUpdatedAt int64  `json:"l_updated_at"`
+	File       bool   `json:"file"`
+	CreatedAt  int64  `json:"created_at"`
+	UpdatedAt  int64  `json:"updated_at"`
+	Thumbnail  string `json:"thumbnail"`
 }
 
-func fileToObj(f File) *model.Object {
-	return &model.Object{
-		ID:       f.Fid,
-		Name:     f.FileName,
-		Size:     f.Size,
-		Modified: time.UnixMilli(f.UpdatedAt),
-		IsFolder: !f.File,
-	}
+func (f *File) Thumb() string {
+	return f.Thumbnail
 }
 
 func (f *File) GetSize() int64 {

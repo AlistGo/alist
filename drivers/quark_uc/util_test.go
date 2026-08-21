@@ -72,6 +72,44 @@ func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
+func TestGetFilesPreservesThumbnail(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/1/clouddrive/file/sort" {
+			http.NotFound(w, r)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"status": 200,
+			"code":   0,
+			"data": map[string]any{
+				"list": []map[string]any{{
+					"fid":       "episode-1",
+					"file_name": "episode.mp4",
+					"file":      true,
+					"thumbnail": "https://example.com/episode.jpg",
+				}},
+			},
+			"metadata": map[string]any{"_total": 1},
+		})
+	}))
+	defer server.Close()
+
+	files, err := newTestDriver(server.URL).GetFiles("0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 1 {
+		t.Fatalf("file count = %d, want 1", len(files))
+	}
+	thumbnail, ok := model.GetThumb(files[0])
+	if !ok {
+		t.Fatal("listed file does not expose a thumbnail")
+	}
+	if want := "https://example.com/episode.jpg"; thumbnail != want {
+		t.Fatalf("thumbnail = %q, want %q", thumbnail, want)
+	}
+}
+
 func TestRefreshPuus(t *testing.T) {
 	rec := &recordHandler{handler: func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/1/clouddrive/config" {

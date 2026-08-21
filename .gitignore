@@ -32,3 +32,11 @@ output/
 !/public/dist/README.md
 
 .VSCodeCounter
+
+# Xcode generated data
+DerivedData/
+.xcuserstate
+xcuserdata/
+
+# Local tvOS verification backend
+/tvos-backend/
