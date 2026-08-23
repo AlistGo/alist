@@ -17,6 +17,7 @@ import (
 	"github.com/alist-org/alist/v3/internal/driver"
 	"github.com/alist-org/alist/v3/internal/model"
 )
+
 // Azure Blob Storage based on the blob APIs
 // Link: https://learn.microsoft.com/rest/api/storageservices/blob-service-rest-api
 type AzureBlob struct {
@@ -84,7 +85,12 @@ func (d *AzureBlob) Drop(ctx context.Context) error {
 
 // List retrieves blobs and directories under the specified path.
 func (d *AzureBlob) List(ctx context.Context, dir model.Obj, args model.ListArgs) ([]model.Obj, error) {
-	prefix := ensureTrailingSlash(dir.GetPath())
+	prefix := dir.GetPath()
+	if prefix == "" || prefix == "/" {
+		prefix = ""
+	} else {
+		prefix = ensureTrailingSlash(prefix)
+	}
 
 	pager := d.containerClient.NewListBlobsHierarchyPager("/", &container.ListBlobsHierarchyOptions{
 		Prefix: &prefix,
