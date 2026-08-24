@@ -133,6 +133,9 @@ func (d *Terabox) post_form(pathname string, params map[string]string, data map[
 func (d *Terabox) getFiles(dir string) ([]File, error) {
 	page := 1
 	num := 100
+	if dir == "" {
+		dir = "/"
+	}
 	params := map[string]string{
 		"dir": dir,
 	}
