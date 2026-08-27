@@ -56,7 +56,7 @@ English | [中文](./README_cn.md) | [日本語](./README_ja.md) | [Contributing
     - [x] [Seafile](https://seafile.com/)
     - [x] [UPYUN Storage Service](https://www.upyun.com/products/file-storage)
     - [x] WebDav(Support OneDrive/SharePoint without API)
-    - [x] Teambition([China](https://www.teambition.com/ ),[International](https://us.teambition.com/ ))
+    - [x] Teambition([China](https://www.teambition.com/ ))
     - [x] [MediaFire](https://www.mediafire.com)
     - [x] [Mediatrack](https://www.mediatrack.cn/)
     - [x] [ProtonDrive](https://proton.me/drive)
@@ -122,7 +122,7 @@ https://alistgo.com/guide/sponsor.html
 
 ### Special sponsors
 
-- [VidHub](https://apps.apple.com/app/apple-store/id1659622164?pt=118612019&ct=alist&mt=8) - An elegant cloud video player within the Apple ecosystem. Support for iPhone, iPad, Mac, and Apple TV.
+- [VidHub](https://okaapps.com/product/1659622164) - An elegant cloud video player within the Apple ecosystem. Support for iPhone, iPad, Mac, and Apple TV.
 
 ## Contributors
 
