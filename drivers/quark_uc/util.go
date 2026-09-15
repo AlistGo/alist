@@ -139,6 +139,14 @@ func (d *QuarkOrUC) GetFiles(parent string) ([]model.Obj, error) {
 }
 
 func (d *QuarkOrUC) getDownloadLink(file model.Obj) (*model.Link, error) {
+	var ut string
+	if d.config.Name == "UC" {
+		var err error
+		ut, err = ucDownloadToken(d.UTDID)
+		if err != nil {
+			return nil, err
+		}
+	}
 	data := base.Json{
 		"fids": []string{file.GetID()},
 	}
@@ -151,6 +159,9 @@ func (d *QuarkOrUC) getDownloadLink(file model.Obj) (*model.Link, error) {
 	reqCookie := d.Cookie
 	d.cookieMu.Unlock()
 	_, err := d.requestWithCookie("/file/download", http.MethodPost, func(req *resty.Request) {
+		if ut != "" {
+			req.SetQueryParam("ut", ut)
+		}
 		req.SetHeader("User-Agent", ua).
 			SetBody(data)
 	}, &resp, reqCookie)
@@ -158,6 +169,9 @@ func (d *QuarkOrUC) getDownloadLink(file model.Obj) (*model.Link, error) {
 		return nil, err
 	}
 
+	if len(resp.Data) == 0 || resp.Data[0].DownloadUrl == "" {
+		return nil, errors.New("no download link found")
+	}
 	link := &model.Link{
 		URL: resp.Data[0].DownloadUrl,
 		Header: http.Header{

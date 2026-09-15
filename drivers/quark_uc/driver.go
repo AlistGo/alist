@@ -47,6 +47,15 @@ func (d *QuarkOrUC) GetAddition() driver.Additional {
 }
 
 func (d *QuarkOrUC) Init(ctx context.Context) error {
+	if d.config.Name == "UC" {
+		if d.UTDID == "" {
+			d.UTDID = newUCDeviceID()
+			op.MustSaveDriverStorage(d)
+		}
+		if _, err := ucDownloadToken(d.UTDID); err != nil {
+			return err
+		}
+	}
 	_, err := d.request("/config", http.MethodGet, nil, nil)
 	if err == nil && d.AdditionVersion != 3 {
 		if d.AdditionVersion < 2 {

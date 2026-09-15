@@ -15,6 +15,8 @@ type Addition struct {
 	DownConcurrency       int    `json:"down_concurrency" type:"number" default:"3" help:"concurrency of ranged download, 0 to disable ranged download"`
 	DownPartSize          int    `json:"down_part_size" type:"number" default:"10" help:"part size (MB) of ranged download"`
 	AdditionVersion       int
+	// UTDID is generated once for UC and persisted with the storage.
+	UTDID string
 }
 
 type Conf struct {
