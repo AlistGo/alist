@@ -20,13 +20,17 @@ func Init() {
 
 	if v3_46_0.IsLegacyRoleDetected() {
 		utils.Log.Warnf("Detected legacy role format, executing ConvertLegacyRoles patch early...")
-		v3_46_0.ConvertLegacyRoles()
+		if err := v3_46_0.ConvertLegacyRoles(); err != nil {
+			utils.Log.Fatalf("Failed to convert legacy roles: %v", err)
+		}
 	}
 
 	data.InitData()
 	bootstrap.InitStreamLimit()
 	bootstrap.InitIndex()
-	bootstrap.InitUpgradePatch()
+	if err := bootstrap.InitUpgradePatch(); err != nil {
+		utils.Log.Fatalf("Failed to apply upgrade patches: %v", err)
+	}
 }
 
 func Release() {

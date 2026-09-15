@@ -1,7 +1,6 @@
 package middlewares
 
 import (
-	"net/url"
 	"strings"
 
 	"github.com/alist-org/alist/v3/internal/conf"
@@ -43,7 +42,8 @@ func Down(verifyFunc func(string, string) error) func(c *gin.Context) {
 }
 
 func parsePath(path string) string {
-	path, _ = url.PathUnescape(path)
+	// Gin has already decoded the URL path. Decoding again corrupts literal
+	// percent signs and filenames containing escape sequences such as %2F.
 	return utils.FixAndCleanPath(path)
 }
 

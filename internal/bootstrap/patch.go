@@ -1,24 +1,30 @@
 package bootstrap
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 
+	"github.com/alist-org/alist/v3/cmd/flags"
 	"github.com/alist-org/alist/v3/internal/bootstrap/patch"
 	"github.com/alist-org/alist/v3/internal/conf"
 	"github.com/alist-org/alist/v3/pkg/utils"
-	"strings"
 )
 
 var LastLaunchedVersion = ""
 
-func safeCall(v string, i int, f func()) {
+func safeCall(v string, i int, f func() error) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			utils.Log.Errorf("Recovered from patch (version: %s, index: %d) panic: %v", v, i, r)
+			err = fmt.Errorf("patch %s[%d] panicked: %v", v, i, r)
 		}
 	}()
-
-	f()
+	if err := f(); err != nil {
+		return fmt.Errorf("patch %s[%d]: %w", v, i, err)
+	}
+	return nil
 }
 
 func getVersion(v string) (major, minor, patchNum int, err error) {
@@ -33,42 +39,93 @@ func compareVersion(majorA, minorA, patchNumA, majorB, minorB, patchNumB int) bo
 	if minorA != minorB {
 		return minorA > minorB
 	}
-	if patchNumA != patchNumB {
-		return patchNumA > patchNumB
-	}
-	return true
+	return patchNumA >= patchNumB
 }
 
-func InitUpgradePatch() {
-	if !strings.HasPrefix(conf.Version, "v") {
-		for _, vp := range patch.UpgradePatches {
-			for i, p := range vp.Patches {
-				safeCall(vp.Version, i, p)
-			}
-		}
-		return
+func InitUpgradePatch() error {
+	release := strings.HasPrefix(conf.Version, "v")
+	if release && LastLaunchedVersion == conf.Version {
+		return nil
 	}
-	if LastLaunchedVersion == conf.Version {
-		return
+	previous := LastLaunchedVersion
+	if previous == "" {
+		previous = "v0.0.0"
 	}
-	if LastLaunchedVersion == "" {
-		LastLaunchedVersion = "v0.0.0"
-	}
-	major, minor, patchNum, err := getVersion(LastLaunchedVersion)
+	major, minor, patchNum, err := getVersion(previous)
 	if err != nil {
-		utils.Log.Warnf("Failed to parse last launched version %s: %v, skipping all patches and rewrite last launched version", LastLaunchedVersion, err)
-		return
+		// Development builds can predate any migration. Replay idempotent
+		// patches rather than marking an unknown database as already upgraded.
+		utils.Log.Warnf("Cannot parse last launched version %q; checking all upgrade patches", previous)
+		major, minor, patchNum = 0, 0, 0
 	}
 	for _, vp := range patch.UpgradePatches {
 		ma, mi, pn, err := getVersion(vp.Version)
 		if err != nil {
-			utils.Log.Errorf("Skip invalid version %s patches: %v", vp.Version, err)
-			continue
+			return fmt.Errorf("invalid patch version %s: %w", vp.Version, err)
 		}
-		if compareVersion(ma, mi, pn, major, minor, patchNum) {
+		if !release || compareVersion(ma, mi, pn, major, minor, patchNum) {
 			for i, p := range vp.Patches {
-				safeCall(vp.Version, i, p)
+				if err := safeCall(vp.Version, i, p); err != nil {
+					return err
+				}
 			}
 		}
 	}
+	if release {
+		return recordLaunchedVersion()
+	}
+	return nil
+}
+
+// Persist only the version field from the on-disk config. Runtime config may
+// contain environment overrides and must not be written back here.
+func recordLaunchedVersion() error {
+	configPath := filepath.Join(flags.DataDir, "config.json")
+	body, err := os.ReadFile(configPath)
+	if err != nil {
+		return err
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(body, &fields); err != nil {
+		return err
+	}
+	if fields == nil {
+		return fmt.Errorf("invalid config object in %s", configPath)
+	}
+	fields["last_launched_version"], err = json.Marshal(conf.Version)
+	if err != nil {
+		return err
+	}
+	body, err = json.MarshalIndent(fields, "", "  ")
+	if err != nil {
+		return err
+	}
+	info, err := os.Stat(configPath)
+	if err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(configPath), ".config-upgrade-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+	if err = tmp.Chmod(info.Mode().Perm()); err == nil {
+		_, err = tmp.Write(body)
+	}
+	if err == nil {
+		err = tmp.Sync()
+	}
+	closeErr := tmp.Close()
+	if err != nil {
+		return err
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	if err := os.Rename(tmp.Name(), configPath); err != nil {
+		return err
+	}
+	conf.Conf.LastLaunchedVersion = conf.Version
+	LastLaunchedVersion = conf.Version
+	return nil
 }

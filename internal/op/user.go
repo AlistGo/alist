@@ -111,26 +111,9 @@ func GetUsers(pageIndex, pageSize int) (users []model.User, count int64, err err
 }
 
 func CreateUser(u *model.User) error {
-	u.BasePath = utils.FixAndCleanPath(u.BasePath)
-
-	err := db.CreateUser(u)
-	if err != nil {
-		return err
-	}
-
-	roles, err := GetRolesByUserID(u.ID)
-	if err == nil {
-		for _, role := range roles {
-			if len(role.PermissionScopes) > 0 {
-				u.BasePath = utils.FixAndCleanPath(role.PermissionScopes[0].Path)
-				break
-			}
-		}
-		_ = db.UpdateUser(u)
-		userCache.Del(u.Username)
-	}
-
-	return nil
+	// Role permission scopes use absolute paths; users always browse from /.
+	u.BasePath = "/"
+	return db.CreateUser(u)
 }
 
 func DeleteUserById(id uint) error {
@@ -157,19 +140,15 @@ func UpdateUser(u *model.User) error {
 		guestUser = nil
 	}
 	userCache.Del(old.Username)
-	u.BasePath = utils.FixAndCleanPath(u.BasePath)
-	//if len(u.Role) > 0 {
-	//	roles, err := GetRolesByUserID(u.ID)
-	//	if err == nil {
-	//		for _, role := range roles {
-	//			if len(role.PermissionScopes) > 0 {
-	//				u.BasePath = utils.FixAndCleanPath(role.PermissionScopes[0].Path)
-	//				break
-	//			}
-	//		}
-	//	}
-	//}
+	u.BasePath = "/"
 	return db.UpdateUser(u)
+}
+
+// ClearUserCache drops users loaded before a startup data migration committed.
+func ClearUserCache() {
+	userCache.Clear()
+	guestUser = nil
+	adminUser = nil
 }
 
 func Cancel2FAByUser(u *model.User) error {

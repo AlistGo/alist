@@ -25,7 +25,7 @@ func initDevData() {
 	err = db.CreateUser(&model.User{
 		Username:   "Noah",
 		Password:   "hsu",
-		BasePath:   "/data",
+		BasePath:   "/",
 		Role:       nil,
 		Permission: 512,
 	})

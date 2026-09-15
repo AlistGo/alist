@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/alist-org/alist/v3/internal/conf"
-	"github.com/alist-org/alist/v3/internal/db"
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/internal/op"
 	"github.com/alist-org/alist/v3/internal/setting"
@@ -130,11 +129,11 @@ func ladpRegister(username string) (*model.User, error) {
 		Username:   username,
 		Password:   random.String(16),
 		Permission: int32(setting.GetInt(conf.LdapDefaultPermission, 0)),
-		BasePath:   setting.GetStr(conf.LdapDefaultDir),
-		Role:       nil,
+		BasePath:   "/",
+		Role:       model.Roles{op.GetDefaultRoleID()},
 		Disabled:   false,
 	}
-	if err := db.CreateUser(user); err != nil {
+	if err := op.CreateUser(user); err != nil {
 		return nil, err
 	}
 	return user, nil

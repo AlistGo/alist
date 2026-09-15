@@ -13,6 +13,7 @@ import (
 	fs2 "io/fs"
 	"net/http"
 	"os"
+	stdpath "path"
 	"time"
 )
 
@@ -155,9 +156,11 @@ func List(ctx context.Context, path string) ([]os.FileInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	ret := make([]os.FileInfo, len(objs))
-	for i, obj := range objs {
-		ret[i] = &OsFileInfoAdapter{obj: obj}
+	ret := make([]os.FileInfo, 0, len(objs))
+	for _, obj := range objs {
+		if common.CanReadPathByRole(user, stdpath.Join(reqPath, obj.GetName())) {
+			ret = append(ret, &OsFileInfoAdapter{obj: obj})
+		}
 	}
 	return ret, nil
 }

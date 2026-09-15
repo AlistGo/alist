@@ -154,15 +154,15 @@ func autoRegister(username, userID string, err error) (*model.User, error) {
 		Username:   username,
 		Password:   random.String(16),
 		Permission: int32(setting.GetInt(conf.SSODefaultPermission, 0)),
-		BasePath:   setting.GetStr(conf.SSODefaultDir),
+		BasePath:   "/",
 		Role:       model.Roles{op.GetDefaultRoleID()},
 		Disabled:   false,
 		SsoID:      userID,
 	}
-	if err = db.CreateUser(user); err != nil {
+	if err = op.CreateUser(user); err != nil {
 		if strings.HasPrefix(err.Error(), "UNIQUE constraint failed") && strings.HasSuffix(err.Error(), "username") {
 			user.Username = user.Username + "_" + userID
-			if err = db.CreateUser(user); err != nil {
+			if err = op.CreateUser(user); err != nil {
 				return nil, err
 			}
 		} else {

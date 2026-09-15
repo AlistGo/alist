@@ -131,8 +131,7 @@ func (d *FtpMainDriver) AuthUser(cc ftpserver.ClientContext, user, pass string) 
 			return nil, err
 		}
 	}
-	perm := common.MergeRolePermissions(userObj, userObj.BasePath)
-	if userObj.Disabled || !common.HasPermission(perm, common.PermFTPAccess) {
+	if userObj.Disabled || !common.HasChildPermission(userObj, userObj.BasePath, common.PermFTPAccess) {
 		return nil, errors.New("user is not allowed to access via FTP")
 	}
 

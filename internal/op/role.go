@@ -17,6 +17,11 @@ import (
 var roleCache = cache.NewMemCache[*model.Role](cache.WithShards[*model.Role](2))
 var roleG singleflight.Group[*model.Role]
 
+// ClearRoleCache invalidates role snapshots after a committed upgrade migration.
+func ClearRoleCache() {
+	roleCache.Clear()
+}
+
 func init() {
 	model.FetchRole = GetRole
 }

@@ -35,6 +35,26 @@ func HasPermission(perm int32, bit uint) bool {
 	return (perm>>bit)&1 == 1
 }
 
+// IsPathInRoleScope requires an actual scope, not an ancestor exposed only
+// for browsing. In particular, a scoped user cannot copy or move into /.
+func IsPathInRoleScope(u *model.User, reqPath string) bool {
+	if u == nil {
+		return false
+	}
+	for _, rid := range u.Role {
+		role, err := op.GetRole(uint(rid))
+		if err != nil {
+			continue
+		}
+		for _, entry := range role.PermissionScopes {
+			if utils.IsSubPath(entry.Path, reqPath) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func MergeRolePermissions(u *model.User, reqPath string) int32 {
 	if u == nil {
 		return 0
@@ -45,15 +65,9 @@ func MergeRolePermissions(u *model.User, reqPath string) int32 {
 		if err != nil {
 			continue
 		}
-		if reqPath == "/" || utils.PathEqual(reqPath, u.BasePath) {
-			for _, entry := range role.PermissionScopes {
+		for _, entry := range role.PermissionScopes {
+			if utils.IsSubPath(entry.Path, reqPath) {
 				perm |= entry.Permission
-			}
-		} else {
-			for _, entry := range role.PermissionScopes {
-				if utils.IsSubPath(entry.Path, reqPath) {
-					perm |= entry.Permission
-				}
 			}
 		}
 	}

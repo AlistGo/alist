@@ -5,7 +5,6 @@ import (
 	"crypto/subtle"
 	"fmt"
 	"net/http"
-	"net/url"
 	"path"
 	"strings"
 
@@ -119,7 +118,6 @@ func WebDAVAuth(c *gin.Context) {
 	if reqPath == "" {
 		reqPath = "/"
 	}
-	reqPath, _ = url.PathUnescape(reqPath)
 	reqPath, err = webdav.ResolvePath(user, reqPath)
 	if err != nil {
 		c.Status(http.StatusForbidden)

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/alist-org/alist/v3/internal/conf"
 	"github.com/alist-org/alist/v3/internal/db"
 	"github.com/alist-org/alist/v3/internal/model"
@@ -13,7 +14,7 @@ import (
 )
 
 // ConvertLegacyRoles migrates old integer role values to a new role model with permission scopes.
-func ConvertLegacyRoles() {
+func ConvertLegacyRoles() error {
 	guestRole, err := op.GetRoleByName("guest")
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -29,12 +30,10 @@ func ConvertLegacyRoles() {
 				},
 			}
 			if err = op.CreateRole(guestRole); err != nil {
-				utils.Log.Errorf("[convert roles] failed to create guest role: %v", err)
-				return
+				return fmt.Errorf("[convert roles] failed to create guest role: %w", err)
 			}
 		} else {
-			utils.Log.Errorf("[convert roles] failed to get guest role: %v", err)
-			return
+			return fmt.Errorf("[convert roles] failed to get guest role: %w", err)
 		}
 	}
 
@@ -53,12 +52,10 @@ func ConvertLegacyRoles() {
 				},
 			}
 			if err = op.CreateRole(adminRole); err != nil {
-				utils.Log.Errorf("[convert roles] failed to create admin role: %v", err)
-				return
+				return fmt.Errorf("[convert roles] failed to create admin role: %w", err)
 			}
 		} else {
-			utils.Log.Errorf("[convert roles] failed to get admin role: %v", err)
-			return
+			return fmt.Errorf("[convert roles] failed to get admin role: %w", err)
 		}
 	}
 
@@ -77,12 +74,10 @@ func ConvertLegacyRoles() {
 				},
 			}
 			if err = op.CreateRole(generalRole); err != nil {
-				utils.Log.Errorf("[convert roles] failed create general role: %v", err)
-				return
+				return fmt.Errorf("[convert roles] failed create general role: %w", err)
 			}
 		} else {
-			utils.Log.Errorf("[convert roles] failed get general role: %v", err)
-			return
+			return fmt.Errorf("[convert roles] failed get general role: %w", err)
 		}
 	}
 
@@ -90,8 +85,7 @@ func ConvertLegacyRoles() {
 	table := conf.Conf.Database.TablePrefix + "users"
 	rows, err := rawDb.Table(table).Select("id, username, role").Rows()
 	if err != nil {
-		utils.Log.Errorf("[convert roles] failed to get users: %v", err)
-		return
+		return fmt.Errorf("[convert roles] failed to get users: %w", err)
 	}
 	defer rows.Close()
 
@@ -141,7 +135,7 @@ func ConvertLegacyRoles() {
 		if wasSingleInt {
 			err := rawDb.Table(table).Where("id = ?", id).Update("role", newRoles).Error
 			if err != nil {
-				utils.Log.Errorf("[convert roles] failed to update user %s: %v", username, err)
+				return fmt.Errorf("convert role for user %s: %w", username, err)
 			} else {
 				updatedCount++
 				utils.Log.Infof("[convert roles] updated user %s: %v → %v", username, oldRoles, newRoles)
@@ -149,7 +143,11 @@ func ConvertLegacyRoles() {
 		}
 	}
 
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("read legacy user roles: %w", err)
+	}
 	utils.Log.Infof("[convert roles] completed role conversion for %d users", updatedCount)
+	return nil
 }
 
 func IsLegacyRoleDetected() bool {
