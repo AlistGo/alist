@@ -22,7 +22,9 @@ const (
 type deleteFileInfoResp struct {
 	Resp
 	Data struct {
-		List []File `json:"list"`
+		// List is a pointer so an explicit empty list can be told apart from a
+		// response that carries no list at all.
+		List *[]File `json:"list"`
 	} `json:"data"`
 }
 
@@ -60,15 +62,27 @@ func waitDeleteRetry(ctx context.Context, delay time.Duration) error {
 	}
 }
 
-func (d *QuarkOrUC) deleteFileExistsByFID(fid string) (bool, error) {
+func (d *QuarkOrUC) deleteFileExistsByFID(ctx context.Context, fid string) (bool, error) {
 	var resp deleteFileInfoResp
 	_, err := d.request("/file", http.MethodGet, func(req *resty.Request) {
-		req.SetQueryParam("fids", fid)
+		req.SetContext(ctx).SetQueryParam("fids", fid)
 	}, &resp)
 	if err != nil {
 		return false, err
 	}
-	for _, file := range resp.Data.List {
+	// request only reports errors it can read from the HTTP status line, so a
+	// non-JSON gateway page, a 204, or an application-level error delivered with
+	// HTTP 200 all arrive here as a zero-valued response. Absence may only be
+	// derived from a well-formed file query, never from a response that merely
+	// failed to produce a list.
+	if resp.Code != 0 || resp.Status >= 400 {
+		return false, fmt.Errorf("quark file query rejected for fid=%s: status=%d code=%d message=%s",
+			fid, resp.Status, resp.Code, resp.Message)
+	}
+	if resp.Data.List == nil {
+		return false, fmt.Errorf("quark file query returned no list for fid=%s", fid)
+	}
+	for _, file := range *resp.Data.List {
 		if file.Fid == fid {
 			return true, nil
 		}
@@ -112,7 +126,7 @@ func (d *QuarkOrUC) removeReliable(ctx context.Context, obj model.Obj) error {
 			if ctxErr := ctx.Err(); ctxErr != nil {
 				return ctxErr
 			}
-			exists, verifyErr := d.deleteFileExistsByFID(fid)
+			exists, verifyErr := d.deleteFileExistsByFID(ctx, fid)
 			if verifyErr == nil && !exists {
 				log.Warnf("quark delete returned an error but fid=%s is absent; treating delete as success: %v", fid, err)
 				return nil

@@ -292,11 +292,167 @@ func TestDeleteFileExistsByFIDRequiresExactFID(t *testing.T) {
 	defer srv.Close()
 
 	d := newDeleteTestDriver(srv.URL)
-	exists, err := d.deleteFileExistsByFID("target-fid")
+	exists, err := d.deleteFileExistsByFID(context.Background(), "target-fid")
 	if err != nil {
 		t.Fatalf("deleteFileExistsByFID: %v", err)
 	}
 	if exists {
 		t.Fatal("different FID must not verify target existence")
+	}
+}
+
+// deleteAlwaysTransientVerifierServer answers every delete with the observed
+// transient provider error and delegates the verification query to verify.
+func deleteAlwaysTransientVerifierServer(deleteCalls, infoCalls *int, verify http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/1/clouddrive/file/delete":
+			*deleteCalls++
+			writeDeleteJSON(w, http.StatusInternalServerError, Resp{
+				Status: 500, Code: 500, Message: "inner error, requestId verify-guard",
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/1/clouddrive/file":
+			*infoCalls++
+			verify(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	}
+}
+
+func TestRemoveReliableFailsClosedOnNonJSONVerifierResponse(t *testing.T) {
+	verifiers := map[string]http.HandlerFunc{
+		"html gateway 502": func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/html")
+			w.WriteHeader(http.StatusBadGateway)
+			_, _ = w.Write([]byte("<html><body>502 Bad Gateway</body></html>"))
+		},
+		"html waf 403": func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/html")
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte("<html><body>blocked</body></html>"))
+		},
+		"no content": func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNoContent)
+		},
+	}
+	for name, verify := range verifiers {
+		t.Run(name, func(t *testing.T) {
+			deleteCalls, infoCalls := 0, 0
+			srv := httptest.NewServer(deleteAlwaysTransientVerifierServer(&deleteCalls, &infoCalls, verify))
+			defer srv.Close()
+
+			d := newDeleteTestDriver(srv.URL)
+			if err := d.Remove(context.Background(), deleteTestObject("fid-nonjson")); err == nil {
+				t.Fatal("Remove must not report success when verification is not well-formed")
+			}
+			if deleteCalls != deleteControlMaxAttempts || infoCalls != deleteControlMaxAttempts {
+				t.Fatalf("deleteCalls=%d infoCalls=%d, want %d/%d", deleteCalls, infoCalls,
+					deleteControlMaxAttempts, deleteControlMaxAttempts)
+			}
+		})
+	}
+}
+
+func TestRemoveReliableFailsClosedOnRejectedVerifierEnvelope(t *testing.T) {
+	envelopes := map[string]map[string]any{
+		"non zero code": {
+			"status": 200, "code": 31001, "message": "need login",
+			"data": map[string]any{"list": []any{}},
+		},
+		"error status with http 200": {
+			"status": 400, "code": 0, "message": "bad request",
+			"data": map[string]any{"list": []any{}},
+		},
+	}
+	for name, envelope := range envelopes {
+		t.Run(name, func(t *testing.T) {
+			deleteCalls, infoCalls := 0, 0
+			srv := httptest.NewServer(deleteAlwaysTransientVerifierServer(&deleteCalls, &infoCalls,
+				func(w http.ResponseWriter, r *http.Request) {
+					writeDeleteJSON(w, http.StatusOK, envelope)
+				}))
+			defer srv.Close()
+
+			d := newDeleteTestDriver(srv.URL)
+			if err := d.Remove(context.Background(), deleteTestObject("fid-envelope")); err == nil {
+				t.Fatal("Remove must not report success when the provider envelope is rejected")
+			}
+			if deleteCalls != deleteControlMaxAttempts || infoCalls != deleteControlMaxAttempts {
+				t.Fatalf("deleteCalls=%d infoCalls=%d, want %d/%d", deleteCalls, infoCalls,
+					deleteControlMaxAttempts, deleteControlMaxAttempts)
+			}
+		})
+	}
+}
+
+func TestRemoveReliableFailsClosedWhenVerifierListIsMissing(t *testing.T) {
+	bodies := map[string]map[string]any{
+		"data missing": {"status": 200, "code": 0},
+		"data null":    {"status": 200, "code": 0, "data": nil},
+		"list missing": {"status": 200, "code": 0, "data": map[string]any{}},
+		"list null":    {"status": 200, "code": 0, "data": map[string]any{"list": nil}},
+	}
+	for name, body := range bodies {
+		t.Run(name, func(t *testing.T) {
+			deleteCalls, infoCalls := 0, 0
+			srv := httptest.NewServer(deleteAlwaysTransientVerifierServer(&deleteCalls, &infoCalls,
+				func(w http.ResponseWriter, r *http.Request) {
+					writeDeleteJSON(w, http.StatusOK, body)
+				}))
+			defer srv.Close()
+
+			d := newDeleteTestDriver(srv.URL)
+			if err := d.Remove(context.Background(), deleteTestObject("fid-nolist")); err == nil {
+				t.Fatal("Remove must not report success when the response carries no list")
+			}
+			if deleteCalls != deleteControlMaxAttempts || infoCalls != deleteControlMaxAttempts {
+				t.Fatalf("deleteCalls=%d infoCalls=%d, want %d/%d", deleteCalls, infoCalls,
+					deleteControlMaxAttempts, deleteControlMaxAttempts)
+			}
+		})
+	}
+}
+
+func TestDeleteFileExistsByFIDTreatsExplicitEmptyListAsAbsent(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeDeleteJSON(w, http.StatusOK, map[string]any{
+			"status": 200,
+			"code":   0,
+			"data":   map[string]any{"list": []any{}},
+		})
+	}))
+	defer srv.Close()
+
+	d := newDeleteTestDriver(srv.URL)
+	exists, err := d.deleteFileExistsByFID(context.Background(), "target-fid")
+	if err != nil {
+		t.Fatalf("deleteFileExistsByFID: %v", err)
+	}
+	if exists {
+		t.Fatal("an explicit empty list must report the FID as absent")
+	}
+}
+
+func TestDeleteFileExistsByFIDDetectsPresentFID(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeDeleteJSON(w, http.StatusOK, map[string]any{
+			"status": 200,
+			"code":   0,
+			"data": map[string]any{"list": []map[string]any{
+				{"fid": "other-fid", "file_name": "chunk.bucket.4", "file": true},
+				{"fid": "target-fid", "file_name": "chunk.index.4", "file": true},
+			}},
+		})
+	}))
+	defer srv.Close()
+
+	d := newDeleteTestDriver(srv.URL)
+	exists, err := d.deleteFileExistsByFID(context.Background(), "target-fid")
+	if err != nil {
+		t.Fatalf("deleteFileExistsByFID: %v", err)
+	}
+	if !exists {
+		t.Fatal("a list containing the exact FID must report it as present")
 	}
 }
