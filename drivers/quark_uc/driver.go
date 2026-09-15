@@ -1,7 +1,6 @@
 package quark
 
 import (
-	"bytes"
 	"context"
 	"encoding/hex"
 	"hash"
@@ -185,13 +184,13 @@ func (d *QuarkOrUC) Put(ctx context.Context, dstDir model.Obj, stream model.File
 		}
 	}
 	// pre
-	pre, err := d.upPre(stream, dstDir.GetID())
+	pre, err := d.upPreReliable(ctx, stream, dstDir.GetID())
 	if err != nil {
 		return err
 	}
 	log.Debugln("hash: ", md5Str, sha1Str)
 	// hash
-	finish, err := d.upHash(md5Str, sha1Str, pre.Data.TaskId)
+	finish, err := d.upHashReliable(ctx, md5Str, sha1Str, pre.Data.TaskId)
 	if err != nil {
 		return err
 	}
@@ -222,9 +221,7 @@ func (d *QuarkOrUC) Put(ctx context.Context, dstDir model.Obj, stream model.File
 		}
 		left -= int64(n)
 		log.Debugf("left: %d", left)
-		reader := driver.NewLimitedUploadStream(ctx, bytes.NewReader(part))
-		m, err := d.upPart(ctx, pre, stream.GetMimetype(), partNumber, reader)
-		//m, err := driver.UpPart(pre, file.GetMIMEType(), partNumber, bytes, account, md5Str, sha1Str)
+		m, err := d.upPartReliable(ctx, pre, stream.GetMimetype(), partNumber, part)
 		if err != nil {
 			return err
 		}
@@ -235,11 +232,11 @@ func (d *QuarkOrUC) Put(ctx context.Context, dstDir model.Obj, stream model.File
 		partNumber++
 		up(100 * float64(total-left) / float64(total))
 	}
-	err = d.upCommit(pre, md5s)
+	err = d.upCommitReliable(ctx, pre, md5s)
 	if err != nil {
 		return err
 	}
-	return d.upFinish(pre)
+	return d.upFinishReliable(ctx, pre, dstDir.GetID(), stream.GetName(), stream.GetSize())
 }
 
 var _ driver.Driver = (*QuarkOrUC)(nil)
