@@ -5,11 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/alist-org/alist/v3/drivers/base"
 	"github.com/alist-org/alist/v3/internal/model"
+	"github.com/alist-org/alist/v3/internal/op"
+	"github.com/alist-org/alist/v3/pkg/cookie"
 	"github.com/go-resty/resty/v2"
 	log "github.com/sirupsen/logrus"
 )
@@ -38,6 +41,12 @@ type deleteFileInfoResp struct {
 	} `json:"data"`
 }
 
+type deleteFileActionResp struct {
+	Status  *int   `json:"status"`
+	Code    *int   `json:"code"`
+	Message string `json:"message"`
+}
+
 func hasQuarkDeleteErrorTokenPrefix(msg, token string) bool {
 	if msg == token {
 		return true
@@ -59,6 +68,14 @@ func isRetryableQuarkDeleteError(err error) bool {
 	}
 	msg := strings.ToLower(strings.TrimSpace(err.Error()))
 	return hasQuarkDeleteErrorTokenPrefix(msg, "inner error") && strings.Contains(msg, "requestid")
+}
+
+// isAmbiguousQuarkDeleteTransportError reports transport failures returned by
+// net/http. removeReliable checks ctx.Err first, so caller cancellation is not
+// reclassified as a retryable transport ambiguity.
+func isAmbiguousQuarkDeleteTransportError(err error) bool {
+	var urlErr *url.Error
+	return errors.As(err, &urlErr)
 }
 
 func waitDeleteRetry(ctx context.Context, delay time.Duration) error {
@@ -86,30 +103,156 @@ func isQuarkFileNotFound(err error) bool {
 		provErr.Code == quarkFileNotFoundCode
 }
 
+func (d *QuarkOrUC) deleteControlSourceClient() *resty.Client {
+	if d.client != nil {
+		return d.client
+	}
+	return base.RestyClient
+}
+
+// deleteControlNoRetryClient wraps the same concurrency-safe net/http client as
+// the normal Resty client but has an independent Resty retry policy. This keeps
+// transport/TLS/timeout behavior while preventing Resty from replaying a
+// destructive /file/delete before removeReliable can verify the FID.
+func (d *QuarkOrUC) deleteControlNoRetryClient() *resty.Client {
+	source := d.deleteControlSourceClient()
+	client := resty.NewWithClient(source.GetClient()).SetRetryCount(0)
+	client.Header = source.Header.Clone()
+	return client
+}
+
+func (d *QuarkOrUC) mergeDeleteControlResponseCookies(res *resty.Response) {
+	if res == nil {
+		return
+	}
+	var updated bool
+	d.cookieMu.Lock()
+	__puus := cookie.GetCookie(res.Cookies(), "__puus")
+	if __puus != nil {
+		d.Cookie = cookie.SetStr(d.Cookie, "__puus", __puus.Value)
+		updated = true
+	}
+	if d.UseTransCodingAddress && d.config.Name == "Quark" {
+		__pus := cookie.GetCookie(res.Cookies(), "__pus")
+		if __pus != nil {
+			d.Cookie = cookie.SetStr(d.Cookie, "__pus", __pus.Value)
+			updated = true
+		}
+	}
+	d.cookieMu.Unlock()
+	if updated {
+		op.MustSaveDriverStorage(d)
+	}
+}
+
+// deleteControlRequest is the narrow request path used only by delete
+// reliability. It preserves the existing Quark headers, query parameters and
+// cookie-refresh behavior, exposes the actual HTTP status, and can disable
+// Resty's client-level retries for destructive requests without mutating the
+// shared client.
+func (d *QuarkOrUC) deleteControlRequest(
+	ctx context.Context,
+	pathname string,
+	method string,
+	body interface{},
+	result interface{},
+	noRetry bool,
+) (int, error) {
+	client := d.deleteControlSourceClient()
+	if noRetry {
+		client = d.deleteControlNoRetryClient()
+	}
+
+	d.cookieMu.Lock()
+	cookieStr := d.Cookie
+	d.cookieMu.Unlock()
+
+	req := client.R()
+	req.SetHeaders(map[string]string{
+		"Cookie":  cookieStr,
+		"Accept":  "application/json, text/plain, */*",
+		"Referer": d.conf.referer,
+	})
+	req.SetQueryParam("pr", d.conf.pr)
+	req.SetQueryParam("fr", "pc")
+	req.SetContext(ctx)
+	if body != nil {
+		req.SetBody(body)
+	}
+	if result != nil {
+		req.SetResult(result)
+	}
+	var providerResp Resp
+	req.SetError(&providerResp)
+
+	res, err := req.Execute(method, d.conf.api+pathname)
+	if res != nil {
+		d.mergeDeleteControlResponseCookies(res)
+	}
+	if err != nil {
+		if res != nil {
+			return res.StatusCode(), err
+		}
+		return 0, err
+	}
+
+	httpStatus := res.StatusCode()
+	if httpStatus >= http.StatusBadRequest || providerResp.Status >= 400 || providerResp.Code != 0 {
+		return httpStatus, &providerError{
+			HTTPStatus: httpStatus,
+			Status:     providerResp.Status,
+			Code:       providerResp.Code,
+			Message:    providerResp.Message,
+		}
+	}
+	return httpStatus, nil
+}
+
+func (d *QuarkOrUC) deleteFileOnce(ctx context.Context, data base.Json) error {
+	var resp deleteFileActionResp
+	httpStatus, err := d.deleteControlRequest(ctx, "/file/delete", http.MethodPost, data, &resp, true)
+	if err != nil {
+		return err
+	}
+	if httpStatus != http.StatusOK {
+		return fmt.Errorf("quark delete returned unexpected http status=%d", httpStatus)
+	}
+	if resp.Status == nil || resp.Code == nil {
+		return errors.New("quark delete returned incomplete provider envelope")
+	}
+	if *resp.Status != http.StatusOK || *resp.Code != 0 {
+		return &providerError{
+			HTTPStatus: httpStatus,
+			Status:     *resp.Status,
+			Code:       *resp.Code,
+			Message:    resp.Message,
+		}
+	}
+	return nil
+}
+
 // deleteFileExistsByFID resolves a single FID through /file/info, the endpoint
-// that answers per-FID existence directly. Presence requires a successful
-// envelope carrying a data object whose fid equals the requested one; absence
-// requires the exact not-found signature. Everything else — an invalid-FID
-// rejection, an auth failure, a rate limit, a gateway page, malformed JSON, a
-// missing data object, or a mismatched fid — is an error, never absence.
+// that answers per-FID existence directly. Presence requires HTTP 200 and a
+// successful provider envelope carrying a data object whose fid equals the
+// requested one; absence requires the exact not-found signature. Everything
+// else — an invalid-FID rejection, an auth failure, a rate limit, a gateway
+// page, malformed JSON, a missing data object, or a mismatched fid — is an
+// error, never absence.
 func (d *QuarkOrUC) deleteFileExistsByFID(ctx context.Context, fid string) (bool, error) {
 	if fid == "" {
 		return false, errors.New("quark file info requires a non-empty fid")
 	}
 	var resp deleteFileInfoResp
-	_, err := d.request("/file/info", http.MethodGet, func(req *resty.Request) {
-		req.SetContext(ctx).SetQueryParam("fid", fid)
-	}, &resp)
+	httpStatus, err := d.deleteControlRequest(ctx, "/file/info", http.MethodGet, nil, &resp, false)
 	if err != nil {
 		if isQuarkFileNotFound(err) {
 			return false, nil
 		}
 		return false, err
 	}
-	// request only reports errors it can read from the HTTP status line, so a
-	// non-JSON gateway page, a 204, or an application-level error delivered with
-	// HTTP 200 all arrive here as a zero-valued response. Presence may only be
-	// derived from a well-formed answer that names the requested FID.
+	if httpStatus != http.StatusOK {
+		return false, fmt.Errorf("quark file info returned unexpected http status=%d for fid=%s", httpStatus, fid)
+	}
 	if resp.Code == nil || resp.Status == nil {
 		return false, fmt.Errorf("quark file info returned incomplete envelope for fid=%s", fid)
 	}
@@ -141,27 +284,27 @@ func (d *QuarkOrUC) removeReliable(ctx context.Context, obj model.Obj) error {
 			return err
 		}
 
-		_, err := d.request("/file/delete", http.MethodPost, func(req *resty.Request) {
-			req.SetContext(ctx).SetBody(data)
-		}, nil)
+		err := d.deleteFileOnce(ctx, data)
 		if err == nil {
 			return nil
 		}
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
+		}
 
-		retryable := isRetryableQuarkDeleteError(err)
+		providerRetryable := isRetryableQuarkDeleteError(err)
+		transportAmbiguous := isAmbiguousQuarkDeleteTransportError(err)
+		retryable := providerRetryable || transportAmbiguous
 		if retryable {
 			hadTransient = true
 		}
 
-		// A retryable response is ambiguous: Quark may have accepted the delete
-		// before returning the provider error. Verify the immutable FID directly
-		// before replaying the destructive request. After an earlier transient,
+		// A retryable response or transport failure is ambiguous: Quark may have
+		// accepted the delete before returning the error. Verify the immutable FID
+		// before replaying the destructive request. After an earlier ambiguity,
 		// also verify a later non-retryable response so an already-completed
 		// delete is not turned back into a failure.
 		if retryable || hadTransient {
-			if ctxErr := ctx.Err(); ctxErr != nil {
-				return ctxErr
-			}
 			exists, verifyErr := d.deleteFileExistsByFID(ctx, fid)
 			if verifyErr == nil && !exists {
 				log.Warnf("quark delete returned an error but fid=%s is absent; treating delete as success: %v", fid, err)
@@ -169,6 +312,12 @@ func (d *QuarkOrUC) removeReliable(ctx context.Context, obj model.Obj) error {
 			}
 			if verifyErr != nil {
 				log.Warnf("quark delete fid verification failed attempt=%d/%d fid=%s: %v", attempt, deleteControlMaxAttempts, fid, verifyErr)
+				// A transport failure is ambiguous specifically because the request may
+				// have reached the provider. Without a successful verifier result, a
+				// replay would be unsafe, so fail closed instead.
+				if transportAmbiguous {
+					return fmt.Errorf("quark delete transport outcome is ambiguous and fid verification failed: %w", verifyErr)
+				}
 			}
 		}
 
@@ -179,7 +328,7 @@ func (d *QuarkOrUC) removeReliable(ctx context.Context, obj model.Obj) error {
 			return fmt.Errorf("quark delete transient provider error after %d attempts: %w", attempt, err)
 		}
 
-		log.Warnf("quark delete transient provider error attempt=%d/%d fid=%s: %v; retrying", attempt, deleteControlMaxAttempts, fid, err)
+		log.Warnf("quark delete ambiguous error attempt=%d/%d fid=%s: %v; retrying", attempt, deleteControlMaxAttempts, fid, err)
 		if err := waitDeleteRetry(ctx, backoff); err != nil {
 			return err
 		}
