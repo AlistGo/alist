@@ -178,11 +178,14 @@ func (d *Strm) linkRealFile(ctx context.Context, realPath string, args model.Lin
 }
 
 func (d *Strm) syncLocalDir(ctx context.Context, virtualDir string, objs []model.Obj) {
+	if !d.SaveStrmToLocal {
+		return
+	}
 	d.syncLocalDirWithMode(ctx, virtualDir, objs, d.normalizedMode)
 }
 
 func (d *Strm) syncLocalDirWithMode(ctx context.Context, virtualDir string, objs []model.Obj, mode string) {
-	if !d.SaveStrmToLocal || strings.TrimSpace(d.SaveStrmLocalPath) == "" {
+	if strings.TrimSpace(d.SaveStrmLocalPath) == "" {
 		return
 	}
 	baseDir := filepath.Clean(d.SaveStrmLocalPath)
