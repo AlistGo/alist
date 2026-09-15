@@ -145,15 +145,7 @@ func (d *QuarkOrUC) Copy(ctx context.Context, srcObj, dstDir model.Obj) error {
 }
 
 func (d *QuarkOrUC) Remove(ctx context.Context, obj model.Obj) error {
-	data := base.Json{
-		"action_type":  1,
-		"exclude_fids": []string{},
-		"filelist":     []string{obj.GetID()},
-	}
-	_, err := d.request("/file/delete", http.MethodPost, func(req *resty.Request) {
-		req.SetBody(data)
-	}, nil)
-	return err
+	return d.removeReliable(ctx, obj)
 }
 
 func (d *QuarkOrUC) Put(ctx context.Context, dstDir model.Obj, stream model.FileStreamer, up driver.UpdateProgress) error {
