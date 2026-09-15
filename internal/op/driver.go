@@ -173,6 +173,7 @@ func getAdditionalItems(t reflect.Type, defaultRoot string) []driver.Item {
 			Options:  tag.Get("options"),
 			Required: tag.Get("required") == "true",
 			Help:     tag.Get("help"),
+			ShowWhen: tag.Get("show_when"),
 		}
 		if tag.Get("type") != "" {
 			item.Type = tag.Get("type")

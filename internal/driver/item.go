@@ -11,6 +11,10 @@ type Item struct {
 	Options  string `json:"options"`
 	Required bool   `json:"required"`
 	Help     string `json:"help"`
+	// ShowWhen limits when the item is displayed in the storage form, e.g.
+	// "auth_mode=token" or "auth_mode=token|client_credentials". Empty means
+	// always shown. Purely a UI hint; the backend does not enforce it.
+	ShowWhen string `json:"show_when,omitempty"`
 }
 
 type Info struct {

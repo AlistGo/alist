@@ -18,17 +18,17 @@ const (
 type Addition struct {
 	driver.RootID
 
-	AuthMode string `json:"auth_mode" type:"select" options:"client_credentials,token" default:"client_credentials" help:"client_credentials: fill in your own clientID/clientSecret applied on the open platform. token: fill in the access_token (and refresh_token) obtained from an onboarded enterprise's app."`
-
-	// client_credentials mode, also used to refresh tokens in token mode.
-	ClientID     string `json:"client_id" label:"clientID"`
-	ClientSecret string `json:"client_secret" label:"clientSecret"`
+	AuthMode string `json:"auth_mode" type:"select" options:"token,client_credentials" default:"token" help:"token: use the access_token/refresh_token, no developer application needed. client_credentials: use the clientID/clientSecret of your own application on the open platform."`
 
 	// token mode.
-	AccessToken string `json:"access_token" help:"Required in token mode. Refreshed automatically when a refresh_token and client credentials are present."`
+	AccessToken string `json:"access_token" required:"true" show_when:"auth_mode=token" help:"Get it at https://alistgo.com/zh/tool/123pan/request.html"`
 	// RefreshToken is single-use: every refresh returns a new one, which is
 	// written back to the storage config.
-	RefreshToken string `json:"refresh_token" help:"Optional. Single-use and rotated on every refresh; the new value is saved back automatically."`
+	RefreshToken string `json:"refresh_token" show_when:"auth_mode=token" help:"Obtained together with the access_token. Single-use and rotated on every refresh; the new value is saved back automatically."`
+
+	// client_credentials mode, also used to refresh tokens in token mode.
+	ClientID     string `json:"client_id" label:"clientID" required:"true" show_when:"auth_mode=client_credentials"`
+	ClientSecret string `json:"client_secret" label:"clientSecret" required:"true" show_when:"auth_mode=client_credentials"`
 
 	// Direct link signing (anti-leech), configured in the open platform console.
 	PrivateKey    string `json:"private_key" help:"Direct link signing key. Leave empty to return unsigned links."`
