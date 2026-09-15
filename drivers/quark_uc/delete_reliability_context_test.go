@@ -12,7 +12,7 @@ import (
 func TestRemoveReliableCancelsInFlightDeleteRequest(t *testing.T) {
 	started := make(chan struct{}, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost || r.URL.Path != "/1/clouddrive/file/delete" {
+		if r.Method != http.MethodPost || r.URL.Path != fileDeletePath {
 			http.NotFound(w, r)
 			return
 		}
@@ -55,11 +55,11 @@ func TestRemoveReliableCancelsInFlightVerifierRequest(t *testing.T) {
 	verifyStarted := make(chan struct{}, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == http.MethodPost && r.URL.Path == "/1/clouddrive/file/delete":
+		case r.Method == http.MethodPost && r.URL.Path == fileDeletePath:
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusInternalServerError)
 			_, _ = w.Write([]byte(`{"status":500,"code":500,"message":"inner error, requestId verify-cancel"}`))
-		case r.Method == http.MethodGet && r.URL.Path == "/1/clouddrive/file":
+		case r.Method == http.MethodGet && r.URL.Path == fileInfoPath:
 			verifyStarted <- struct{}{}
 			select {
 			case <-r.Context().Done():
@@ -116,16 +116,16 @@ func TestRemoveReliableCancelsDuringRetryBackoff(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == http.MethodPost && r.URL.Path == "/1/clouddrive/file/delete":
+		case r.Method == http.MethodPost && r.URL.Path == fileDeletePath:
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusInternalServerError)
 			_, _ = w.Write([]byte(`{"status":500,"code":500,"message":"inner error, requestId backoff-cancel"}`))
-		case r.Method == http.MethodGet && r.URL.Path == "/1/clouddrive/file":
+		case r.Method == http.MethodGet && r.URL.Path == fileInfoPath:
 			// The FID is still present, so the loop enters the backoff wait.
 			// Cancel here so the cancellation lands during that wait.
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"status":200,"code":0,"data":{"list":[{"fid":"fid-backoff","file":true}]}}`))
+			_, _ = w.Write([]byte(`{"status":200,"code":0,"data":{"fid":"fid-backoff","file":true}}`))
 			cancel()
 		default:
 			http.NotFound(w, r)

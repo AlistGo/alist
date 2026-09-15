@@ -2,6 +2,7 @@ package quark
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -17,14 +18,23 @@ const (
 	deleteControlMaxAttempts    = 3
 	deleteControlInitialBackoff = 250 * time.Millisecond
 	deleteControlMaxBackoff     = 500 * time.Millisecond
+
+	// quarkFileNotFoundCode is the provider code Quark returns from
+	// /file/info for a FID that no longer exists. Observed against the real
+	// provider as HTTP 404 with status 404 and this code; it is the only
+	// signature that may be read as absence.
+	quarkFileNotFoundCode = 21001
 )
 
 type deleteFileInfoResp struct {
-	Resp
-	Data struct {
-		// List is a pointer so an explicit empty list can be told apart from a
-		// response that carries no list at all.
-		List *[]File `json:"list"`
+	Status  *int   `json:"status"`
+	Code    *int   `json:"code"`
+	Message string `json:"message"`
+	// Data is a pointer so a response that carries no data object at all can be
+	// told apart from one that does. Only Fid is read: presence is decided by
+	// exact FID equality and by nothing else the provider may return.
+	Data *struct {
+		Fid string `json:"fid"`
 	} `json:"data"`
 }
 
@@ -62,32 +72,58 @@ func waitDeleteRetry(ctx context.Context, delay time.Duration) error {
 	}
 }
 
+// isQuarkFileNotFound reports whether err is the exact provider signature for a
+// FID that no longer exists. All three fields must match: a 404 without the
+// provider envelope, or the envelope without the HTTP status, is not proof of
+// absence. Matching is structural; the message text is never inspected.
+func isQuarkFileNotFound(err error) bool {
+	var provErr *providerError
+	if !errors.As(err, &provErr) {
+		return false
+	}
+	return provErr.HTTPStatus == http.StatusNotFound &&
+		provErr.Status == http.StatusNotFound &&
+		provErr.Code == quarkFileNotFoundCode
+}
+
+// deleteFileExistsByFID resolves a single FID through /file/info, the endpoint
+// that answers per-FID existence directly. Presence requires a successful
+// envelope carrying a data object whose fid equals the requested one; absence
+// requires the exact not-found signature. Everything else — an invalid-FID
+// rejection, an auth failure, a rate limit, a gateway page, malformed JSON, a
+// missing data object, or a mismatched fid — is an error, never absence.
 func (d *QuarkOrUC) deleteFileExistsByFID(ctx context.Context, fid string) (bool, error) {
+	if fid == "" {
+		return false, errors.New("quark file info requires a non-empty fid")
+	}
 	var resp deleteFileInfoResp
-	_, err := d.request("/file", http.MethodGet, func(req *resty.Request) {
-		req.SetContext(ctx).SetQueryParam("fids", fid)
+	_, err := d.request("/file/info", http.MethodGet, func(req *resty.Request) {
+		req.SetContext(ctx).SetQueryParam("fid", fid)
 	}, &resp)
 	if err != nil {
+		if isQuarkFileNotFound(err) {
+			return false, nil
+		}
 		return false, err
 	}
 	// request only reports errors it can read from the HTTP status line, so a
 	// non-JSON gateway page, a 204, or an application-level error delivered with
-	// HTTP 200 all arrive here as a zero-valued response. Absence may only be
-	// derived from a well-formed file query, never from a response that merely
-	// failed to produce a list.
-	if resp.Code != 0 || resp.Status >= 400 {
-		return false, fmt.Errorf("quark file query rejected for fid=%s: status=%d code=%d message=%s",
-			fid, resp.Status, resp.Code, resp.Message)
+	// HTTP 200 all arrive here as a zero-valued response. Presence may only be
+	// derived from a well-formed answer that names the requested FID.
+	if resp.Code == nil || resp.Status == nil {
+		return false, fmt.Errorf("quark file info returned incomplete envelope for fid=%s", fid)
 	}
-	if resp.Data.List == nil {
-		return false, fmt.Errorf("quark file query returned no list for fid=%s", fid)
+	if *resp.Code != 0 || *resp.Status != http.StatusOK {
+		return false, fmt.Errorf("quark file info rejected for fid=%s: status=%d code=%d message=%s",
+			fid, *resp.Status, *resp.Code, resp.Message)
 	}
-	for _, file := range *resp.Data.List {
-		if file.Fid == fid {
-			return true, nil
-		}
+	if resp.Data == nil {
+		return false, fmt.Errorf("quark file info returned no data for fid=%s", fid)
 	}
-	return false, nil
+	if resp.Data.Fid != fid {
+		return false, fmt.Errorf("quark file info returned fid=%s for requested fid=%s", resp.Data.Fid, fid)
+	}
+	return true, nil
 }
 
 func (d *QuarkOrUC) removeReliable(ctx context.Context, obj model.Obj) error {
