@@ -155,6 +155,7 @@ func (d *QuarkOrUC) deleteControlRequest(
 	pathname string,
 	method string,
 	body interface{},
+	query map[string]string,
 	result interface{},
 	noRetry bool,
 ) (int, error) {
@@ -175,6 +176,9 @@ func (d *QuarkOrUC) deleteControlRequest(
 	})
 	req.SetQueryParam("pr", d.conf.pr)
 	req.SetQueryParam("fr", "pc")
+	if query != nil {
+		req.SetQueryParams(query)
+	}
 	req.SetContext(ctx)
 	if body != nil {
 		req.SetBody(body)
@@ -210,7 +214,7 @@ func (d *QuarkOrUC) deleteControlRequest(
 
 func (d *QuarkOrUC) deleteFileOnce(ctx context.Context, data base.Json) error {
 	var resp deleteFileActionResp
-	httpStatus, err := d.deleteControlRequest(ctx, "/file/delete", http.MethodPost, data, &resp, true)
+	httpStatus, err := d.deleteControlRequest(ctx, "/file/delete", http.MethodPost, data, nil, &resp, true)
 	if err != nil {
 		return err
 	}
@@ -243,7 +247,15 @@ func (d *QuarkOrUC) deleteFileExistsByFID(ctx context.Context, fid string) (bool
 		return false, errors.New("quark file info requires a non-empty fid")
 	}
 	var resp deleteFileInfoResp
-	httpStatus, err := d.deleteControlRequest(ctx, "/file/info", http.MethodGet, nil, &resp, false)
+	httpStatus, err := d.deleteControlRequest(
+		ctx,
+		"/file/info",
+		http.MethodGet,
+		nil,
+		map[string]string{"fid": fid},
+		&resp,
+		false,
+	)
 	if err != nil {
 		if isQuarkFileNotFound(err) {
 			return false, nil
