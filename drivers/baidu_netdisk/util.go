@@ -72,7 +72,7 @@ func (d *BaiduNetdisk) request(furl string, method string, callback base.ReqCall
 		log.Debugf("[baidu_netdisk] req: %s, resp: %s", furl, res.String())
 		errno := utils.Json.Get(res.Body(), "errno").ToInt()
 		if errno != 0 {
-			if utils.SliceContains([]int{111, -6}, errno) {
+			if utils.SliceContains([]int{111, -6, 20016}, errno) {
 				log.Info("[baidu_netdisk] refreshing baidu_netdisk token.")
 				err2 := d.refreshToken()
 				if err2 != nil {

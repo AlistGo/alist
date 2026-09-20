@@ -128,13 +128,6 @@ func openAPIURL(env string) string {
 	}
 }
 
-func openClientSecretForEnv(env string) string {
-	if env == "test" {
-		return openClientSecretQA
-	}
-	return openClientSecret
-}
-
 func phpQueryEscape(raw string) string {
 	escaped := url.QueryEscape(raw)
 	return strings.ReplaceAll(escaped, "~", "%7E")
@@ -189,12 +182,12 @@ func (d *Yunpan360) getOpenAuth(ctx context.Context) (*OpenAuthInfo, error) {
 		SetHeader("Accept", "application/json").
 		SetHeader("api_key", d.APIKey).
 		SetQueryParams(map[string]string{
-			"method":        "Oauth.getAccessTokenByApiKey",
-			"client_id":     openClientID,
-			"client_secret": openClientSecretForEnv(d.EcsEnv),
-			"grant_type":    "authorization_code",
-			"sub_channel":   d.SubChannel,
-			"api_key":       d.APIKey,
+			"method":      "Oauth.getAccessTokenByApiKeyOrQT",
+			"client_env":  d.EcsEnv,
+			"client_src":  "default",
+			"grant_type":  "authorization_code",
+			"sub_channel": d.SubChannel,
+			"api_key":     d.APIKey,
 		})
 
 	res, err := req.Get(reqURL)
@@ -203,14 +196,12 @@ func (d *Yunpan360) getOpenAuth(ctx context.Context) (*OpenAuthInfo, error) {
 	}
 
 	var resp OpenAuthResp
-	if err := utils.Json.Unmarshal(res.Body(), &resp); err != nil {
+	// Error responses may contain data: []; inspect errno before decoding data.
+	if err := decodeBaseResp(res.Body(), &resp); err != nil {
 		return nil, err
 	}
-	if resp.Errno != 0 {
-		if resp.Errmsg == "" {
-			return nil, fmt.Errorf("yunpan auth failed: errno=%d", resp.Errno)
-		}
-		return nil, errors.New(resp.Errmsg)
+	if resp.Data.AccessToken == "" {
+		return nil, errors.New("yunpan auth returned an empty access token")
 	}
 
 	auth := &OpenAuthInfo{
