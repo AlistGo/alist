@@ -10,14 +10,11 @@ import (
 )
 
 const (
-	authTypeCookie     = "cookie"
-	authTypeAPIKey     = "api_key"
-	openEnvProd        = "prod"
-	defaultSubChannel  = "open"
-	openSignSecret     = "e7b24b112a44fdd9ee93bdf998c6ca0e"
-	openClientID       = "e4757e933b6486c08ed206ecb6d5d9e684fcb4e2"
-	openClientSecret   = "885fd3231f1c1e37c9f462261a09b8c38cde0c2b"
-	openClientSecretQA = "b11b8fff1c75a5d227c8cc93aaeb0bb70c8eee47"
+	authTypeCookie    = "cookie"
+	authTypeAPIKey    = "api_key"
+	openEnvProd       = "prod"
+	defaultSubChannel = "open"
+	openSignSecret    = "e7b24b112a44fdd9ee93bdf998c6ca0e"
 )
 
 type BaseResp struct {
