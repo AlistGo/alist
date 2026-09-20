@@ -19,6 +19,8 @@ var config = driver.Config{
 	Name:        "123Pan",
 	DefaultRoot: "0",
 	LocalSort:   true,
+	// Download URLs are bound to the IP that requests them from 123Pan.
+	OnlyProxy: true,
 }
 
 func init() {
