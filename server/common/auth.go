@@ -3,7 +3,6 @@ package common
 import (
 	"time"
 
-	"github.com/Xhofe/go-cache"
 	"github.com/alist-org/alist/v3/internal/conf"
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/golang-jwt/jwt/v4"
@@ -17,8 +16,6 @@ type UserClaims struct {
 	PwdTS    int64  `json:"pwd_ts"`
 	jwt.RegisteredClaims
 }
-
-var validTokenCache = cache.NewMemCache[bool]()
 
 func GenerateToken(user *model.User) (tokenString string, err error) {
 	claim := UserClaims{
@@ -34,7 +31,6 @@ func GenerateToken(user *model.User) (tokenString string, err error) {
 	if err != nil {
 		return "", err
 	}
-	validTokenCache.Set(tokenString, true)
 	return tokenString, err
 }
 
@@ -42,9 +38,6 @@ func ParseToken(tokenString string) (*UserClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &UserClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return SecretKey, nil
 	})
-	if IsTokenInvalidated(tokenString) {
-		return nil, errors.New("token is invalidated")
-	}
 	if err != nil {
 		if ve, ok := err.(*jwt.ValidationError); ok {
 			if ve.Errors&jwt.ValidationErrorMalformed != 0 {
@@ -68,11 +61,11 @@ func InvalidateToken(tokenString string) error {
 	if tokenString == "" {
 		return nil // don't invalidate empty guest token
 	}
-	validTokenCache.Del(tokenString)
+	// JWT validation is intentionally stateless so tokens work across multiple
+	// instances. Revocation is handled by password timestamps and device sessions.
 	return nil
 }
 
 func IsTokenInvalidated(tokenString string) bool {
-	_, ok := validTokenCache.Get(tokenString)
-	return !ok
+	return false
 }
