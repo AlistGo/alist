@@ -46,32 +46,16 @@ func (d *QuarkOrUC) request(pathname string, method string, callback base.ReqCal
 	return d.requestWithCookie(pathname, method, callback, resp, cookieStr)
 }
 
-// requestWithCookie 使用指定的 cookie 发起请求，响应中的 __puus/__pus 会合并回 d.Cookie
-func (d *QuarkOrUC) requestWithCookie(pathname string, method string, callback base.ReqCallback, resp interface{}, cookieStr string) ([]byte, error) {
-	u := d.conf.api + pathname
-	client := base.RestyClient
+func (d *QuarkOrUC) requestClient() *resty.Client {
 	if d.client != nil {
-		client = d.client
+		return d.client
 	}
-	req := client.R()
-	req.SetHeaders(map[string]string{
-		"Cookie":  cookieStr,
-		"Accept":  "application/json, text/plain, */*",
-		"Referer": d.conf.referer,
-	})
-	req.SetQueryParam("pr", d.conf.pr)
-	req.SetQueryParam("fr", "pc")
-	if callback != nil {
-		callback(req)
-	}
-	if resp != nil {
-		req.SetResult(resp)
-	}
-	var e Resp
-	req.SetError(&e)
-	res, err := req.Execute(method, u)
-	if err != nil {
-		return nil, err
+	return base.RestyClient
+}
+
+func (d *QuarkOrUC) mergeResponseCookies(res *resty.Response) {
+	if res == nil {
+		return
 	}
 	var updated bool
 	d.cookieMu.Lock()
@@ -91,6 +75,56 @@ func (d *QuarkOrUC) requestWithCookie(pathname string, method string, callback b
 	if updated {
 		op.MustSaveDriverStorage(d)
 	}
+}
+
+// preRequestClient returns a PRE-only Resty wrapper that reuses the selected
+// client's underlying transport, cookie jar and timeout but disables both Resty
+// retries and HTTP redirects. /file/upload/pre may allocate a task before its
+// response is lost, so neither retry nor redirect replay is safe here.
+func (d *QuarkOrUC) preRequestClient() *resty.Client {
+	source := d.requestClient()
+	sourceHTTP := source.GetClient()
+	httpClient := &http.Client{
+		Transport: sourceHTTP.Transport,
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+		Jar:     sourceHTTP.Jar,
+		Timeout: sourceHTTP.Timeout,
+	}
+	client := resty.NewWithClient(httpClient).SetRetryCount(0)
+	client.Header = source.Header.Clone()
+	client.JSONMarshal = source.JSONMarshal
+	client.JSONUnmarshal = source.JSONUnmarshal
+	client.XMLMarshal = source.XMLMarshal
+	client.XMLUnmarshal = source.XMLUnmarshal
+	return client
+}
+
+// requestWithCookie 使用指定的 cookie 发起请求，响应中的 __puus/__pus 会合并回 d.Cookie
+func (d *QuarkOrUC) requestWithCookie(pathname string, method string, callback base.ReqCallback, resp interface{}, cookieStr string) ([]byte, error) {
+	u := d.conf.api + pathname
+	req := d.requestClient().R()
+	req.SetHeaders(map[string]string{
+		"Cookie":  cookieStr,
+		"Accept":  "application/json, text/plain, */*",
+		"Referer": d.conf.referer,
+	})
+	req.SetQueryParam("pr", d.conf.pr)
+	req.SetQueryParam("fr", "pc")
+	if callback != nil {
+		callback(req)
+	}
+	if resp != nil {
+		req.SetResult(resp)
+	}
+	var e Resp
+	req.SetError(&e)
+	res, err := req.Execute(method, u)
+	if err != nil {
+		return nil, err
+	}
+	d.mergeResponseCookies(res)
 	if e.Status >= 400 || e.Code != 0 {
 		return nil, errors.New(e.Message)
 	}
@@ -287,7 +321,7 @@ func (d *QuarkOrUC) getTranscodingLink(file model.Obj) (*model.Link, error) {
 	return nil, errors.New("no link found")
 }
 
-func (d *QuarkOrUC) upPre(file model.FileStreamer, parentId string) (UpPreResp, error) {
+func (d *QuarkOrUC) upPre(ctx context.Context, file model.FileStreamer, parentId string) (UpPreResp, error) {
 	now := time.Now()
 	data := base.Json{
 		"ccp_hash_update": true,
@@ -300,11 +334,39 @@ func (d *QuarkOrUC) upPre(file model.FileStreamer, parentId string) (UpPreResp, 
 		"size":            file.GetSize(),
 		//"same_path_reuse": true,
 	}
+
+	d.cookieMu.Lock()
+	cookieStr := d.Cookie
+	d.cookieMu.Unlock()
+
 	var resp UpPreResp
-	_, err := d.request("/file/upload/pre", http.MethodPost, func(req *resty.Request) {
-		req.SetBody(data)
-	}, &resp)
-	return resp, err
+	var e Resp
+	req := d.preRequestClient().R().
+		SetContext(ctx).
+		SetHeaders(map[string]string{
+			"Cookie":  cookieStr,
+			"Accept":  "application/json, text/plain, */*",
+			"Referer": d.conf.referer,
+		}).
+		SetQueryParam("pr", d.conf.pr).
+		SetQueryParam("fr", "pc").
+		SetBody(data).
+		SetResult(&resp).
+		SetError(&e)
+
+	res, err := req.Post(d.conf.api + "/file/upload/pre")
+	if err != nil {
+		return resp, err
+	}
+	d.mergeResponseCookies(res)
+
+	if res.StatusCode() != http.StatusOK {
+		if e.Message != "" {
+			return resp, errors.New(e.Message)
+		}
+		return resp, fmt.Errorf("unexpected HTTP status %d", res.StatusCode())
+	}
+	return resp, nil
 }
 
 func (d *QuarkOrUC) upHash(md5, sha1, taskId string) (bool, error) {
