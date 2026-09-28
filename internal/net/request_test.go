@@ -155,6 +155,54 @@ func (c *downloadCaptureClient) HttpRequest(ctx context.Context, params *HttpReq
 	return c.mockedHttpRequest(params)
 }
 
+// TestInterruptTwiceDoesNotPanic is a regression test for
+// https://github.com/AlistGo/alist/issues/8071: downloader.interrupt()
+// (invoked via the io.ReadCloser Download() returns, whenever
+// Concurrency > 1 makes it take the chunked/MultiReadCloser path rather
+// than returning the raw HTTP response body directly) called
+// close(d.chunkChannel) unconditionally, which panics with "close of
+// closed channel" if interrupt() -- equivalently, Close() on the
+// returned ReadCloser -- runs more than once on the same instance.
+// This is exactly what utils.Closers.Close() does when it appears in a
+// Closers list that gets closed twice (FileStream.Close() already
+// tolerates a double-close of an os.File-like closer by swallowing
+// os.ErrClosed, but a closed channel panics instead of returning an
+// error, so that existing tolerance doesn't help here). Close() is
+// documented as safe to call more than once by the io.Closer convention
+// several callers in this codebase already rely on.
+//
+// This calls interrupt() directly on a minimally-constructed downloader
+// rather than going through the public Download() API with Concurrency
+// > 1, deliberately: exercising the real concurrent chunk-fetching
+// goroutines (sendChunkTask/download) hits a separate, pre-existing data
+// race in that unrelated code path (confirmed present identically on
+// unmodified main via `go test -race -run TestDownloadOrder`, which
+// already uses Concurrency: 3) that isn't this issue's concern and would
+// make -race runs of this test flake for a reason that has nothing to do
+// with the bug being fixed here.
+func TestInterruptTwiceDoesNotPanic(t *testing.T) {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	d := &downloader{
+		ctx:          ctx,
+		cancel:       cancel,
+		chunkChannel: make(chan chunk, 1),
+		params:       &HttpRequestParams{Range: http_range.Range{Length: 0}},
+	}
+
+	if err := d.interrupt(); err != nil {
+		t.Fatalf("first interrupt() returned an error: %v", err)
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("second interrupt() panicked: %v", r)
+		}
+	}()
+	if err := d.interrupt(); err != nil {
+		t.Fatalf("second interrupt() returned an error: %v", err)
+	}
+}
+
 func newDownloadRangeClient(data []byte) (*downloadCaptureClient, *int, *[]string) {
 	capture := &downloadCaptureClient{}
 

@@ -112,6 +112,8 @@ type downloader struct {
 	maxPos      int64
 	m2          sync.Mutex
 	readingID   int // 正在被读取的id
+
+	closeOnce sync.Once // interrupt can be called more than once on the same downloader (e.g. via Closers.Close() running twice on the owning FileStream); close(d.chunkChannel) below panics on a repeat call, so guard it
 }
 
 type ConcurrencyLimit struct {
@@ -268,7 +270,7 @@ func (d *downloader) interrupt() error {
 		}
 	}
 	d.cancel(d.err)
-	defer func() {
+	defer d.closeOnce.Do(func() {
 		close(d.chunkChannel)
 		for _, buf := range d.bufs {
 			buf.Close()
@@ -277,7 +279,7 @@ func (d *downloader) interrupt() error {
 			d.concurrency = -d.concurrency
 		}
 		log.Debugf("maxConcurrency:%d", d.cfg.Concurrency+d.concurrency)
-	}()
+	})
 	return d.err
 }
 func (d *downloader) getBuf(id int) (b *Buf) {
