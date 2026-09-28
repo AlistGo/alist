@@ -449,6 +449,15 @@ func Copy(ctx context.Context, storage driver.Driver, srcPath, dstDirPath string
 	if err != nil {
 		return errors.WithMessage(err, "failed to get src object")
 	}
+	// Unlike Put, Copy previously fetched dstDir without ensuring it exists
+	// first, so copying into a not-yet-created nested path failed on
+	// same-storage drivers even though the cross-storage fallback (which
+	// goes through Put) succeeded by creating it. MakeDir is a no-op when
+	// the directory already exists.
+	err = MakeDir(ctx, storage, dstDirPath)
+	if err != nil {
+		return errors.WithMessagef(err, "failed to make dir [%s]", dstDirPath)
+	}
 	dstDir, err := GetUnwrap(ctx, storage, dstDirPath)
 	if err != nil {
 		return errors.WithMessage(err, "failed to get dst dir")
