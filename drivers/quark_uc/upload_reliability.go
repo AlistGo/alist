@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -104,15 +105,72 @@ func retryQuarkUploadControl[T any](ctx context.Context, stage string, fn func()
 	return zero, wrapQuarkUploadStage(stage, fmt.Errorf("retry loop exhausted unexpectedly"))
 }
 
-// upPreReliable intentionally does not add a driver-layer retry: replaying
-// /file/upload/pre can allocate a second upload task/FID. It only adds
-// cancellation and stage attribution.
+func validateQuarkUploadPreTarget(pre UpPreResp) error {
+	raw := pre.Data.UploadUrl
+	if len(raw) <= 7 || raw[4:7] != "://" {
+		return fmt.Errorf("invalid pre response: upload_url is not compatible with the existing upload target format")
+	}
+	suffix := raw[7:]
+	if suffix == "" || strings.ContainsAny(suffix, "/?#") {
+		return fmt.Errorf("invalid pre response: upload_url is not compatible with the existing upload target format")
+	}
+
+	expectedHost := pre.Data.Bucket + "." + suffix
+	target := fmt.Sprintf("https://%s/%s", expectedHost, pre.Data.ObjKey)
+	parsed, err := url.Parse(target)
+	if err != nil ||
+		parsed.Scheme != "https" ||
+		parsed.Host != expectedHost ||
+		parsed.User != nil ||
+		parsed.RawQuery != "" ||
+		parsed.Fragment != "" {
+		return fmt.Errorf("invalid pre response: upload target is not structurally usable")
+	}
+	return nil
+}
+
+func validateQuarkUploadPre(pre UpPreResp) error {
+	if pre.Status != http.StatusOK || pre.Code != 0 {
+		if pre.Message != "" {
+			return fmt.Errorf("%s", pre.Message)
+		}
+		return fmt.Errorf("provider rejected pre request: status=%d code=%d", pre.Status, pre.Code)
+	}
+
+	required := []struct {
+		name  string
+		value string
+	}{
+		{name: "task_id", value: pre.Data.TaskId},
+		{name: "fid", value: pre.Data.Fid},
+		{name: "upload_id", value: pre.Data.UploadId},
+		{name: "obj_key", value: pre.Data.ObjKey},
+		{name: "bucket", value: pre.Data.Bucket},
+		{name: "auth_info", value: pre.Data.AuthInfo},
+	}
+	for _, field := range required {
+		if field.value == "" {
+			return fmt.Errorf("invalid pre response: missing %s", field.name)
+		}
+	}
+	if pre.Metadata.PartSize <= 0 {
+		return fmt.Errorf("invalid pre response: part_size must be positive")
+	}
+	return validateQuarkUploadPreTarget(pre)
+}
+
+// upPreReliable never replays /file/upload/pre: a lost response may still have
+// allocated a task/FID. The PRE request is single-attempt, redirect-disabled,
+// bound to the caller context, and validated before hash/part can run.
 func (d *QuarkOrUC) upPreReliable(ctx context.Context, file model.FileStreamer, parentID string) (UpPreResp, error) {
 	if err := ctx.Err(); err != nil {
 		return UpPreResp{}, wrapQuarkUploadStage("pre", err)
 	}
-	pre, err := d.upPre(file, parentID)
+	pre, err := d.upPre(ctx, file, parentID)
 	if err != nil {
+		return pre, wrapQuarkUploadStage("pre", err)
+	}
+	if err := validateQuarkUploadPre(pre); err != nil {
 		return pre, wrapQuarkUploadStage("pre", err)
 	}
 	return pre, nil
