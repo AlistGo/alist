@@ -92,7 +92,12 @@ func (d *QuarkOrUC) requestWithCookie(pathname string, method string, callback b
 		op.MustSaveDriverStorage(d)
 	}
 	if e.Status >= 400 || e.Code != 0 {
-		return nil, errors.New(e.Message)
+		return nil, &providerError{
+			HTTPStatus: res.StatusCode(),
+			Status:     e.Status,
+			Code:       e.Code,
+			Message:    e.Message,
+		}
 	}
 	return res.Body(), nil
 }
