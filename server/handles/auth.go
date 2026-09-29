@@ -12,11 +12,11 @@ import (
 
 	"github.com/Xhofe/go-cache"
 	"github.com/alist-org/alist/v3/internal/conf"
+	"github.com/alist-org/alist/v3/internal/db"
 	"github.com/alist-org/alist/v3/internal/device"
 	"github.com/alist-org/alist/v3/internal/errs"
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/internal/op"
-	"github.com/alist-org/alist/v3/internal/session"
 	"github.com/alist-org/alist/v3/internal/setting"
 	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/alist-org/alist/v3/server/common"
@@ -271,8 +271,11 @@ func Verify2FA(c *gin.Context) {
 }
 
 func LogOut(c *gin.Context) {
-	if keyVal, ok := c.Get("device_key"); ok {
-		if err := session.MarkInactive(keyVal.(string)); err != nil {
+	keyVal, keyOk := c.Get("device_key")
+	userVal, userOk := c.Get("user")
+	if keyOk && userOk {
+		user := userVal.(*model.User)
+		if err := db.DeleteSession(user.ID, keyVal.(string)); err != nil {
 			common.ErrorResp(c, err, 500)
 			return
 		}
