@@ -175,8 +175,8 @@ func (d *CloudreveV4) doLogin(needCaptcha bool) error {
 }
 
 func (d *CloudreveV4) refreshToken() error {
-	var token Token
-	if token.RefreshToken == "" {
+	//var token Token
+	if d.RefreshToken == "" {
 		if d.Username != "" {
 			err := d.login()
 			if err != nil {
@@ -185,6 +185,7 @@ func (d *CloudreveV4) refreshToken() error {
 		}
 		return nil
 	}
+	var token Token
 	err := d.request(http.MethodPost, "/session/token/refresh", func(req *resty.Request) {
 		req.SetBody(base.Json{
 			"refresh_token": d.RefreshToken,
@@ -470,7 +471,7 @@ func (d *CloudreveV4) upS3(ctx context.Context, file model.FileStreamer, u FileU
 	}
 
 	// 上传成功发送回调请求
-	return d.request(http.MethodPost, "/callback/s3/"+u.SessionID+"/"+u.CallbackSecret, func(req *resty.Request) {
+	return d.request(http.MethodGet, "/callback/s3/"+u.SessionID+"/"+u.CallbackSecret, func(req *resty.Request) {
 		req.SetBody("{}")
 	}, nil)
 }
