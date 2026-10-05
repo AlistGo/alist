@@ -4,6 +4,7 @@ import (
 	"context"
 	stdpath "path"
 	"slices"
+	"strconv"
 	"time"
 
 	"github.com/Xhofe/go-cache"
@@ -22,6 +23,62 @@ import (
 
 var listCache = cache.NewMemCache(cache.WithShards[[]model.Obj](64))
 var listG singleflight.Group[[]model.Obj]
+
+const recentWriteConsistencyWindow = time.Minute
+
+// recentWriteCache bridges a short write-after-read consistency window for
+// drivers that return an authoritative object from PutResult. Entries are bound
+// to the stable identity of the parent directory, not its path, so a stale
+// child cannot be rebound to a newly-created same-name directory after the
+// original parent is moved, renamed, or removed.
+var recentWriteCache = cache.NewMemCache(cache.WithShards[model.Obj](64))
+
+func recentWriteIdentityKey(storage *model.Storage, parentID, name string) (string, bool) {
+	if storage == nil || parentID == "" || name == "" {
+		return "", false
+	}
+	// Storage ID plus MountPath isolates both concurrent mounts and a newly
+	// created storage that reuses a recently removed mount path. NUL cannot
+	// occur in provider object names or IDs, so it is an unambiguous separator.
+	return strconv.FormatUint(uint64(storage.ID), 10) + "\x00" + storage.MountPath + "\x00" + parentID + "\x00" + name, true
+}
+
+func recentWriteKey(storage driver.Driver, parent model.Obj, name string) (string, bool) {
+	if parent == nil {
+		return "", false
+	}
+	return recentWriteIdentityKey(storage.GetStorage(), parent.GetID(), name)
+}
+
+func setRecentWrite(storage driver.Driver, parent model.Obj, obj model.Obj) {
+	if obj == nil || obj.GetID() == "" {
+		return
+	}
+	key, ok := recentWriteKey(storage, parent, obj.GetName())
+	if !ok {
+		return
+	}
+	recentWriteCache.Set(key, obj, cache.WithEx[model.Obj](recentWriteConsistencyWindow))
+}
+
+func delRecentWrite(storage driver.Driver, parent model.Obj, name string) {
+	key, ok := recentWriteKey(storage, parent, name)
+	if ok {
+		recentWriteCache.Del(key)
+	}
+}
+
+func getRecentWrite(ctx context.Context, storage driver.Driver, dirPath, name string) (model.Obj, bool) {
+	parent, err := GetUnwrap(ctx, storage, dirPath)
+	if err != nil {
+		return nil, false
+	}
+	key, ok := recentWriteKey(storage, parent, name)
+	if !ok {
+		return nil, false
+	}
+	return recentWriteCache.Get(key)
+}
 
 func updateCacheObj(storage driver.Driver, path string, oldObj model.Obj, newObj model.Obj) {
 	key := Key(storage, path)
@@ -233,6 +290,10 @@ func Get(ctx context.Context, storage driver.Driver, path string) (model.Obj, er
 			return f, nil
 		}
 	}
+	if obj, ok := getRecentWrite(ctx, storage, dir, name); ok {
+		log.Debugf("use recent write when get %s", path)
+		return obj, nil
+	}
 	log.Debugf("cant find obj with name: %s", name)
 	return nil, errors.WithStack(errs.ObjectNotFound)
 }
@@ -372,20 +433,23 @@ func Move(ctx context.Context, storage driver.Driver, srcPath, dstDirPath string
 		return errors.WithMessage(err, "failed to get src object")
 	}
 	srcObj := model.UnwrapObj(srcRawObj)
+	srcDirPath := stdpath.Dir(srcPath)
+	srcDir, _ := GetUnwrap(ctx, storage, srcDirPath)
 	dstDir, err := GetUnwrap(ctx, storage, dstDirPath)
 	if err != nil {
 		return errors.WithMessage(err, "failed to get dst dir")
 	}
-	srcDirPath := stdpath.Dir(srcPath)
-
 	switch s := storage.(type) {
 	case driver.MoveResult:
 		var newObj model.Obj
 		newObj, err = s.Move(ctx, srcObj, dstDir)
 		if err == nil {
 			delCacheObj(storage, srcDirPath, srcRawObj)
+			delRecentWrite(storage, srcDir, srcRawObj.GetName())
 			if newObj != nil {
-				addCacheObj(storage, dstDirPath, model.WrapObjName(newObj))
+				wrapped := model.WrapObjName(newObj)
+				addCacheObj(storage, dstDirPath, wrapped)
+				setRecentWrite(storage, dstDir, wrapped)
 			} else if !utils.IsBool(lazyCache...) {
 				ClearCache(storage, dstDirPath)
 			}
@@ -394,6 +458,7 @@ func Move(ctx context.Context, storage driver.Driver, srcPath, dstDirPath string
 		err = s.Move(ctx, srcObj, dstDir)
 		if err == nil {
 			delCacheObj(storage, srcDirPath, srcRawObj)
+			delRecentWrite(storage, srcDir, srcRawObj.GetName())
 			if !utils.IsBool(lazyCache...) {
 				ClearCache(storage, dstDirPath)
 			}
@@ -415,22 +480,29 @@ func Rename(ctx context.Context, storage driver.Driver, srcPath, dstName string,
 	}
 	srcObj := model.UnwrapObj(srcRawObj)
 	srcDirPath := stdpath.Dir(srcPath)
+	srcDir, _ := GetUnwrap(ctx, storage, srcDirPath)
 
 	switch s := storage.(type) {
 	case driver.RenameResult:
 		var newObj model.Obj
 		newObj, err = s.Rename(ctx, srcObj, dstName)
 		if err == nil {
+			delRecentWrite(storage, srcDir, srcRawObj.GetName())
 			if newObj != nil {
-				updateCacheObj(storage, srcDirPath, srcRawObj, model.WrapObjName(newObj))
+				wrapped := model.WrapObjName(newObj)
+				updateCacheObj(storage, srcDirPath, srcRawObj, wrapped)
+				setRecentWrite(storage, srcDir, wrapped)
 			} else if !utils.IsBool(lazyCache...) {
 				ClearCache(storage, srcDirPath)
 			}
 		}
 	case driver.Rename:
 		err = s.Rename(ctx, srcObj, dstName)
-		if err == nil && !utils.IsBool(lazyCache...) {
-			ClearCache(storage, srcDirPath)
+		if err == nil {
+			delRecentWrite(storage, srcDir, srcRawObj.GetName())
+			if !utils.IsBool(lazyCache...) {
+				ClearCache(storage, srcDirPath)
+			}
 		}
 	default:
 		return errs.NotImplement
@@ -503,12 +575,14 @@ func Remove(ctx context.Context, storage driver.Driver, path string) error {
 		return errors.WithMessage(err, "failed to get object")
 	}
 	dirPath := stdpath.Dir(path)
+	parentDir, _ := GetUnwrap(ctx, storage, dirPath)
 
 	switch s := storage.(type) {
 	case driver.Remove:
 		err = s.Remove(ctx, model.UnwrapObj(rawObj))
 		if err == nil {
 			delCacheObj(storage, dirPath, rawObj)
+			delRecentWrite(storage, parentDir, rawObj.GetName())
 			// clear folder cache recursively
 			if rawObj.IsDir() {
 				ClearCache(storage, path)
@@ -577,7 +651,9 @@ func Put(ctx context.Context, storage driver.Driver, dstDirPath string, file mod
 		newObj, err = s.Put(ctx, parentDir, file, up)
 		if err == nil {
 			if newObj != nil {
-				addCacheObj(storage, dstDirPath, model.WrapObjName(newObj))
+				wrapped := model.WrapObjName(newObj)
+				addCacheObj(storage, dstDirPath, wrapped)
+				setRecentWrite(storage, parentDir, wrapped)
 			} else if !utils.IsBool(lazyCache...) {
 				ClearCache(storage, dstDirPath)
 			}

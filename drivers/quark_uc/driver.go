@@ -284,7 +284,29 @@ func (d *QuarkOrUC) Remove(ctx context.Context, obj model.Obj) error {
 	return err
 }
 
-func (d *QuarkOrUC) Put(ctx context.Context, dstDir model.Obj, stream model.FileStreamer, up driver.UpdateProgress) error {
+// uploadedFileFromPre returns the exact FID allocated by upload/pre so op.Put
+// can seed the parent cache after a successful upload. Quark directory listings
+// can lag behind a completed upload; keeping this identity bridges that window
+// for immediate follow-up operations such as WebDAV DELETE. If PRE did not
+// provide a FID, preserve the old cache-clear behavior instead of inventing one.
+func uploadedFileFromPre(pre UpPreResp, stream model.FileStreamer) model.Obj {
+	if pre.Data.Fid == "" {
+		return nil
+	}
+	now := time.Now().UnixMilli()
+	return &File{
+		Fid:        pre.Data.Fid,
+		FileName:   stream.GetName(),
+		Size:       stream.GetSize(),
+		File:       true,
+		LCreatedAt: now,
+		LUpdatedAt: now,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+}
+
+func (d *QuarkOrUC) Put(ctx context.Context, dstDir model.Obj, stream model.FileStreamer, up driver.UpdateProgress) (model.Obj, error) {
 	md5Str, sha1Str := stream.GetHash().GetHash(utils.MD5), stream.GetHash().GetHash(utils.SHA1)
 	var (
 		md5  hash.Hash
@@ -303,7 +325,7 @@ func (d *QuarkOrUC) Put(ctx context.Context, dstDir model.Obj, stream model.File
 	if len(writers) > 0 {
 		_, err := streamPkg.CacheFullInTempFileAndWriter(stream, io.MultiWriter(writers...))
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if md5 != nil {
 			md5Str = hex.EncodeToString(md5.Sum(nil))
@@ -315,16 +337,17 @@ func (d *QuarkOrUC) Put(ctx context.Context, dstDir model.Obj, stream model.File
 	// pre
 	pre, err := d.upPreReliable(ctx, stream, dstDir.GetID())
 	if err != nil {
-		return err
+		return nil, err
 	}
+	uploadedObj := uploadedFileFromPre(pre, stream)
 	log.Debugln("hash: ", md5Str, sha1Str)
 	// hash
 	finish, err := d.upHashReliable(ctx, md5Str, sha1Str, pre.Data.TaskId)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if finish {
-		return nil
+		return uploadedObj, nil
 	}
 	// part up
 	total := stream.GetSize()
@@ -339,33 +362,35 @@ func (d *QuarkOrUC) Put(ctx context.Context, dstDir model.Obj, stream model.File
 	partNumber := 1
 	for left > 0 {
 		if utils.IsCanceled(ctx) {
-			return ctx.Err()
+			return nil, ctx.Err()
 		}
 		if left < partSize {
 			part = part[:left]
 		}
 		n, err := io.ReadFull(stream, part)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		left -= int64(n)
 		log.Debugf("left: %d", left)
 		m, err := d.upPartReliable(ctx, pre, stream.GetMimetype(), partNumber, part)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if m == "finish" {
-			return nil
+			return uploadedObj, nil
 		}
 		md5s = append(md5s, m)
 		partNumber++
 		up(100 * float64(total-left) / float64(total))
 	}
-	err = d.upCommitReliable(ctx, pre, md5s)
-	if err != nil {
-		return err
+	if err := d.upCommitReliable(ctx, pre, md5s); err != nil {
+		return nil, err
 	}
-	return d.upFinishReliable(ctx, pre, dstDir.GetID(), stream.GetName(), stream.GetSize())
+	if err := d.upFinishReliable(ctx, pre, dstDir.GetID(), stream.GetName(), stream.GetSize()); err != nil {
+		return nil, err
+	}
+	return uploadedObj, nil
 }
 
 var _ driver.Driver = (*QuarkOrUC)(nil)
