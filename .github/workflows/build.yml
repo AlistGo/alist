@@ -23,6 +23,9 @@ jobs:
           - linux-amd64-musl
           - windows-arm64
           - android-arm64
+          - freebsd-386
+          - freebsd-amd64
+          - freebsd-arm64
     name: Build
     runs-on: ${{ matrix.platform }}
     env:
@@ -44,6 +47,7 @@ jobs:
         run: bash build.sh dev web
 
       - name: Build
+        if: ${{ !startsWith(matrix.target, 'freebsd-') }}
         uses: go-cross/cgo-actions@v1
         with:
           targets: ${{ matrix.target }}
@@ -55,6 +59,12 @@ jobs:
             github.com/alist-org/alist/v3/internal/conf.GitCommit=$git_commit
             github.com/alist-org/alist/v3/internal/conf.Version=$tag
             github.com/alist-org/alist/v3/internal/conf.WebVersion=dev
+
+      - name: Build FreeBSD
+        if: startsWith(matrix.target, 'freebsd-')
+        env:
+          TARGET: ${{ matrix.target }}
+        run: bash .github/scripts/build-freebsd.sh "${TARGET#freebsd-}"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
