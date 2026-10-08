@@ -173,7 +173,7 @@ func TestUploadPrePutStopsBeforeHashOnInvalidPre(t *testing.T) {
 
 	d := newTestDriver(srv.URL)
 	dst := &model.Object{ID: "parent", Name: "parent", IsFolder: true}
-	err := d.Put(context.Background(), dst, uploadPreTestStream(), func(float64) {})
+	_, err := d.Put(context.Background(), dst, uploadPreTestStream(), func(float64) {})
 	if err == nil || !strings.Contains(err.Error(), "stage pre") || !strings.Contains(err.Error(), "part_size") {
 		t.Fatalf("err=%v, want structural PRE failure before hash", err)
 	}
