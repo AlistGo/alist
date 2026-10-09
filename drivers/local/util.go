@@ -110,6 +110,7 @@ func resizeImageToBufferWithFFmpegGo(inputFile string, width int, outputFormat s
 	err = ffmpeg.Input(inputFile).
 		Output("pipe:", outputArgs). // Output to pipe (stdout)
 		GlobalArgs("-loglevel", "error").
+		GlobalArgs("-protocol_whitelist", "file"). // Restrict ffmpeg to the file protocol only
 		Silent(true).                     // Suppress ffmpeg's own console output
 		WithOutput(outBuffer, os.Stderr). // Capture stdout to outBuffer, stderr to os.Stderr
 		// ErrorToStdOut(). // Alternative: send ffmpeg's stderr to Go's stdout
@@ -169,7 +170,10 @@ func (d *Local) GetSnapshot(videoPath string) (imgData *bytes.Buffer, err error)
 	videoPath = sanitized
 
 	// Run ffprobe to get the video duration
-	jsonOutput, err := ffmpeg.Probe(videoPath)
+	// Restrict ffprobe to the file protocol only, so a crafted path cannot
+	// make it fetch remote resources or read arbitrary local files via
+	// other protocols (http, concat, subfile, pipe, etc.).
+	jsonOutput, err := ffmpeg.Probe(videoPath, ffmpeg.KwArgs{"protocol_whitelist": "file"})
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +215,8 @@ func (d *Local) GetSnapshot(videoPath string) (imgData *bytes.Buffer, err error)
 	// the seek process.
 	stream := ffmpeg.Input(videoPath, ffmpeg.KwArgs{"ss": ss, "noaccurate_seek": ""}).
 		Output("pipe:", ffmpeg.KwArgs{"vframes": 1, "format": "image2", "vcodec": "mjpeg", "vf": fmt.Sprintf("scale=%d:-1:flags=lanczos", d.thumbPixel)}).
-		GlobalArgs("-loglevel", "error").Silent(true).
+		GlobalArgs("-loglevel", "error").
+		GlobalArgs("-protocol_whitelist", "file").Silent(true).
 		WithOutput(srcBuf, os.Stdout)
 	if err = stream.Run(); err != nil {
 		return nil, err
