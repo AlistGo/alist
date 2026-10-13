@@ -217,6 +217,7 @@ func taskRoute[T task.TaskExtensionInfo](g *gin.RouterGroup, manager task.Manage
 
 func SetupTaskRoute(g *gin.RouterGroup) {
 	taskRoute(g.Group("/upload"), fs.UploadTaskManager)
+	taskRoute(g.Group("/strm_generate"), fs.StrmGenerateTaskManager)
 	taskRoute(g.Group("/copy"), fs.CopyTaskManager)
 	taskRoute(g.Group("/offline_download"), tool.DownloadTaskManager)
 	taskRoute(g.Group("/offline_download_transfer"), tool.TransferTaskManager)
