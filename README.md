@@ -17,6 +17,9 @@
   <a title="Crowdin" target="_blank" href="https://crwd.in/alist">
     <img src="https://badges.crowdin.net/alist/localized.svg">
   </a>
+  <a href="https://appwk.cn/apps/alist">
+    <img src="https://appwk.cn/badges/featured-dark.svg" alt="Featured on AppWK" />
+  </a>
 </div>
 <div>
   <a href="https://github.com/alist-org/alist/discussions">
