@@ -47,7 +47,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: build/musl-libs
-          key: docker-musl-libs-v2
+          key: docker-musl-libs-2025.06.05
 
       - name: Download Musl Library
         if: steps.cache-musl.outputs.cache-hit != 'true'
@@ -66,6 +66,7 @@ jobs:
         with:
           name: ${{ env.ARTIFACT_NAME }}
           overwrite: true
+          if-no-files-found: error
           path: |
             build/
             !build/*.tgz

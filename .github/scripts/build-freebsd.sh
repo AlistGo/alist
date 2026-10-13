@@ -21,17 +21,22 @@ checksum=$(awk '$1 == "base.txz" { print $2 }' "$work_dir/MANIFEST")
 mkdir "$work_dir/sysroot"
 tar -xf "$work_dir/base.txz" -C "$work_dir/sysroot"
 
-built_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-git_commit=$(git rev-parse HEAD)
-version=${GITHUB_REF:-dev}
-version=${version#refs/tags/}
-ldflags="-w -s
--X 'github.com/alist-org/alist/v3/internal/conf.BuiltAt=$built_at'
--X 'github.com/alist-org/alist/v3/internal/conf.GitAuthor=Xhofe'
--X 'github.com/alist-org/alist/v3/internal/conf.GitCommit=$git_commit'
--X 'github.com/alist-org/alist/v3/internal/conf.Version=$version'
--X 'github.com/alist-org/alist/v3/internal/conf.WebVersion=dev'"
-mkdir -p build
+if [ "$#" -ge 3 ]; then
+  ldflags=$3
+else
+  built_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+  git_commit=$(git rev-parse HEAD)
+  version=${GITHUB_REF:-dev}
+  version=${version#refs/tags/}
+  ldflags="-w -s
+  -X 'github.com/alist-org/alist/v3/internal/conf.BuiltAt=$built_at'
+  -X 'github.com/alist-org/alist/v3/internal/conf.GitAuthor=Xhofe'
+  -X 'github.com/alist-org/alist/v3/internal/conf.GitCommit=$git_commit'
+  -X 'github.com/alist-org/alist/v3/internal/conf.Version=$version'
+  -X 'github.com/alist-org/alist/v3/internal/conf.WebVersion=dev'"
+fi
+output=${2:-build/alist-freebsd-$arch}
+mkdir -p "$(dirname "$output")"
 CGO_ENABLED=1 GOOS=freebsd GOARCH="$arch" CGO_LDFLAGS=-fuse-ld=lld \
   CC="clang --target=$target-unknown-freebsd$release --sysroot=$work_dir/sysroot" \
-  go build -o "build/alist-freebsd-$arch" -ldflags="$ldflags" .
+  go build -o "$output" -ldflags="$ldflags" -tags=jsoniter .

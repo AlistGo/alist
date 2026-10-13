@@ -11,6 +11,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  release_scripts:
+    name: Release script regression tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate shell syntax
+        run: bash -n build.sh .github/scripts/build-freebsd.sh
+      - name: Test failure propagation and release packaging
+        run: python3 .github/scripts/test-release-build.py
+
   build:
     strategy:
       matrix:
@@ -71,3 +81,4 @@ jobs:
         with:
           name: alist_${{ env.SHA }}_${{ matrix.target }}
           path: build/*
+          if-no-files-found: error

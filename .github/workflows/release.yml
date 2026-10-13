@@ -69,6 +69,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: build/compress/*
+          fail_on_unmatched_files: true
           prerelease: false
 
   release_desktop:
@@ -89,7 +90,7 @@ jobs:
           git config --local user.email "bot@nn.ci"
           git config --local user.name "IlaBot"
           version=$(wget -qO- -t1 -T2 "https://api.github.com/repos/alist-org/alist/releases/latest" | grep "tag_name" | head -n 1 | awk -F ":" '{print $2}' | sed 's/\"//g;s/,//g;s/ //g')
-          git tag -a $version -m "release $version"
+          git tag -a "$version" -m "release $version"
 
       - name: Push tags
         uses: ad-m/github-push-action@881a6320fdb16eb5318c5054f31c218aec2b324c # master
