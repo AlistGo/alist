@@ -57,15 +57,3 @@ func GetStr(cookiesStr, name string) string {
 	}
 	return cookie.Value
 }
-
-// DelStr 从 cookie 串中删除指定名称的 cookie
-func DelStr(cookiesStr, name string) string {
-	cookies := Parse(cookiesStr)
-	for i, cookie := range cookies {
-		if cookie.Name == name {
-			cookies = append(cookies[:i], cookies[i+1:]...)
-			break
-		}
-	}
-	return ToString(cookies)
-}

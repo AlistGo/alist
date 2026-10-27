@@ -118,7 +118,7 @@ func TestDownloadRequestDeviceToken(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if link.URL != "https://cdn.example.com/file" || link.Header.Get("Cookie") != "__puus=before" {
+			if link.URL != "https://cdn.example.com/file" || link.Header.Get("Cookie") != "__puus=after" {
 				t.Fatalf("incorrect download link: %+v", link)
 			}
 			if !strings.Contains(d.Cookie, "__puus=after") {
