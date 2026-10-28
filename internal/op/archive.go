@@ -488,6 +488,14 @@ func ArchiveDecompress(ctx context.Context, storage driver.Driver, srcPath, dstD
 	if err != nil {
 		return errors.WithMessage(err, "failed to get src object")
 	}
+	// Like Copy and Move, make sure dstDir exists: decompressing to another
+	// storage goes through Put, which creates it, but decompressing within
+	// the same storage fetched it directly and failed for a new nested path.
+	// MakeDir is a no-op when the dir already exists.
+	err = MakeDir(ctx, storage, dstDirPath)
+	if err != nil {
+		return errors.WithMessagef(err, "failed to make dir [%s]", dstDirPath)
+	}
 	dstDir, err := GetUnwrap(ctx, storage, dstDirPath)
 	if err != nil {
 		return errors.WithMessage(err, "failed to get dst dir")
