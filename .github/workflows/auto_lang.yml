@@ -10,6 +10,9 @@ on:
       - 'internal/conf/const.go'
       - 'cmd/lang.go'
   workflow_dispatch:
+permissions:
+  contents: read
+
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -32,6 +35,7 @@ jobs:
       - name: Checkout alist
         uses: actions/checkout@v4
         with:
+          persist-credentials: false
           path: alist
 
       - name: Checkout alist-web

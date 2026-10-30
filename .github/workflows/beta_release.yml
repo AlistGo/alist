@@ -23,11 +23,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Create or update ref
         id: create-or-update-ref
-        uses: ovsds/create-or-update-ref-action@v1
+        uses: ovsds/create-or-update-ref-action@1157b2991820188d5a8e6f22656775d1d171f762 # v1.1.0
         with:
           ref: tags/beta
           sha: ${{ github.sha }}
@@ -44,7 +45,7 @@ jobs:
 #          npx changelogen@latest --output CHANGELOG.md
 
       - name: Upload assets
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           body_path: CHANGELOG.md
           files: CHANGELOG.md
@@ -76,6 +77,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Setup Go
@@ -88,7 +90,7 @@ jobs:
 
       - name: Build
         if: ${{ !startsWith(matrix.target, 'freebsd-') }}
-        uses: go-cross/cgo-actions@v1
+        uses: go-cross/cgo-actions@454cfd6d20816878926b0253ca8f2dbbd2f7d731 # v1.1.0
         with:
           targets: ${{ matrix.target }}
           musl-target-format: $os-$musl-$arch
@@ -118,7 +120,7 @@ jobs:
           bash build.sh zip ${{ matrix.hash }}
           
       - name: Upload assets
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           files: build/compress/*
           fail_on_unmatched_files: true

@@ -5,6 +5,9 @@ on:
     branches: [ 'main' ]
   pull_request:
     branches: [ 'main' ]
+permissions:
+  contents: read
+
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -44,8 +47,10 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
-      - uses: benjlevesque/short-sha@v3.0
+      - uses: benjlevesque/short-sha@599815c8ee942a9616c92bcfb4f947a3b670ab0b # v3.0
         id: short-sha
 
       - name: Setup Go
@@ -58,7 +63,7 @@ jobs:
 
       - name: Build
         if: ${{ !startsWith(matrix.target, 'freebsd-') }}
-        uses: go-cross/cgo-actions@v1
+        uses: go-cross/cgo-actions@454cfd6d20816878926b0253ca8f2dbbd2f7d731 # v1.1.0
         with:
           targets: ${{ matrix.target }}
           musl-target-format: $os-$musl-$arch

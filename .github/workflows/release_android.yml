@@ -7,6 +7,9 @@ on:
 # Re-publishing the same tag recreates the release (new id), which would leave
 # any in-flight run pointing at a deleted release id and fail with 404. Cancel
 # the stale run so only the newest publish for a given tag proceeds.
+permissions:
+  contents: write
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.release.tag_name }}
   cancel-in-progress: true
@@ -29,6 +32,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Build
@@ -36,7 +40,7 @@ jobs:
           bash build.sh release android
 
       - name: Upload assets
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           files: build/compress/*
           fail_on_unmatched_files: true

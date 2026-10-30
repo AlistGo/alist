@@ -7,12 +7,18 @@ on:
 # Re-publishing the same tag recreates the release (new id), which would leave
 # any in-flight run pointing at a deleted release id and fail with 404. Cancel
 # the stale run so only the newest publish for a given tag proceeds.
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.release.tag_name }}
   cancel-in-progress: true
 
 jobs:
   release:
+    permissions:
+      # Uploads the build to the release with the job token.
+      contents: write
     strategy:
       matrix:
         platform: [ ubuntu-latest ]
@@ -38,7 +44,7 @@ jobs:
           swap-storage: true
 
       - name: Prerelease
-        uses: irongut/EditRelease@v1.2.0
+        uses: irongut/EditRelease@ccf529ad26dddf9996e7dd0f24ca5da4ea507cc2 # v1.2.0
         with:
           token: ${{ secrets.MY_TOKEN }}
           id: ${{ github.event.release.id }}
@@ -52,6 +58,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Install dependencies
@@ -66,7 +73,7 @@ jobs:
           bash build.sh release
 
       - name: Upload assets
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           files: build/compress/*
           fail_on_unmatched_files: true

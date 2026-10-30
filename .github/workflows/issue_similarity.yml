@@ -3,13 +3,16 @@ name: Issues Similarity Analysis
 on:
   issues:
     types: [opened, edited]
+permissions:
+  issues: write
+
 
 jobs:
   similarity-analysis:
     runs-on: ubuntu-latest
     steps:
       - name: analysis
-        uses: actions-cool/issues-similarity-analysis@v1
+        uses: actions-cool/issues-similarity-analysis@0a5ea211e6a178915f0f754968fc94ff845bcb41 # v1.3.2
         with:
           filter-threshold: 0.5
           comment-title: '### See'
