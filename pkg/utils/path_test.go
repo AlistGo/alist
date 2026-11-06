@@ -26,6 +26,7 @@ func TestValidateNameComponent(t *testing.T) {
 		"file.txt",
 		"abc",
 		"file_name-1",
+		"a..b",
 	}
 	for _, name := range validNames {
 		if err := ValidateNameComponent(name); err != nil {
@@ -39,7 +40,8 @@ func TestValidateNameComponent(t *testing.T) {
 		"..",
 		"a/b",
 		`a\b`,
-		"a..b",
+		"../a",
+		`..\a`,
 		string([]byte{'a', 0, 'b'}),
 	}
 	for _, name := range invalidNames {

@@ -97,7 +97,7 @@ func GetFullPath(mountPath, path string) string {
 }
 
 // ValidateNameComponent validates a single path component.
-// It rejects empty names, dot segments, separators, ".." sequences, and NUL bytes.
+// It rejects empty names, dot segments, separators, and NUL bytes.
 func ValidateNameComponent(name string) error {
 	if name == "" {
 		return errs.InvalidName
@@ -106,9 +106,6 @@ func ValidateNameComponent(name string) error {
 		return errs.InvalidName
 	}
 	if strings.Contains(name, "/") || strings.Contains(name, "\\") {
-		return errs.InvalidName
-	}
-	if strings.Contains(name, "..") {
 		return errs.InvalidName
 	}
 	if strings.ContainsRune(name, 0) {
