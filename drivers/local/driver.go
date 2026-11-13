@@ -156,7 +156,7 @@ func (d *Local) List(ctx context.Context, dir model.Obj, args model.ListArgs) ([
 	}
 	var files []model.Obj
 	for _, f := range rawFiles {
-		if !d.ShowHidden && strings.HasPrefix(f.Name(), ".") {
+		if !d.ShowHidden && isHidden(f) {
 			continue
 		}
 		file := d.FileInfoToObj(ctx, f, args.ReqPath, fullPath)
