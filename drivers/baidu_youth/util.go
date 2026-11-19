@@ -458,7 +458,7 @@ func (d *BaiduYouth) getLocateDownloadURL(ctx context.Context, file model.Obj) (
 	}
 	sk, refreshErr := d.getUserSK(ctx)
 	if refreshErr != nil {
-		return "", err
+		return "", refreshErr
 	}
 	if sk == "" {
 		return "", err
