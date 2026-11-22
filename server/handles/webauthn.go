@@ -111,12 +111,16 @@ func FinishAuthnLogin(c *gin.Context) {
 		return
 	}
 
+	deviceKey, ok := activateDeviceOnLogin(c, user)
+	if !ok {
+		return
+	}
 	token, err := common.GenerateToken(user)
 	if err != nil {
 		common.ErrorResp(c, err, 400, true)
 		return
 	}
-	common.SuccessResp(c, gin.H{"token": token})
+	common.SuccessResp(c, gin.H{"token": token, "device_key": deviceKey})
 }
 
 func BeginAuthnRegistration(c *gin.Context) {

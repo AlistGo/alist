@@ -260,6 +260,10 @@ func OIDCLoginCallback(c *gin.Context) {
 				return
 			}
 		}
+		deviceKey, ok := activateDeviceOnLogin(c, user)
+		if !ok {
+			return
+		}
 		token, err := common.GenerateToken(user)
 		if err != nil {
 			common.ErrorResp(c, err, 400)
@@ -272,10 +276,10 @@ func OIDCLoginCallback(c *gin.Context) {
 				<head></head>
 				<body>
 				<script>
-				window.opener.postMessage({"token":"%s"}, "*")
+				window.opener.postMessage({"token":"%s","device_key":"%s"}, "*")
 				window.close()
 				</script>
-				</body>`, token)
+				</body>`, token, deviceKey)
 		c.Data(200, "text/html; charset=utf-8", []byte(html))
 		return
 	}
@@ -426,6 +430,10 @@ func SSOLoginCallback(c *gin.Context) {
 			return
 		}
 	}
+	deviceKey, ok := activateDeviceOnLogin(c, user)
+	if !ok {
+		return
+	}
 	token, err := common.GenerateToken(user)
 	if err != nil {
 		common.ErrorResp(c, err, 400)
@@ -438,9 +446,9 @@ func SSOLoginCallback(c *gin.Context) {
 							<head></head>
 							<body>
 							<script>
-							window.opener.postMessage({"token":"%s"}, "*")
+							window.opener.postMessage({"token":"%s","device_key":"%s"}, "*")
 							window.close()
 							</script>
-							</body>`, token)
+							</body>`, token, deviceKey)
 	c.Data(200, "text/html; charset=utf-8", []byte(html))
 }
