@@ -320,9 +320,9 @@ var findSubFolderReg = regexp.MustCompile(`(?i)(?:folderlink|mbxfolder).+href="/
 // 获取下载页面链接
 var findDownPageParamReg = regexp.MustCompile(`<iframe.*?src="(.+?)"`)
 
-// 获取下载接口及文件 ID。旧页面使用 ajaxm.php，新版密码文件页面使用
-// ajaxfile.php；地址也可能使用单/双引号或完整 URL。
-var findAjaxURLReg = regexp.MustCompile(`(?i)((?:https?://[^'"\s]+)?/ajax(?:m|file)\.php\?file=(\d+)\b)`)
+// 获取下载接口及文件 ID。下载页可能使用 ajaxm.php、ajaxfile.php 或 ajaxfiles.php，
+// 地址也可能使用单/双引号或完整 URL。
+var findAjaxURLReg = regexp.MustCompile(`(?i)((?:https?://[^'"\s]+)?/ajax(?:m|files?)\.php\?file=(\d+)\b)`)
 var findFileIDVarReg = regexp.MustCompile(`(?i)\b(?:f_id|fid)\s*=\s*['"]?(\d+)['"]?\s*;`)
 
 func findFileID(data string) (string, bool) {

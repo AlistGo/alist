@@ -46,6 +46,8 @@ func TestGetAjaxURL(t *testing.T) {
 		{name: "legacy page with file ID", html: `url: '/ajaxm.php?file=12345'`, want: "https://pan.lanzoui.com/ajaxm.php?file=12345"},
 		{name: "relative password file endpoint", html: `url : '/ajaxfile.php?file=215138709'`, want: "https://pan.lanzoui.com/ajaxfile.php?file=215138709"},
 		{name: "absolute password file endpoint", html: `url : 'https://apifile.woozooo.com/ajaxfile.php?file=215138709'`, want: "https://apifile.woozooo.com/ajaxfile.php?file=215138709"},
+		{name: "relative ajaxfiles endpoint", html: `url: '/ajaxfiles.php?file=12345'`, want: "https://pan.lanzoui.com/ajaxfiles.php?file=12345"},
+		{name: "absolute ajaxfiles endpoint", html: `url: "https://download.example/ajaxfiles.php?file=12345"`, want: "https://download.example/ajaxfiles.php?file=12345"},
 		{name: "new page without file ID", html: `data: {'action':'downprocess','sign':sign,'ves':1}`, want: "https://pan.lanzoui.com/ajaxm.php"},
 	}
 
