@@ -93,7 +93,25 @@ func (b *s3Backend) ListBucket(ctx context.Context, bucketName string, prefix *g
 		return nil, err
 	}
 
-	return b.pager(response, page)
+	response, err = b.pager(response, page)
+	if err != nil {
+		return nil, err
+	}
+	// gofakes3 会在分页后补入当前目录占位对象，但零时间会使 XML 缺少
+	// LastModified。提前提供完整对象，避免 HBS 等客户端解析失败。
+	if strings.HasSuffix(prefix.Prefix, "/") {
+		for _, item := range response.Contents {
+			if item.Key == prefix.Prefix {
+				return response, nil
+			}
+		}
+		response.Add(&gofakes3.Content{
+			Key:          prefix.Prefix,
+			LastModified: gofakes3.NewContentTime(time.Now().UTC()),
+			StorageClass: gofakes3.StorageStandard,
+		})
+	}
+	return response, nil
 }
 
 // HeadObject returns the fileinfo for the given object name.
